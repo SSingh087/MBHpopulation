@@ -5,32 +5,17 @@ import matplotlib
 from astropy.constants import G, M_sun, c
 from astropy import units as u
 
-
 # ----- Constants (cgs) -----
-G_sol = G.to(u.pc**3 / (u.M_sun * u.yr**2)) # G to units of pc^3 / (M_sun * yr^2)
-c_sol = c.to(u.pc / u.yr) # pc/year
-G    = 6.6743e-8                            # cm^3 g^-1 s^-2
-Msun = 1.98847e33                           # g
-kpc_to_cm  = 3.0856775814913673e21                # cm
+G_pc3_per_Msun_yr2 = G.to(u.pc**3 / (u.M_sun * u.yr**2)).value # G to units of pc^3 / (M_sun * yr^2)
+c_pc_per_year = c.to(u.pc / u.yr).value # pc/year from m/s
+G_cgs    = 6.6743e-8                            # cm^3 g^-1 s^-2
+c_cgs = c.to(u.cm/u.s).value  # numeric cm/s
+Msun_to_grams = 1.98847e33                           # g
+kpc_to_cm  = 3.0856775814913673e21                  # kpc to cm
+pc_to_cm = 3.0856775814913673e18                   # pc to cm
+Msun, Rsun = 1.0, 1.0                              # solar mass
+sec_per_year = 365 * 24 * 60 * 60
 
-
-def unit_conversion(value, from_unit, to_unit):
-    """
-    Convert a value from one unit to another using astropy.units.
-    Parameters
-    ----------
-    value     : float or array-like
-        The numerical value(s) to convert.
-    from_unit : str or astropy.units.Unit
-        The unit of the input value(s).
-    to_unit   : str or astropy.units.Unit
-        The desired unit for the output value(s).
-    Returns
-    -------
-    converted_value : float or array-like
-        The converted value(s) in the desired unit.
-    """
-    return (value * u.Unit(from_unit)).to(u.Unit(to_unit)).value
 
 class Plotting:
     

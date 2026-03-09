@@ -1,4 +1,3 @@
-
 from utils import *
 
 _f_NSC_Hannah_   = lambda lgMgal: np.exp(-((lgMgal - 7.6)**4) / 400.0)  # arXiv:2407.10911 Fig 4
@@ -19,6 +18,7 @@ class Galaxy:
             Whether nucleation occurs for this galaxy (flag decided externally).
         """
         self.lgMgal = float(lgMgal)
+        self.redshift = None
         self.nucleation_occurs = bool(nucleation_occurs)
 
     @classmethod
@@ -62,18 +62,20 @@ class Galaxy:
         """
         Re_cm = self.R_eff(unit='cm')
         Mstar_linear = 10.0**self.lgMgal
-        M_enclosed_grams = 0.5 * Mstar_linear * Msolarmass_to_grams
+        M_enclosed_grams = 0.5 * Mstar_linear * Msun_to_grams
 
         sig_cgs = np.sqrt(G_cgs * M_enclosed_grams / (kvir * Re_cm))  # cm/s
 
         if unit == 'km/s':
             return sig_cgs / 1e5
+        if unit == 'cm/s':
+            return sig_cgs
         elif unit == 'pc/year':
-            return sig_cgs / 1e3 / c_pc_per_year  # pc/year from m/s
+            return sig_cgs * sec_per_year / pc_to_cm  # pc/year from m/s
         else:
             raise ValueError("Invalid unit. Must be 'km/s' or 'pc/year'")
 
-    def lgMBH_mass(self, A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53, unit='solarmass'):
+    def lgMBH_mass(self, A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53, unit='Msun'):
         """
         log10(MBH/Msun) from M-sigma; add Gaussian scatter.
         Defaults match your Greene+20-like parameters.
@@ -91,6 +93,7 @@ class NSC(Galaxy):
     """
 
     def __init__(self, lgMgal, nucleation_occurs=True, lgMBH=None, MBH_params=None):
+
         """
         Parameters
         ----------
@@ -123,49 +126,33 @@ class NSC(Galaxy):
         """log10(MBH/Msun) fixed for this NSC instance."""
         return self._lgMBH
 
-    @property
-    def Mbh_grams(self):
-        """BH mass in grams."""
-        return (10.0**self._lgMBH) * Msun
-
-    def sigma_cms(self, kvir=1.0):
-        """Velocity dispersion of host in cm/s."""
-        try:
-            return super().sigma(kvir=kvir, unit='cm/s')
-        except Exception:
-            return super().sigma(kvir=kvir, unit='km/s') * 1e5
-
-    # --- BH/NSC characteristic radii ---
-
     def influence_radius(self, kvir=1.0, unit='pc'):
         """
-        r_h = G * M_bh / sigma^2  (Broggi Eq. 12 form; standard definition)
+        r_inf = G * M_bh / sigma^2
         """
-        M = self.Mbh_grams
-        sigma = self.sigma_cms(kvir=kvir)  # cm/s
-        rh_cm = G_cgs * M / (sigma**2)         # cm
+        MBH_mass = 10 ** self._lgMBH
+        rh_pc = G_pc3_per_Msun_yr2 * MBH_mass / (self.sigma(unit='pc/year')**2)
         if unit == 'pc':
-            return rh_cm / pc
+            return rh_pc
         elif unit == 'cm':
-            return rh_cm
+            return rh_pc * pc_to_cm
         else:
             raise ValueError("unit must be 'pc' or 'cm'")
 
     def scale_radius(self, kvir=1.0, factor=4.0, unit='pc'):
-        """Dehnen scale radius r_a = factor * r_h (Broggi Sec. 3.1; default factor=4)."""
-        rh = self.influence_radius(kvir=kvir, unit=unit)
-        return factor * rh
+        """Dehnen scale radius r_a = factor * r_h """
+        return factor * self.influence_radius(kvir=kvir, unit=unit)
 
     def capture_radius(self, unit='pc'):
         """
         Newtonian direct-capture proxy for compact objects:
-        r_BH = 8 * G * M_bh / c^2
+        r_sBH = 8 * G * M_bh / c^2
         """
-        r_cm = 8.0 * G_cgs * self.Mbh_grams / (c_cgs**2)
+        r_sBH_pc = 8.0 * G_pc3_per_Msun_yr2 * (10**self._lgMBH) / (c_pc_per_year**2)
         if unit == 'pc':
-            return r_cm / pc_to_cm
+            return r_sBH_pc
         elif unit == 'cm':
-            return r_cm
+            return r_sBH_pc * pc_to_cm  # Convert back to cm
         else:
             raise ValueError("unit must be 'pc' or 'cm'")
 
@@ -174,10 +161,151 @@ class NSC(Galaxy):
         Stellar tidal disruption radius:
         r_t = R_star * (M_bh / m_star)^(1/3)
         """
-        rt_cm = R_star * (self.Mbh_grams / m_star)**(1.0/3.0)
+        # THIS CALCULATION IS STILL WRONG SINCE THE R_STAR AND M_STAR IS INCORRECT
+        # THIS SHOULD BE DISCUSSED IN THE NEXT MEETING
+        rt_pc = R_star * ((10**self._lgMBH) / m_star)**(1.0/3.0)
         if unit == 'pc':
-            return rt_cm / pc_to_cm
+            return rt_pc
         elif unit == 'cm':
-            return rt_cm
+            return rt_pc * pc_to_cm
         else:
             raise ValueError("unit must be 'pc' or 'cm'")
+
+
+    def dehnen_number_density(self, r, Ntot, gamma=1.5, kind='TDE', unit='pc'):
+        """
+        Dehnen 3D number-density profile n_i(r) for species i (stars or sBHs)
+        n_i(r) = (3-$\gamma$)/(4π) * Ntot * r_a / [ r^$\gamma$ (r + r_a)^(4-$\gamma$) ] 
+
+        Parameters
+        ----------
+        r         : array-like, radii [pc] at which to evaluate
+        Ntot      : float, total number of objects (dimensionless)
+        gamma     : float, inner slope
+        kind      : str, 'TDE' or 'EMRI' (for potential future use in different truncations)
+
+        Returns
+        -------
+        n_i : ndarray, number density [1/pc^3] same shape as r
+        """
+        r_a = self.scale_radius(kvir=1.0, factor=4.0, unit='pc')
+
+        coef = (3.0 - gamma) * float(Ntot) / (4.0 * np.pi)
+
+        r_k = self.capture_radius(unit='pc') if kind.upper() == 'EMRI' else self.tidal_radius_star(unit='pc')
+
+        n = coef * (r_a / (np.power(r, gamma) * np.power(r + r_a, 4.0 - gamma))) * np.heaviside(r - r_k, r_k)  # 1/pc^3
+        n = np.where(np.isfinite(n), n, 0.0)
+
+        return n  # 1/pc^3
+
+    def radial_number_distribution(self, r, Ntot, gamma=1.5, kind='TDE'):
+        """
+        Shell number distribution:
+            n_r(r) = 4π r^2 n_i(r)    [units: 1/pc]
+        """
+        return 4.0 * np.pi * r**2 * self.dehnen_number_density(r, Ntot=Ntot, gamma=gamma, kind=kind)  # 1/pc
+
+    def cumulative_number(self, r, Ntot, gamma=1.5, kind='TDE'):
+        """
+        Cumulative number:
+            N(<r) = ∫_0^r 4π r'^2 n_i(r') dr'
+        """
+        nr = self.radial_number_distribution(r, Ntot=Ntot, gamma=gamma, kind=kind)  # 1/pc
+
+        sort = np.argsort(r)
+        r_s = r[sort]
+        nr_s = nr[sort]
+
+        # trapezoid cumulative
+        if r_s.size > 1:
+            partial = np.concatenate(([0.0], np.cumsum(0.5 * (nr_s[1:] + nr_s[:-1]) * np.diff(r_s))))
+        else:
+            partial = np.zeros_like(r_s)
+
+        # unsort
+        inv = np.argsort(sort)
+        return partial[inv]
+
+    def mass_density(self, r, Ntot, component_masses, gamma=1.5, kind='TDE', renormalize=False, unit='Msun/pc^3'):
+        """
+        Total 3D mass density: rho(r) = sum_i m_i * n_i(r)
+
+        Parameters
+        ----------
+        r       : array-like radii (pc)
+        gamma   :
+        Ntot    :
+        component_masses : in units of solar mass
+        renormalize: if True, rescale n_i so that ∫ 4π r^2 n_i dr (over the provided grid) = Ntot
+        """
+        r = np.asarray(r, dtype=float)
+        m_i = np.asarray(component_masses, dtype=float) # in units of solar mass
+        rho_Msun_pc3 = np.zeros_like(r, dtype=float)  # accumulate in Msun/pc^3
+
+        n_i = self.dehnen_number_density(r, Ntot=Ntot, gamma=gamma, kind=kind)  # 1/pc^3
+
+        for i in range(len(m_i)):
+            m_Msun = m_i[i]
+
+
+            if renormalize:
+                nr = 4.0 * np.pi * r**2 * n_i  # 1/pc
+                sort = np.argsort(r)
+                r_s, nr_s = r[sort], nr[sort]
+                N_calc = np.trapz(nr_s, r_s) if r_s.size > 1 else 0.0
+                if np.isfinite(N_calc) and N_calc > 0.0:
+                    n_i = n_i * (Ntot / N_calc)
+            # Add component mass density (Msun/pc^3)
+            rho_Msun_pc3 += m_Msun * n_i
+
+        if unit == 'Msun/pc^3':
+            return rho_Msun_pc3
+        elif unit == 'g/pc^3':
+            return rho_Msun_pc3 * Msun_to_grams
+        else:
+            raise ValueError("unit must be 'Msun/pc^3' or 'g/pc^3'.")
+
+    def rho_at_rinf(self, Ntot, component_masses, gamma=1.5, kvir=1.0, kind='TDE', unit='Msun/pc^3', renormalize=False):
+        """
+        evaluate rho(r) at r = r_infl (influence radius).
+        Returns scalar density.
+        """
+        r_inf_pc = float(self.influence_radius(kvir=kvir, unit='pc'))
+        rho_arr = self.mass_density([r_inf_pc], Ntot=Ntot, component_masses=component_masses, gamma=gamma, kind=kind, unit=unit, renormalize=renormalize)
+        return float(rho_arr[0])
+
+
+    # def t_relax_rh_cgs(self, components, kvir=1.0, mbar_g=None, lnLambda=15.0, out_unit='s'):
+    #     """
+    #     Two-body (non-resonant) relaxation time at r_h (pure CGS):
+    #         t_rlx ≈ 0.34 * σ^3 / (G^2 * m_bar * ρ(r_h) * lnΛ)
+
+    #     Parameters
+    #     ----------
+    #     components : list of dicts (as in mass_density_from_components_cgs)
+    #     kvir       : float, virial coefficient in σ definition
+    #     mbar_g     : float [g], mean mass per scatterer; default = 1 Msun in grams
+    #     lnLambda   : float, Coulomb logarithm (10–15 typical)
+    #     out_unit   : 's' | 'yr' | 'Gyr' (default 's')
+
+    #     Returns
+    #     -------
+    #     t_rlx : float, relaxation time in requested unit
+    #     """
+    #     if mbar_g is None:
+    #         mbar_g = Msun_to_grams
+
+    #     sigma_cms = self.sigma_cms(kvir=kvir)  # cm/s (float)
+    #     rho_rh, _ = self.rho_at_rh_cgs(components, kvir=kvir)  # g/cm^3
+
+    #     t_sec = 0.34 * (sigma_cms**3) / (G_cgs**2 * mbar_g * rho_rh * float(lnLambda))  # s
+
+    #     if out_unit == 's':
+    #         return t_sec
+    #     elif out_unit == 'yr':
+    #         return t_sec / SEC_PER_YEAR
+    #     elif out_unit == 'Gyr':
+    #         return t_sec / (SEC_PER_YEAR * 1.0e9)
+    #     else:
+    #         raise ValueError("out_unit must be one of: 's', 'yr', 'Gyr'")
