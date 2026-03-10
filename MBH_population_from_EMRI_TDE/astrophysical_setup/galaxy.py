@@ -306,3 +306,11 @@ class NSC(Galaxy):
         rho_at_rinfl = self.rho_at_rinfl(Ntot=Ntot, component_masses=component_masses, gamma=gamma, kvir=kvir, kind=kind, unit='Msun/pc^3')
 
         return self.t_relax(rho_r=rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, gamma=gamma, kvir=kvir, kind=kind, mbar=mbar, lnLambda=lnLambda, unit=unit)
+
+    def cusp_turn_on_time(self):
+        kappa = 0.25  # fraction of t_relax for cusp regrowth; can be tuned
+        t_LMM = self.cosmo.sample_lmm_times_Gyr(self.z_gal, m=2.0, size=1)[0]
+        return t_LMM + kappa * self.t_relax_at_rinfl(Ntot=1e7, component_masses=np.random.uniform(1., 100, 100000), gamma=1.5, kvir=1.0, kind='EMRI', mbar=10, lnLambda=15.0, unit='Gyr')
+
+    def cusp_age(self):
+        return max(0, self.cosmo.age_Gyr(self.z_gal) - self.cusp_turn_on_time())
