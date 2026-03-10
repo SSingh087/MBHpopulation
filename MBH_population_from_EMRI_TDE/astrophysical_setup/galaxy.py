@@ -1,14 +1,15 @@
 from utils import *
+from cosmology import CosmologyModel
 
 _f_NSC_Hannah_   = lambda lgMgal: np.exp(-((lgMgal - 7.6)**4) / 400.0)  # arXiv:2407.10911 Fig 4
 _f_NSC_Neumayer_ = lambda lgMgal: np.exp(-((lgMgal - 9.0)**4) /  50.0)  # arXiv:2001.03626 Fig 3
 
-class Galaxy:
+class Galaxy(CosmologyModel):
     """
     Galaxy with simple size-mass, virial sigma, and M-sigma MBH.
     """
 
-    def __init__(self, lgMgal, nucleation_occurs=True):
+    def __init__(self, lgMgal, z_gal, nucleation_occurs=True):
         """
         Parameters
         ----------
@@ -18,23 +19,22 @@ class Galaxy:
             Whether nucleation occurs for this galaxy (flag decided externally).
         """
         self.lgMgal = float(lgMgal)
-        self.redshift = None
+        self.z_gal = float(z_gal)
         self.nucleation_occurs = bool(nucleation_occurs)
 
     @classmethod
-    def check_nucleation(cls, lgMgal):
+    def check_nucleation(cls, lgMgal, z_gal):
         """
-        Factory that returns a Galaxy instance if nucleation occurs, else None.
-        This mirrors your procedural sampling logic.
+        returns a Galaxy instance if nucleation occurs, else None.
         """
         f = np.random.random()  # scalar in [0,1)
 
         if f < _f_NSC_Hannah_(lgMgal):
             # print(f"nucleation will occur for {lgMgal} (Hannah)")
-            return cls(lgMgal, nucleation_occurs=True)
+            return cls(lgMgal, z_gal, nucleation_occurs=True)
         elif f < _f_NSC_Neumayer_(lgMgal):
             # print(f"nucleation will occur for {lgMgal} (Neumayer)")
-            return cls(lgMgal, nucleation_occurs=True)
+            return cls(lgMgal, z_gal, nucleation_occurs=True)
         else:
             # print(f"NO nucleation for {lgMgal}")
             return None
@@ -92,7 +92,7 @@ class NSC(Galaxy):
     Nuclear Star Cluster / BH scales built on top of Galaxy.
     """
 
-    def __init__(self, lgMgal, nucleation_occurs=True, lgMBH=None, MBH_params=None):
+    def __init__(self, lgMgal, z_gal, nucleation_occurs=True, lgMBH=None, MBH_params=None):
 
         """
         Parameters
@@ -106,7 +106,7 @@ class NSC(Galaxy):
         MBH_params : dict or None
             Keys: A, B, sigma_0, MBH_scatter
         """
-        super().__init__(lgMgal, nucleation_occurs=nucleation_occurs)
+        super().__init__(lgMgal, z_gal, nucleation_occurs=nucleation_occurs)
 
         if MBH_params is None:
             MBH_params = dict(A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53)
@@ -266,7 +266,7 @@ class NSC(Galaxy):
         else:
             raise ValueError("unit must be 'Msun/pc^3' or 'g/pc^3'.")
 
-    def rho_at_rinf(self, Ntot, component_masses, gamma=1.5, kvir=1.0, kind='TDE', unit='Msun/pc^3', renormalize=False):
+    def rho_at_rinfl(self, Ntot, component_masses, gamma=1.5, kvir=1.0, kind='TDE', unit='Msun/pc^3', renormalize=False):
         """
         evaluate rho(r) at r = r_infl (influence radius).
         Returns scalar density.
@@ -275,37 +275,34 @@ class NSC(Galaxy):
         rho_arr = self.mass_density([r_inf_pc], Ntot=Ntot, component_masses=component_masses, gamma=gamma, kind=kind, unit=unit, renormalize=renormalize)
         return float(rho_arr[0])
 
+    def t_relax(self, rho_r, Ntot, component_masses, gamma=1.5, kvir=1.0, kind='TDE', mbar=None, lnLambda=15.0, unit='yr'):
+        """
+        Two-body (non-resonant) relaxation time at r_infl.:
+            t_rlx ≈ 0.34 * $\sigma$^3 / (G^2 * m_bar * $\rho(r_{infl})$ * lnΛ)
 
-    # def t_relax_rh_cgs(self, components, kvir=1.0, mbar_g=None, lnLambda=15.0, out_unit='s'):
-    #     """
-    #     Two-body (non-resonant) relaxation time at r_h (pure CGS):
-    #         t_rlx ≈ 0.34 * σ^3 / (G^2 * m_bar * ρ(r_h) * lnΛ)
+        Parameters
+        ----------
+        kvir       : float, virial coefficient in $\sigma$ definition
+        mbar     : float [g], mean mass per scatterer; default = 1 Msun
+        lnLambda   : float, Coulomb logarithm (10-15 typical)
+        unit   :     'yr' or 'Gyr'
 
-    #     Parameters
-    #     ----------
-    #     components : list of dicts (as in mass_density_from_components_cgs)
-    #     kvir       : float, virial coefficient in σ definition
-    #     mbar_g     : float [g], mean mass per scatterer; default = 1 Msun in grams
-    #     lnLambda   : float, Coulomb logarithm (10–15 typical)
-    #     out_unit   : 's' | 'yr' | 'Gyr' (default 's')
+        Returns
+        -------
+        t_rlx : float, relaxation time in requested unit
+        """
 
-    #     Returns
-    #     -------
-    #     t_rlx : float, relaxation time in requested unit
-    #     """
-    #     if mbar_g is None:
-    #         mbar_g = Msun_to_grams
+        t_yr = 0.34 * (self.sigma(unit='pc/year')**3) / (G_pc3_per_Msun_yr2**2 * mbar * rho_r * lnLambda)
 
-    #     sigma_cms = self.sigma_cms(kvir=kvir)  # cm/s (float)
-    #     rho_rh, _ = self.rho_at_rh_cgs(components, kvir=kvir)  # g/cm^3
+        if unit == 'yr':
+            return t_yr
+        elif unit == 'Gyr':
+            return t_yr / 1.0e9
+        else:
+            raise ValueError("unit must be one of: 'yr', 'Gyr'")
 
-    #     t_sec = 0.34 * (sigma_cms**3) / (G_cgs**2 * mbar_g * rho_rh * float(lnLambda))  # s
+    def t_relax_at_rinfl(self, Ntot, component_masses, gamma=1.5, kvir=1.0, kind='TDE', mbar=None, lnLambda=15.0, unit='yr'):
 
-    #     if out_unit == 's':
-    #         return t_sec
-    #     elif out_unit == 'yr':
-    #         return t_sec / SEC_PER_YEAR
-    #     elif out_unit == 'Gyr':
-    #         return t_sec / (SEC_PER_YEAR * 1.0e9)
-    #     else:
-    #         raise ValueError("out_unit must be one of: 's', 'yr', 'Gyr'")
+        rho_at_rinfl = self.rho_at_rinfl(Ntot=Ntot, component_masses=component_masses, gamma=gamma, kvir=kvir, kind=kind, unit='Msun/pc^3')
+
+        return self.t_relax(rho_r=rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, gamma=gamma, kvir=kvir, kind=kind, mbar=mbar, lnLambda=lnLambda, unit=unit)
