@@ -86,7 +86,6 @@ class Galaxy(CosmologyModel):
         return lgMBH
 
 
-
 class NSC(Galaxy):
     """
     Nuclear Star Cluster / BH scales built on top of Galaxy.
@@ -180,7 +179,7 @@ class NSCProfile(NSC):
         self.gamma_initial = float(gamma_initial)
         self.lnLambda = 15.0 # Coulomb logarithm for relaxation time; can be tuned
 
-    def dehnen_number_density(self, r, Ntot, kind='TDE', unit='pc'):
+    def dehnen_number_density(self, r, Ntot, kind='TDE', unit='1/pc^3'):
         """
         Dehnen 3D number-density profile n_i(r) for species i (stars or sBHs)
         n_i(r) = (3-$\gamma$)/(4π) * Ntot * r_a / [ r^$\gamma$ (r + r_a)^(4-$\gamma$) ] 
@@ -207,7 +206,7 @@ class NSCProfile(NSC):
 
         return n  # 1/pc^3
 
-    def radial_number_distribution(self, r, Ntot, kind='TDE'):
+    def radial_number_distribution(self, r, Ntot, kind='TDE', unit='1/pc'):
         """
         Shell number distribution:
             n_r(r) = 4π r^2 n_i(r)    [units: 1/pc]

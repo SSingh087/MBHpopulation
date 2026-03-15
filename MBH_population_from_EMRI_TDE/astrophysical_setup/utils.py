@@ -75,3 +75,49 @@ class Plotting:
         plt.savefig('lgMstar_vs_f_NSC.pdf')
         plt.show()
         plt.close()
+
+
+    @staticmethod
+    def plot_NSCprofile(NSC_obj, r: np.ndarray, component_masses: np.ndarray, kind='TDE', Ntot=1e5):
+        
+        r_inf = NSC_obj.influence_radius(unit='pc')
+        r_cap = NSC_obj.capture_radius(unit='pc')
+        r_tid = NSC_obj.tidal_radius_star(unit='pc')
+
+        n_star = NSC_obj.dehnen_number_density(r, Ntot=Ntot, kind=kind, unit='1/pc^3')
+        nr_star = NSC_obj.radial_number_distribution(r, Ntot=Ntot, kind=kind, unit='1/pc')
+        rho_star = NSC_obj.mass_density(r=r, Ntot=Ntot, component_masses=component_masses, kind=kind, unit='Msun/pc^3')
+
+        fig, ax = plt.subplots(1, 3, figsize=(12, 5), sharex=True)
+        ax[0].loglog(r, n_star, label='$n_i^\mathrm{EMRI}(r)$')
+        ax[0].set_xlabel('r [pc]')
+        ax[0].set_ylabel(r'$1/\mathrm{pc}^3$')
+        ax[0].vlines(r_inf, np.min(n_star), np.max(n_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
+        ax[0].legend()
+
+        ax[1].loglog(r, nr_star, label='$n_r^\mathrm{EMRI}(r)$')
+        ax[1].set_xlabel('r [pc]')
+        ax[1].set_ylabel(r'$1/\mathrm{pc}$')
+        ax[1].vlines(r_inf, np.min(nr_star), np.max(nr_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
+        ax[1].legend()  
+
+        ax[2].loglog(r, rho_star, label='$\\rho^\mathrm{EMRI}(r)$')
+        ax[2].set_xlabel('r [pc]')
+        ax[2].set_ylabel('$M_\odot/\mathrm{pc}^3$')
+        ax[2].vlines(r_inf, np.min(rho_star), np.max(rho_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
+        ax[2].legend()
+
+        plt.savefig(f"{NSC_obj.lgMgal}_properties.pdf", dpi=200)
+        plt.show()
+
+    @staticmethod
+    def plot_rate_evolution(tau: np.ndarray, rate_EMRI: np.ndarray, rate_TDE: np.ndarray):
+        plt.plot(tau, rate_EMRI, label='EMRI')
+        plt.plot(tau, rate_TDE, label='TDE')
+        plt.legend()
+        plt.xlabel(r'$\tau=t/t_{\mathrm{EMRI}}$')
+        plt.ylabel(r'$\Gamma_k/\hat{\Gamma}_k$')
+        plt.tight_layout()
+        plt.savefig('rate_evolution.pdf', dpi=200)
+        plt.show()
+
