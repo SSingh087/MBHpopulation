@@ -22,40 +22,40 @@ m = 2.0
 # Plotting.plot_lgMgal_vs_lgMBH(lgMgal, lgMBH)
 # Plotting.plot_lgMgal_vs_lgsigma(lgMgal, sigma)
 
-# # SINGLE VALUE CHECK
-# lgMgal = 10.0
-# obj = NSC.check_nucleation(lgMgal, z_obs)
-# if obj:
-#     print(obj.z_gal)
-#     # r = np.logspace(-5, 3, 100)  # pc
-#     # r_inf = obj.influence_radius(unit='pc')
-#     # r_cap = obj.capture_radius(unit='pc')
-#     # r_tid = obj.tidal_radius_star(unit='pc')
-#     # n_star = obj.dehnen_number_density(r, Ntot=1e5, gamma=1.5, kind='EMRI')
-#     # nr_star = obj.radial_number_distribution(r, Ntot=1e5, gamma=1.5, kind='EMRI')
-#     # Ncum_star = obj.cumulative_number(r, Ntot=1e5, gamma=1.5, kind='EMRI')
-#     # rho_star = obj.mass_density(r, Ntot=1e5, component_masses=np.random.uniform(1., 100, 100000), gamma=1.5, kind='EMRI', unit='Msun/pc^3')
-#     # print(f"r_inf={r_inf:.3e} pc, r_cap={r_cap:.3e} pc, r_tid={r_tid:.3e} pc,")
-#     # N(<r_max)={Ncum_star.max():.5e}")
-#     # print(np.max(n_star), r_tid, r_inf, r_cap)
-#     # breakpoint()
-#     # plt.loglog(r, n_star, label='$n_i^\mathrm{EMRI}(r)$')
-#     # plt.loglog(r, nr_star, label='$n_r^\mathrm{EMRI}(r)$')
-#     # plt.loglog(r, Ncum_star, label='$N_\mathrm{EMRI}(r)$')
-#     # plt.loglog(r, rho_star, label='$\\rho^\mathrm{EMRI}(r)$')
-#     # # plt.vlines(r_tid, np.min(n_star), np.max(n_star), label='$r_\mathrm{star}$', color='red')
-#     # plt.vlines(r_inf, np.min(n_star), np.max(n_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
-#     # # plt.vlines(r_cap, np.min(n_star), np.max(n_star), label='$r_\mathrm{sBH}$', linestyle=':', color='pink')
-#     # plt.xlabel('pc')
-#     # plt.legend()
-#     # plt.savefig(f"{lgMgal}_properties.pdf", dpi=200)
-#     # plt.show()
+# SINGLE VALUE CHECK
+lgMgal = 10.0
+obj = NSCProfile(lgMgal, z_obs, gamma_initial=1.5).check_nucleation(lgMgal, z_obs)
+if obj:
+    print(obj.z_gal)
+    # r = np.logspace(-5, 3, 100)  # pc
+    # r_inf = obj.influence_radius(unit='pc')
+    # r_cap = obj.capture_radius(unit='pc')
+    # r_tid = obj.tidal_radius_star(unit='pc')
+    # n_star = obj.dehnen_number_density(r, Ntot=1e5, gamma=1.5, kind='EMRI')
+    # nr_star = obj.radial_number_distribution(r, Ntot=1e5, gamma=1.5, kind='EMRI')
+    # Ncum_star = obj.cumulative_number(r, Ntot=1e5, gamma=1.5, kind='EMRI')
+    # rho_star = obj.mass_density(r, Ntot=1e5, component_masses=np.random.uniform(1., 100, 100000), gamma=1.5, kind='EMRI', unit='Msun/pc^3')
+    # print(f"r_inf={r_inf:.3e} pc, r_cap={r_cap:.3e} pc, r_tid={r_tid:.3e} pc,")
+    # N(<r_max)={Ncum_star.max():.5e}")
+    # print(np.max(n_star), r_tid, r_inf, r_cap)
+    # breakpoint()
+    # plt.loglog(r, n_star, label='$n_i^\mathrm{EMRI}(r)$')
+    # plt.loglog(r, nr_star, label='$n_r^\mathrm{EMRI}(r)$')
+    # plt.loglog(r, Ncum_star, label='$N_\mathrm{EMRI}(r)$')
+    # plt.loglog(r, rho_star, label='$\\rho^\mathrm{EMRI}(r)$')
+    # # plt.vlines(r_tid, np.min(n_star), np.max(n_star), label='$r_\mathrm{star}$', color='red')
+    # plt.vlines(r_inf, np.min(n_star), np.max(n_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
+    # # plt.vlines(r_cap, np.min(n_star), np.max(n_star), label='$r_\mathrm{sBH}$', linestyle=':', color='pink')
+    # plt.xlabel('pc')
+    # plt.legend()
+    # plt.savefig(f"{lgMgal}_properties.pdf", dpi=200)
+    # plt.show()
 
-#     # print(obj.rho_at_rinfl(Ntot=1e5, component_masses=np.random.uniform(1., 100, 100000), gamma=1.5, kvir=1.0, kind='EMRI', unit='Msun/pc^3', renormalize=True))
-#     t_rlx = obj.t_relax_at_rinfl(Ntot=1e7, component_masses=np.random.uniform(1., 100, 100000), gamma=1.5, kvir=1.0, kind='EMRI', mbar=10, lnLambda=15.0, unit='yr')
-#     print(t_rlx)
-# else:
-#     print("No nucleation in this draw.")
+    # print(obj.rho_at_rinfl(Ntot=1e5, component_masses=np.random.uniform(1., 100, 100000), gamma=1.5, kvir=1.0, kind='EMRI', unit='Msun/pc^3', renormalize=True))
+    t_rlx = obj.t_relax_at_rinfl(Ntot=1e7, component_masses=np.random.uniform(1., 100, 100000), kvir=1.0, kind='EMRI', mbar=10, unit='Gyr')
+    print(t_rlx)
+else:
+    print("No nucleation in this draw.")
 
 
 

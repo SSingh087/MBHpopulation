@@ -171,8 +171,16 @@ class NSC(Galaxy):
         else:
             raise ValueError("unit must be 'pc' or 'cm'")
 
+class NSCProfile(NSC):
 
-    def dehnen_number_density(self, r, Ntot, gamma=1.5, kind='TDE', unit='pc'):
+    def __init__(self, lgMgal, z_gal, gamma_initial=1.5, nucleation_occurs=True, lgMBH=None, MBH_params=None):
+        
+        super().__init__(lgMgal, z_gal, nucleation_occurs=nucleation_occurs)
+        
+        self.gamma_initial = float(gamma_initial)
+        self.lnLambda = 15.0 # Coulomb logarithm for relaxation time; can be tuned
+
+    def dehnen_number_density(self, r, Ntot, kind='TDE', unit='pc'):
         """
         Dehnen 3D number-density profile n_i(r) for species i (stars or sBHs)
         n_i(r) = (3-$\gamma$)/(4π) * Ntot * r_a / [ r^$\gamma$ (r + r_a)^(4-$\gamma$) ] 
@@ -190,28 +198,28 @@ class NSC(Galaxy):
         """
         r_a = self.scale_radius(kvir=1.0, factor=4.0, unit='pc')
 
-        coef = (3.0 - gamma) * float(Ntot) / (4.0 * np.pi)
+        coef = (3.0 - self.gamma_initial) * float(Ntot) / (4.0 * np.pi)
 
         r_k = self.capture_radius(unit='pc') if kind.upper() == 'EMRI' else self.tidal_radius_star(unit='pc')
 
-        n = coef * (r_a / (np.power(r, gamma) * np.power(r + r_a, 4.0 - gamma))) * np.heaviside(r - r_k, r_k)  # 1/pc^3
+        n = coef * (r_a / (np.power(r, self.gamma_initial) * np.power(r + r_a, 4.0 - self.gamma_initial))) * np.heaviside(r - r_k, r_k)  # 1/pc^3
         n = np.where(np.isfinite(n), n, 0.0)
 
         return n  # 1/pc^3
 
-    def radial_number_distribution(self, r, Ntot, gamma=1.5, kind='TDE'):
+    def radial_number_distribution(self, r, Ntot, kind='TDE'):
         """
         Shell number distribution:
             n_r(r) = 4π r^2 n_i(r)    [units: 1/pc]
         """
-        return 4.0 * np.pi * r**2 * self.dehnen_number_density(r, Ntot=Ntot, gamma=gamma, kind=kind)  # 1/pc
+        return 4.0 * np.pi * r**2 * self.dehnen_number_density(r, Ntot=Ntot, kind=kind)  # 1/pc
 
-    def cumulative_number(self, r, Ntot, gamma=1.5, kind='TDE'):
+    def cumulative_number(self, r, Ntot, kind='TDE'):
         """
         Cumulative number:
             N(<r) = ∫_0^r 4π r'^2 n_i(r') dr'
         """
-        nr = self.radial_number_distribution(r, Ntot=Ntot, gamma=gamma, kind=kind)  # 1/pc
+        nr = self.radial_number_distribution(r, Ntot=Ntot, kind=kind)  # 1/pc
 
         sort = np.argsort(r)
         r_s = r[sort]
@@ -227,7 +235,7 @@ class NSC(Galaxy):
         inv = np.argsort(sort)
         return partial[inv]
 
-    def mass_density(self, r, Ntot, component_masses, gamma=1.5, kind='TDE', renormalize=False, unit='Msun/pc^3'):
+    def mass_density(self, r, Ntot, component_masses, kind='TDE', renormalize=False, unit='Msun/pc^3'):
         """
         Total 3D mass density: rho(r) = sum_i m_i * n_i(r)
 
@@ -243,7 +251,7 @@ class NSC(Galaxy):
         m_i = np.asarray(component_masses, dtype=float) # in units of solar mass
         rho_Msun_pc3 = np.zeros_like(r, dtype=float)  # accumulate in Msun/pc^3
 
-        n_i = self.dehnen_number_density(r, Ntot=Ntot, gamma=gamma, kind=kind)  # 1/pc^3
+        n_i = self.dehnen_number_density(r, Ntot=Ntot, kind=kind)  # 1/pc^3
 
         for i in range(len(m_i)):
             m_Msun = m_i[i]
@@ -266,16 +274,16 @@ class NSC(Galaxy):
         else:
             raise ValueError("unit must be 'Msun/pc^3' or 'g/pc^3'.")
 
-    def rho_at_rinfl(self, Ntot, component_masses, gamma=1.5, kvir=1.0, kind='TDE', unit='Msun/pc^3', renormalize=False):
+    def rho_at_rinfl(self, Ntot, component_masses, kvir=1.0, kind='TDE', unit='Msun/pc^3', renormalize=False):
         """
         evaluate rho(r) at r = r_infl (influence radius).
         Returns scalar density.
         """
         r_inf_pc = float(self.influence_radius(kvir=kvir, unit='pc'))
-        rho_arr = self.mass_density([r_inf_pc], Ntot=Ntot, component_masses=component_masses, gamma=gamma, kind=kind, unit=unit, renormalize=renormalize)
+        rho_arr = self.mass_density([r_inf_pc], Ntot=Ntot, component_masses=component_masses, kind=kind, unit=unit, renormalize=renormalize)
         return float(rho_arr[0])
 
-    def t_relax(self, rho_r, Ntot, component_masses, gamma=1.5, kvir=1.0, kind='TDE', mbar=None, lnLambda=15.0, unit='yr'):
+    def t_relax(self, rho_r, Ntot, component_masses, kvir=1.0, kind='TDE', mbar=None, unit='Gyr'):
         """
         Two-body (non-resonant) relaxation time at r_infl.:
             t_rlx ≈ 0.34 * $\sigma$^3 / (G^2 * m_bar * $\rho(r_{infl})$ * lnΛ)
@@ -292,7 +300,7 @@ class NSC(Galaxy):
         t_rlx : float, relaxation time in requested unit
         """
 
-        t_yr = 0.34 * (self.sigma(unit='pc/year')**3) / (G_pc3_per_Msun_yr2**2 * mbar * rho_r * lnLambda)
+        t_yr = 0.34 * (self.sigma(unit='pc/year')**3) / (G_pc3_per_Msun_yr2**2 * mbar * rho_r * self.lnLambda)
 
         if unit == 'yr':
             return t_yr
@@ -301,16 +309,16 @@ class NSC(Galaxy):
         else:
             raise ValueError("unit must be one of: 'yr', 'Gyr'")
 
-    def t_relax_at_rinfl(self, Ntot, component_masses, gamma=1.5, kvir=1.0, kind='TDE', mbar=None, lnLambda=15.0, unit='yr'):
+    def t_relax_at_rinfl(self, Ntot, component_masses, kvir=1.0, kind='TDE', mbar=None, unit='Gyr'):
 
-        rho_at_rinfl = self.rho_at_rinfl(Ntot=Ntot, component_masses=component_masses, gamma=gamma, kvir=kvir, kind=kind, unit='Msun/pc^3')
+        rho_at_rinfl = self.rho_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, unit='Msun/pc^3')
 
-        return self.t_relax(rho_r=rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, gamma=gamma, kvir=kvir, kind=kind, mbar=mbar, lnLambda=lnLambda, unit=unit)
+        return self.t_relax(rho_r=rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, mbar=mbar, unit=unit)
 
-    def cusp_turn_on_time(self):
+    def cusp_turn_on_time(self, Ntot, component_masses, kvir=1.0, kind='TDE', mbar=None, unit='Gyr'):
         kappa = 0.25  # fraction of t_relax for cusp regrowth; can be tuned
         t_LMM = self.cosmo.sample_lmm_times_Gyr(self.z_gal, m=2.0, size=1)[0]
-        return t_LMM + kappa * self.t_relax_at_rinfl(Ntot=1e7, component_masses=np.random.uniform(1., 100, 100000), gamma=1.5, kvir=1.0, kind='EMRI', mbar=10, lnLambda=15.0, unit='Gyr')
+        return t_LMM + kappa * self.t_relax_at_rinfl(Ntot=1e7, component_masses=component_masses, kvir=kvir, kind=kind, mbar=mbar, unit=unit)
 
     def cusp_age(self):
         return max(0, self.cosmo.age_Gyr(self.z_gal) - self.cusp_turn_on_time())
