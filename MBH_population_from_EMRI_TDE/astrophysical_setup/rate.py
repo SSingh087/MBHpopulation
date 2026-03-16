@@ -7,9 +7,8 @@ from scipy.stats import beta, norm
 # from utils import Plotting, Distributions
 
 class RateModel:
-    def __init__(self, nsc: NSC, tau_grid: np.ndarray):
+    def __init__(self, nsc: NSC):
         self.nsc = nsc
-        self.tau_grid = tau_grid
 
     def peak_EMRI_rate(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
         """
@@ -33,30 +32,16 @@ class RateModel:
         
         return a * (MBH)**b + (sigma/sigma_0)**c 
 
-    def universal_EMRI_rate(self):
+    def universal_EMRI_rate(self, tau_grid):
         # this should be replaced by the values that Luca will provide, but for now we can use similar looking distributions to test the code
         # From arXiv:2205.06277v1 Fig 6 
         a, b = 2.0, 5.0
-        return beta.pdf(self.tau_grid, a, b)
+        return beta.pdf(tau_grid, a, b)
 
 
-    def universal_TDE_rate(self):
+    def universal_TDE_rate(self, tau_grid):
         # this should be replaced by the values that Luca will provide, but for now we can use similar looking distributions to test the code
         # From arXiv:2205.06277v1 Fig 6 
         mu, sigma = 1e-7, 0.05
         a, b = 2.0, 5.0
-        return norm.pdf(self.tau_grid, mu, sigma) + beta.pdf(self.tau_grid, a, b)
-
-# tau = np.linspace(0, 1, 1000)
-# rate = RateModel(tau)
-
-# # Plotting.plot_rate_evolution(tau, rate.universal_EMRI_rate(), rate.universal_TDE_rate())
-
-# pdf = rate.universal_EMRI_rate()
-# samples = Distributions(tau, pdf).get_samples(size=1000)
-
-# import matplotlib.pyplot as plt
-# plt.hist(samples, bins=50, density=True)
-# plt.xlabel(r'$\tau$')
-# plt.ylabel('samples')
-# plt.show()time_to_peak_EMRI_rate
+        return norm.pdf(tau_grid, mu, sigma) + beta.pdf(tau_grid, a, b)

@@ -4,8 +4,10 @@ import numpy as np
 from config import (kappa_cusp)
 from nsc import NSC
 from relaxation import RelaxationModel
-from rates import RateModel
+from rate import RateModel
 from cosmology import CosmologyModel
+
+from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
 
 class CuspEvolution:
     """
@@ -17,11 +19,11 @@ class CuspEvolution:
       - cosmological LMM sampling
     """
 
-    def __init__(self, nsc: NSC, relaxation: RelaxationModel, rates: RateModel, cosmology: CosmologyModel, kappa: float = kappa_cusp_default):
+    def __init__(self, nsc: NSC, relaxation: RelaxationModel, rate_model: RateModel, cosmology: CosmologyModel, kappa: float = kappa_cusp):
 
         self.nsc = nsc
         self.relaxation = relaxation
-        self.rates = rates
+        self.rate_model = rate_model
         self.cosmo = cosmology
         self.kappa = float(kappa)
 
@@ -30,61 +32,43 @@ class CuspEvolution:
         t_on = t_LMM + kappa * t_relax_at_rinf
         """
         # Sample LMM redshift and times (returns a 3-tuple)
-        z_LMM, t_LMM, t_obs = self.cosmo.sample_lmm_times_Gyr(
-            z_obs=self.nsc.gal.z,
-            m=2.0
-        )
+        z_LMM, t_LMM, t_obs = self.cosmo.sample_lmm_times_Gyr(z_obs=self.nsc.gal.z_gal, m=2.0)
 
         # Relaxation time at r_infl
-        t_relax_rinf = self.relaxation.t_relax_at_rinf(Ntot=Ntot, component_masses=component_masses,
-                                    kvir=kvir, kind=kind, mbar=mbar, unit=unit)
+        t_relax_rinf = self.relaxation.t_relax_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, mbar=mbar, unit=unit)
 
         # Cusp turn-on time 
         return t_LMM + self.kappa * t_relax_rinf
 
-    def cusp_age(
-        self,
-        Ntot: float,
-        component_masses: Sequence[float],
-        kvir: float = 1.0,
-        kind: str = 'TDE',
-        mbar: Optional[float] = None
-    ):
+    def cusp_age(self, Ntot: float, component_masses: Sequence[float], kvir: float = 1.0, kind: str = 'TDE', mbar: Optional[float] = None, unit: str = 'Gyr'):
         """
-        Cusp age = max(0, t_obs - t_on).
-
-        Preserves your original formula:
-
-            cusp_age = max(0, cosmology.age_Gyr(z) - cusp_turn_on_time)
+        cusp_age = max(0, cosmology.age_Gyr(z) - cusp_turn_on_time)
         """
-        t_on = self.cusp_turn_on_time(
-            Ntot=Ntot,
-            component_masses=component_masses,
-            kvir=kvir,
-            kind=kind,
-            mbar=mbar,
-            unit='Gyr'
-        )
+        t_on = self.cusp_turn_on_time(Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, mbar=mbar, unit='Gyr')
 
-        t_obs = self.cosmo.age_Gyr(self.nsc.gal.z)
+        t_obs = self.cosmo.age_Gyr(self.nsc.gal.z_gal)
         return max(0.0, t_obs - t_on)
 
+    def accumulated_objects_within_time(self, Ntot: float, component_masses: Sequence[float], kvir: float = 1.0, kind: str = 'TDE', mbar: Optional[float] = None, unit: str = 'Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
 
-    def accumulated_objects_within_time(self, A=None, B=None, sigma_0=None, MBH_scatter=None):
+        T_c = self.cusp_age(Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, mbar=mbar, unit=unit)
 
-        T_c = self.cusp_age(
-            Ntot=None,
-            component_masses=None  
-        )
+        t_EMRI = self.rate_model.time_to_peak_EMRI_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
 
-        t_EMRI = self.rates.time_to_peak_EMRI_rate(
-            A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter
-        )
+        Gamma_hat_EMRI = self.rate_model.peak_EMRI_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
 
-        # This line preserved exactly as your original (buggy) code
-        try:
-            tau = Tc / t_EMRI     # original variable name mismatch preserved
-        except Exception:
-            tau = None
-
-        return tau
+        tau_final = T_c / t_EMRI
+        tau_grid = np.linspace(1E-6, tau_final, 4096)
+        
+        if kind == 'EMRI':
+            _rate_ = self.rate_model.universal_EMRI_rate(tau_grid)
+        
+        if kind == 'TDE':
+            _rate_ = self.rate_model.universal_TDE_rate(tau_grid)
+        
+        cummulative_distribution = np.trapezoid(_rate_, tau_grid)
+        print(cummulative_distribution)
+        N_EMRIs = Gamma_hat_EMRI * t_EMRI * cummulative_distribution
+        
+        breakpoint()
+        return N_EMRIs

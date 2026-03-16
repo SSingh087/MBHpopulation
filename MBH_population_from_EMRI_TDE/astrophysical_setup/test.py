@@ -5,7 +5,8 @@ from nsc import NSC
 from density import DehnenProfile
 from relaxation import RelaxationModel
 from rate import RateModel
-
+from evolution import CuspEvolution
+from cosmology import CosmologyModel
 
 lgMgal = 10.0
 z_obs = 0.5
@@ -44,22 +45,32 @@ if obj:
 
     print(relax_obj.t_relax_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr'))
 
-    tau = np.linspace(0, 1, 1000)
-    rate_obj = RateModel(NSC_obj, tau)
+    tau_grid = np.linspace(0, 1, 1000)
+    rate_obj = RateModel(NSC_obj)
 
     print(f"t_EMRI: {rate_obj.time_to_peak_EMRI_rate()}, Gamma_hat_EMRI: {rate_obj.peak_EMRI_rate()}")
 
-    Plotting.plot_rate_evolution(tau, rate_obj.universal_EMRI_rate(), rate_obj.universal_TDE_rate())
+    # Plotting.plot_rate_evolution(tau, rate_obj.universal_EMRI_rate(tau_grid), rate_obj.universal_TDE_rate(tau_grid))
     
-    pdf = rate_obj.universal_EMRI_rate()
-    samples = Distributions(tau, pdf).get_samples(size=1000)
+    # pdf = rate_obj.universal_EMRI_rate(tau_grid)
+    # samples = Distributions(tau, pdf).get_samples(size=1000)
 
-    import matplotlib.pyplot as plt
-    plt.hist(samples, bins=50, density=True)
-    plt.xlabel(r'$\tau$')
-    plt.ylabel('samples')
-    plt.show()
-    plt.savefig('samples_Rate_EMRI.pdf', dpi=200)
+    # import matplotlib.pyplot as plt
+    # plt.hist(samples, bins=50, density=True)
+    # plt.xlabel(r'$\tau$')
+    # plt.ylabel('samples')
+    # plt.tight_layout()
+    # plt.savefig('samples_Rate_EMRI.pdf', dpi=200)
+    # plt.show()
+
+    cusp_evolution_object = CuspEvolution(NSC_obj, relax_obj, rate_obj, CosmologyModel())
+    t_on = cusp_evolution_object.cusp_turn_on_time(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
+    cusp_age = cusp_evolution_object.cusp_age(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
+    print(f"t_ON : {t_on}, T_c : {cusp_age}")
+    
+    accumulated_EMRIs = cusp_evolution_object.accumulated_objects_within_time(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
+
+    print(f"Total number of EMRIs accumulated for a cusp age of {cusp_age} Gyr is {accumulated_EMRIs}.")
 
 
 else:
