@@ -6,15 +6,32 @@ from astropy.constants import G, M_sun, c
 from astropy import units as u
 
 # ----- Constants (cgs) -----
-G_pc3_per_Msun_yr2 = G.to(u.pc**3 / (u.M_sun * u.yr**2)).value # G to units of pc^3 / (M_sun * yr^2)
-c_pc_per_year = c.to(u.pc / u.yr).value # pc/year from m/s
-G_cgs    = 6.6743e-8                            # cm^3 g^-1 s^-2
-c_cgs = c.to(u.cm/u.s).value  # numeric cm/s
-Msun_to_grams = 1.98847e33                           # g
-kpc_to_cm  = 3.0856775814913673e21                  # kpc to cm
-pc_to_cm = 3.0856775814913673e18                   # pc to cm
-Msun, Rsun = 1.0, 1.0                              # solar mass
-sec_per_year = 365 * 24 * 60 * 60
+
+class Distributions:
+    def __init__(self, x, pdf):
+        self.x = x
+        self.pdf_unnormalized = pdf 
+        self.pdf = self.pdf_unnormalized / np.trapezoid(self.pdf_unnormalized, self.x)
+        self.cdf = self.cdf_from_pdf()
+
+    def cdf_from_pdf(self):
+        
+        cdf = np.empty_like(self.pdf)
+        cdf[0] = 0.0
+        cdf[1:] = np.cumsum(0.5 * (self.pdf[1:] + self.pdf[:-1]) * np.diff(self.x))
+        # Numerical guard : enforce last value to be exactly 1
+        cdf = np.clip(cdf, 0.0, 1.0)
+        return cdf
+
+    def draw_samples(self, size=1000):
+        u = np.random.uniform(0.0, 1.0, size=size)
+        u = np.clip(u, self.cdf.min(), self.cdf.max())
+        return np.interp(u, self.cdf, self.x)
+
+    def get_samples(self, size=1000):
+        cdf = self.cdf_from_pdf()
+        samples = self.draw_samples(size=size)
+        return samples
 
 
 class Plotting:
@@ -78,17 +95,17 @@ class Plotting:
 
 
     @staticmethod
-    def plot_NSCprofile(NSC_obj, r: np.ndarray, component_masses: np.ndarray, kind='TDE', Ntot=1e5):
+    def plot_NSCprofile(NSC_obj, profile_obj, r: np.ndarray, component_masses: np.ndarray, kind='TDE', Ntot=1e5):
         
-        r_inf = NSC_obj.influence_radius(unit='pc')
-        r_cap = NSC_obj.capture_radius(unit='pc')
-        r_tid = NSC_obj.tidal_radius_star(unit='pc')
+        r_inf = NSC_obj.r_influence(unit='pc')
+        r_cap = NSC_obj.r_capture(unit='pc')
+        r_tid = NSC_obj.r_tidal(unit='pc')
 
-        n_star = NSC_obj.dehnen_number_density(r, Ntot=Ntot, kind=kind, unit='1/pc^3')
-        nr_star = NSC_obj.radial_number_distribution(r, Ntot=Ntot, kind=kind, unit='1/pc')
-        rho_star = NSC_obj.mass_density(r=r, Ntot=Ntot, component_masses=component_masses, kind=kind, unit='Msun/pc^3')
+        n_star = profile_obj.dehnen_number_density(r, Ntot=Ntot, kind=kind, unit='1/pc^3')
+        nr_star = profile_obj.radial_number_distribution(r, Ntot=Ntot, kind=kind, unit='1/pc')
+        rho_star = profile_obj.mass_density(r=r, Ntot=Ntot, component_masses=component_masses, kind=kind, unit='Msun/pc^3')
 
-        fig, ax = plt.subplots(1, 3, figsize=(12, 5), sharex=True)
+        fig, ax = plt.subplots(1, 3, figsize=(16, 5), sharex=True)
         ax[0].loglog(r, n_star, label='$n_i^\mathrm{EMRI}(r)$')
         ax[0].set_xlabel('r [pc]')
         ax[0].set_ylabel(r'$1/\mathrm{pc}^3$')
@@ -107,7 +124,7 @@ class Plotting:
         ax[2].vlines(r_inf, np.min(rho_star), np.max(rho_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
         ax[2].legend()
 
-        plt.savefig(f"{NSC_obj.lgMgal}_properties.pdf", dpi=200)
+        plt.savefig(f"{NSC_obj.gal.lgMgal}_properties.pdf", dpi=200)
         plt.show()
 
     @staticmethod
@@ -120,4 +137,3 @@ class Plotting:
         plt.tight_layout()
         plt.savefig('rate_evolution.pdf', dpi=200)
         plt.show()
-

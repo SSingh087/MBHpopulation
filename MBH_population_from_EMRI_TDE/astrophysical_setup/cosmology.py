@@ -1,4 +1,3 @@
-# cosmology.py
 from dataclasses import dataclass
 from typing import Tuple, Optional
 import numpy as np
