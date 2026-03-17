@@ -6,7 +6,7 @@ from density import DehnenProfile
 from relaxation import RelaxationModel
 from rate import RateModel
 from evolution import CuspEvolution
-from cosmology import CosmologyModel
+from cosmology import LastMajorMerger
 
 lgMgal = 10.0
 z_obs = 0.5
@@ -63,7 +63,7 @@ if obj:
     # plt.savefig('samples_Rate_EMRI.pdf', dpi=200)
     # plt.show()
 
-    cusp_evolution_object = CuspEvolution(NSC_obj, relax_obj, rate_obj, CosmologyModel())
+    cusp_evolution_object = CuspEvolution(NSC_obj, relax_obj, rate_obj, LastMajorMerger())
     t_on = cusp_evolution_object.cusp_turn_on_time(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
     cusp_age = cusp_evolution_object.cusp_age(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
     print(f"t_ON : {t_on}, T_c : {cusp_age}")

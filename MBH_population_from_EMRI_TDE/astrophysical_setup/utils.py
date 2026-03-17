@@ -5,8 +5,6 @@ import matplotlib
 from astropy.constants import G, M_sun, c
 from astropy import units as u
 
-# ----- Constants (cgs) -----
-
 class Distributions:
     def __init__(self, x, pdf):
         self.x = x

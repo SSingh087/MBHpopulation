@@ -5,7 +5,7 @@ from config import (kappa_cusp)
 from nsc import NSC
 from relaxation import RelaxationModel
 from rate import RateModel
-from cosmology import CosmologyModel
+from cosmology import LastMajorMerger
 
 from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
 
@@ -19,7 +19,7 @@ class CuspEvolution:
       - cosmological LMM sampling
     """
 
-    def __init__(self, nsc: NSC, relaxation: RelaxationModel, rate_model: RateModel, cosmology: CosmologyModel, kappa: float = kappa_cusp):
+    def __init__(self, nsc: NSC, relaxation: RelaxationModel, rate_model: RateModel, cosmology: LastMajorMerger, kappa: float = kappa_cusp):
 
         self.nsc = nsc
         self.relaxation = relaxation
@@ -32,7 +32,7 @@ class CuspEvolution:
         t_on = t_LMM + kappa * t_relax_at_rinf
         """
         # Sample LMM redshift and times (returns a 3-tuple)
-        z_LMM, t_LMM, t_obs = self.cosmo.sample_lmm_times_Gyr(z_obs=self.nsc.gal.z_gal, m=2.0)
+        z_LMM, t_LMM, t_obs = self.cosmo.sample_LMM_times(z_obs=self.nsc.gal.z_gal, size=1)
 
         # Relaxation time at r_infl
         t_relax_rinf = self.relaxation.t_relax_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, mbar=mbar, unit=unit)
@@ -70,5 +70,5 @@ class CuspEvolution:
         print(cummulative_distribution)
         N_EMRIs = Gamma_hat_EMRI * t_EMRI * cummulative_distribution
         
-        breakpoint()
+        # breakpoint()
         return N_EMRIs
