@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Optional, Callable
 from astropy.cosmology import FlatLambdaCDM
 import astropy.units as u
-from scipy.interpolate import interp1d, RegularGridInterpolator
+from scipy.interpolate import interp1d
 from galaxy import Galaxy
 from config import (MBH_A, MBH_B, MBH_sigma0)
 from utils import Distributions
@@ -144,9 +144,8 @@ class MBHMassFunction:
         dist = Distributions(logMBH_grid, phi_linear)
         return dist.get_samples(size=size)
 
-
 @dataclass
-class LastMajorMerger:
+class CosmologyModel:
     """
     Sampler for the LAST major merger redshift z_LMM using an
     inhomogeneous Poisson process and the cumulative hazard method.
@@ -156,12 +155,6 @@ class LastMajorMerger:
     H0: float = 70.0      # km/s/Mpc
     Om0: float = 0.3
     Tcmb0: float = 2.725  # K
-
-    # Sampling grid upper limit
-    z_max: float = 12.0
-
-    # Resolution of hazard grid
-    n_grid: int = 6000
 
     def __post_init__(self):
         self.cosmo = FlatLambdaCDM(H0=self.H0, Om0=self.Om0, Tcmb0=self.Tcmb0)
@@ -177,10 +170,20 @@ class LastMajorMerger:
     def age_Gyr(self, z):
         """Cosmic age t(z) in Gyr."""
         return self.cosmo.age(z).to_value(u.Gyr)
-
+    
     def dVc_dz(self, z):
         """Comoving volume element dV_c/dz in Mpc^3."""
         return self.cosmo.differential_comoving_volume(z).to_value(u.Mpc**3)
+
+
+class LastMajorMerger:
+    
+    def __init__(self, cosmology_model: CosmologyModel):
+        self.cosmo_model = cosmology_model if cosmology_model is not None else CosmologyModel()
+        self.z_max: float = 12.0
+        # Resolution of hazard grid
+        self.n_grid: int = 6000
+
 
     def lambda_MM(self, z):
         """
@@ -207,7 +210,7 @@ class LastMajorMerger:
         lambda_z_Gyr = self.lambda_MM(z)
 
         lambda_z_s = lambda_z_Gyr / (3.15576e16)  # convert to s^-1
-        return lambda_z_s * self.dt_dz(z)   # events per redshift (dimensionless)
+        return lambda_z_s * self.cosmo_model.dt_dz(z)   # events per redshift (dimensionless)
 
     def build_hazard_grid(self, z_obs):
         """
@@ -251,22 +254,6 @@ class LastMajorMerger:
             z_LMM, t_LMM[Gyr], t_obs[Gyr]
         """
         z_LMM = self.sample_z_LMM(z_obs, size=size)
-        t_LMM = self.age_Gyr(z_LMM)
-        t_obs = self.age_Gyr(z_obs)
+        t_LMM = self.cosmo_model.age_Gyr(z_LMM)
+        t_obs = self.cosmo_model.age_Gyr(z_obs)
         return z_LMM, t_LMM, t_obs
-
-
-# sampler = LastMajorMerger()
-
-# # print(z_LMM)
-# import matplotlib.pyplot as plt
-
-# for z_obs in [.5, 5, 10]:
-#     z_LMM = sampler.sample_z_LMM(z_obs, size=100)
-#     print(z_LMM)
-#     plt.hist(z_LMM, bins=10, label=z_obs)
-
-# plt.xlabel('z')
-# plt.ylabel('# z_LMM')
-# plt.legend()
-# plt.show()
