@@ -88,3 +88,23 @@ class Galaxy:
         lgMBH += np.random.normal(0.0, MBH_scatter)
         return lgMBH
 
+    def lgMBH_from_Mgal(self, lgMgal, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0):
+        """
+        Compute MBH for an arbitrary galaxy mass (log Mgal).
+        Skips the nucleation check and uses the same sigma-Mstar relation
+        as the instance method, but does not depend on self.lgMgal.
+        """
+
+        lgreff = 0.24*(lgMgal - 10.7) + 0.82
+        Re_kpc = 10**lgreff
+        Re_cm = Re_kpc * kpc_to_cm
+
+        Mstar = 10**lgMgal
+        M_enc = 0.5 * Mstar * Msun_to_grams
+
+        sig_cgs = np.sqrt(G_cgs * M_enc / Re_cm)
+        sigma = sig_cgs / 1e5  # km/s
+
+        # donot apply scatter here since this is used for the grid calculation in cosmology.py and we want a deterministic grid. Scatter can be applied later when sampling from the interpolator.
+        return A + B * np.log10(sigma / sigma_0)
+

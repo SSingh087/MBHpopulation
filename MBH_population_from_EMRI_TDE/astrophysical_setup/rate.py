@@ -32,16 +32,16 @@ class RateModel:
         
         return a * (MBH)**b + (sigma/sigma_0)**c 
 
-    def universal_EMRI_rate(self, tau_grid):
+    def universal_EMRI_rate(self, tau):
         # this should be replaced by the values that Luca will provide, but for now we can use similar looking distributions to test the code
         # From arXiv:2205.06277v1 Fig 6 
         a, b = 2.0, 5.0
-        return beta.pdf(tau_grid, a, b)
+        return beta.pdf(tau, a, b)
 
 
-    def universal_TDE_rate(self, tau_grid):
+    def universal_TDE_rate(self, tau):
         # this should be replaced by the values that Luca will provide, but for now we can use similar looking distributions to test the code
         # From arXiv:2205.06277v1 Fig 6 
         mu, sigma = 1e-7, 0.05
         a, b = 2.0, 5.0
-        return norm.pdf(tau_grid, mu, sigma) + beta.pdf(tau_grid, a, b)
+        return norm.pdf(tau, mu, sigma) + beta.pdf(tau, a, b)

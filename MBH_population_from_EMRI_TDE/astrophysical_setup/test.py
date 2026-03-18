@@ -72,7 +72,6 @@ if obj:
 
     print(f"Total number of EMRIs accumulated for a cusp age of {cusp_age} Gyr is {accumulated_EMRIs}.")
 
-
 else:
     print("No nucleation in this draw.")
 
