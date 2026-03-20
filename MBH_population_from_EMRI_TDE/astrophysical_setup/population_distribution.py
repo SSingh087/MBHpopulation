@@ -213,33 +213,35 @@ class dN_da_dz(Distribution2D):
         self.interpolate(pdf)
         return pdf
 
-# dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(0.001, 10), limits_theta=(4, 8.5), npoints=10)
-# pdf_dN_dlgMBH_dz = dist.pdf()
+dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(0.001, 10), limits_theta=(4, 8.5), npoints=50, grid_spacing='linear', device="cpu")
+pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf()
 
-# z_samp, mbh_samp = dist.draw_samples(200)
-
-# plt.figure(figsize=(7,6))
-# plt.imshow(pdf.T, origin='lower',
-#            extent=[dist.z_np[0], dist.z_np[-1], dist.theta_np[0], dist.theta_np[-1]],
-#            aspect='auto', cmap='viridis')
-# plt.colorbar(label=r'$d^2N/d\log M\, dz$')
-# plt.xlabel('z')
-# plt.ylabel(r'$\log_{10} M_{\rm BH}$')
-# plt.title('EMRI 2D PDF')
-# plt.show()
-
-dist_dN_da_dz = dN_da_dz(limits_z=(0.001, 10), limits_theta=(0.1, 0.998), limits_MBH=(4, 8.5), npoints=5)
-pdf_dN_da_dz = dist_dN_da_dz.pdf(beta=6.0, lambda_alpha=2.7)
-z_samp, a_samp = dist_dN_da_dz.draw_samples(200)
+z_samp, mbh_samp = dist_dN_dlgMBH_dz.draw_samples(50)
 
 plt.figure(figsize=(7,6))
-plt.imshow(pdf_dN_da_dz.T, origin='lower',
-           extent=[dist_dN_da_dz.z_np[0], dist_dN_da_dz.z_np[-1], dist_dN_da_dz.theta_np[0], dist_dN_da_dz.theta_np[-1]],
+plt.imshow(pdf_dN_dlgMBH_dz.T, origin='lower',
+           extent=[dist_dN_dlgMBH_dz.z_np[0], dist_dN_dlgMBH_dz.z_np[-1], dist_dN_dlgMBH_dz.theta_np[0], dist_dN_dlgMBH_dz.theta_np[-1]],
            aspect='auto', cmap='viridis')
 plt.colorbar(label=r'$d^2N/d\log M\, dz$')
 plt.xlabel('z')
 plt.ylabel(r'$\log_{10} M_{\rm BH}$')
 plt.title('EMRI 2D PDF')
+plt.savefig('dN_dlgMBH_dz.pdf', dpi=200)
+plt.show()
+
+dist_dN_da_dz = dN_da_dz(limits_z=(0.001, 10), limits_theta=(0.1, 0.998), limits_MBH=(4, 8.5), npoints=50, grid_spacing='linear', device="cpu")
+pdf_dN_da_dz = dist_dN_da_dz.pdf(beta=6.0, lambda_alpha=2.7)
+z_samp, a_samp = dist_dN_da_dz.draw_samples(50)
+
+plt.figure(figsize=(7,6))
+plt.imshow(pdf_dN_da_dz.T, origin='lower',
+           extent=[dist_dN_da_dz.z_np[0], dist_dN_da_dz.z_np[-1], dist_dN_da_dz.theta_np[0], dist_dN_da_dz.theta_np[-1]],
+           aspect='auto', cmap='viridis')
+plt.colorbar(label=r'$d^2N/da\,dz$')
+plt.xlabel('z')
+plt.ylabel(r'$a$')
+plt.title('EMRI 2D PDF')
+plt.savefig('dN_da_dz.pdf', dpi=200)
 plt.show()
 
 
