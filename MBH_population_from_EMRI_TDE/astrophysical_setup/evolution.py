@@ -50,16 +50,22 @@ class CuspEvolution:
         t_obs = self.cosmo.age_Gyr(self.nsc.gal.z_gal)
         return max(0.0, t_obs - t_on)
 
-    def evaluate_tau(self, Tc, t_EMRI):
-        return Tc / t_EMRI
+    def evaluate_tau(self, T_c, t_EMRI):
+        return T_c / t_EMRI
+
+    @property
+    def t_EMRI(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
+        return self.rate_model.time_to_peak_EMRI_rate(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)
+    
+    @property
+    def Gamma_hat_EMRI(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
+        return self.rate_model.peak_EMRI_rate(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)
 
     def accumulated_objects_within_time(self, Ntot: float, component_masses: Sequence[float], kvir: float = 1.0, kind: str = 'TDE', mbar: Optional[float] = None, unit: str = 'Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
 
-        T_c = self.cusp_age(Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, mbar=mbar, unit=unit)
-        t_EMRI = self.rate_model.time_to_peak_EMRI_rate(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)
-        Gamma_hat_EMRI = self.rate_model.peak_EMRI_rate(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)
-
-
+        T_c = self.T_c(Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, mbar=mbar, unit=unit)
+        t_EMRI = self.t_EMRI()
+        Gamma_hat_EMRI = self.Gamma_hat_EMRI()
         tau_final = self.evaluate_tau(T_c, t_EMRI)
 
         tau_grid = np.linspace(1E-6, tau_final, 4096)

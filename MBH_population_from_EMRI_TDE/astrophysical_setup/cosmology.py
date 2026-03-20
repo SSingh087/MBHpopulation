@@ -53,14 +53,26 @@ class GalaxyStellarMassFunction:
     def gsmf_at_z(self, z_gal):
 
         z_vals = np.array(sorted(self.gsmf_data.keys()))
-
         grid = np.array([self.gsmf_data[z] for z in z_vals])
 
         interp_funcs = []
         for i in range(grid.shape[1]):
+            col = grid[:, i]
+            mask = np.isfinite(col)
+
+            # If fewer than 2 valid points, return NaN
+            if mask.sum() < 2:
+                interp_funcs.append(lambda z: np.nan)
+                continue
+
+            # Linear interpolation + extrapolation
             interp_funcs.append(
                 interp1d(
-                    z_vals, grid[:, i], kind='linear', bounds_error=False, fill_value=np.nan
+                    z_vals[mask],
+                    col[mask],
+                    kind='linear',
+                    fill_value='extrapolate',
+                    bounds_error=False,
                 )
             )
 
@@ -173,11 +185,11 @@ class CosmologyModel:
     
     def dVc_dz(self, z):
         """Comoving volume element dV_c/dz in Mpc^3."""
-        return self.cosmo.differential_comoving_volume(z).to_value(u.Mpc**3)
-
+        dVc_dz_dOmega = self.cosmo.differential_comoving_volume(z).to(u.Mpc**3 / u.sr).value
+        return 4 * np.pi * dVc_dz_dOmega  # Mpc^3 per unit z assuming whole sky
 
 class LastMajorMerger:
-    
+
     def __init__(self, cosmology_model: CosmologyModel):
         self.cosmo_model = cosmology_model if cosmology_model is not None else CosmologyModel()
         self.z_max: float = 12.0
