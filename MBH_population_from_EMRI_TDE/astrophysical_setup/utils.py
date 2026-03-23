@@ -93,30 +93,30 @@ class Plotting:
 
 
     @staticmethod
-    def plot_NSCprofile(NSC_obj, profile_obj, r: np.ndarray, component_masses: np.ndarray, kind='TDE', Ntot=1e5):
+    def plot_NSCprofile(NSC_obj, profile_obj, r_grid: np.ndarray, component_masses: np.ndarray, kind='TDE', Ntot=1e5):
         
         r_inf = NSC_obj.r_influence(unit='pc')
         r_cap = NSC_obj.r_capture(unit='pc')
         r_tid = NSC_obj.r_tidal(unit='pc')
 
-        n_star = profile_obj.dehnen_number_density(r, Ntot=Ntot, kind=kind, unit='1/pc^3')
-        nr_star = profile_obj.radial_number_distribution(r, Ntot=Ntot, kind=kind, unit='1/pc')
-        rho_star = profile_obj.mass_density(r=r, Ntot=Ntot, component_masses=component_masses, kind=kind, unit='Msun/pc^3')
+        n_star = profile_obj.dehnen_number_density(r_grid, Ntot=Ntot, kind=kind, unit='1/pc^3')
+        nr_star = profile_obj.radial_number_distribution(r_grid, Ntot=Ntot, kind=kind, unit='1/pc')
+        rho_star = profile_obj.mass_density(r_grid=r_grid, Ntot=Ntot, component_masses=component_masses, kind=kind, unit='Msun/pc^3')
 
         fig, ax = plt.subplots(1, 3, figsize=(16, 5), sharex=True)
-        ax[0].loglog(r, n_star, label='$n_i^\mathrm{EMRI}(r)$')
+        ax[0].loglog(r_grid, n_star.T, label='$n_i^\mathrm{EMRI}(r)$')
         ax[0].set_xlabel('r [pc]')
         ax[0].set_ylabel(r'$1/\mathrm{pc}^3$')
         ax[0].vlines(r_inf, np.min(n_star), np.max(n_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
         ax[0].legend()
 
-        ax[1].loglog(r, nr_star, label='$n_r^\mathrm{EMRI}(r)$')
+        ax[1].loglog(r_grid, nr_star.T, label='$n_r^\mathrm{EMRI}(r)$')
         ax[1].set_xlabel('r [pc]')
         ax[1].set_ylabel(r'$1/\mathrm{pc}$')
         ax[1].vlines(r_inf, np.min(nr_star), np.max(nr_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
         ax[1].legend()  
 
-        ax[2].loglog(r, rho_star, label='$\\rho^\mathrm{EMRI}(r)$')
+        ax[2].loglog(r_grid, rho_star.T, label='$\\rho^\mathrm{EMRI}(r)$')
         ax[2].set_xlabel('r [pc]')
         ax[2].set_ylabel('$M_\odot/\mathrm{pc}^3$')
         ax[2].vlines(r_inf, np.min(rho_star), np.max(rho_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')

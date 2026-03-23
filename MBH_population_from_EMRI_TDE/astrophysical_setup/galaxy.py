@@ -22,7 +22,13 @@ class Galaxy:
         """
         self.lgMgal = np.array(lgMgal)
         self.z_gal = np.array(z_gal)
-        self.nucleation_occurs = bool(nucleation_occurs)
+
+        # vectorized nucleation flags
+        if nucleation_occurs is None:
+            self.nucleation_occurs = np.ones(self.lgMgal.shape[0], dtype=bool)
+        else:
+            self.nucleation_occurs = np.asarray(nucleation_occurs, dtype=bool)
+
         self.rng = rng if rng is not None else np.random.default_rng()
 
     @classmethod
@@ -88,7 +94,7 @@ class Galaxy:
         """
         sigma = self.sigma(unit='km/s')
         lgMBH = A + B * np.log10(sigma / sigma_0)
-        lgMBH += np.random.normal(0.0, MBH_scatter)
+        lgMBH += np.random.normal(0.0, MBH_scatter, size=sigma.shape)
         return lgMBH
 
     @staticmethod
