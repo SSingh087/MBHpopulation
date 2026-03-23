@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Optional, Callable
 from astropy.cosmology import FlatLambdaCDM
 import astropy.units as u
-from scipy.interpolate import interp1d
+from scipy.interpolate import RegularGridInterpolator
 from galaxy import Galaxy
 from config import (MBH_A, MBH_B, MBH_sigma0)
 from utils import Distributions
@@ -46,115 +46,73 @@ class GalaxyStellarMassFunction:
         self.gsmf_data[15] = self.clean([-2.69,-2.90,-3.15,-3.52,-3.95,-4.52,-5.16,-5.36,-6.20,-6.20,-6.20,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None])
         self.gsmf_data[16] = self.clean([-3.18,-3.36,-3.66,-3.98,-4.42,-5.09,-5.30,-5.90,-5.90,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None])
         self.gsmf_data[17] = self.clean([-3.68,-3.89,-4.10,-4.55,-4.88,-5.12,None,None,-6.20,None,-6.20,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None])
+
+        self.z_vals = np.array(sorted(self.gsmf_data.keys()))
+        self.gsmf_grid = np.array([self.gsmf_data[z] for z in self.z_vals])
+
+        self.gsmf_grid = np.nan_to_num(self.gsmf_grid, nan=np.nan, posinf=np.nan, neginf=np.nan)
+
+        # have a single 2D interpolator for z and lgMgal, which will be used for extrapolation as well
+        self.interp = RegularGridInterpolator((self.z_vals, self.lgMgal_data), self.gsmf_grid, bounds_error=False, fill_value=np.nan)
     
     def clean(self, arr):
         return np.array([np.nan if x is None else x for x in arr], dtype=float)
 
-    def gsmf_at_z(self, z_gal):
+    def build_mass_grid(self, n_points_mass=1000):
+        self.lgMgal_grid = np.linspace(self.lgMgal_data.min(), self.lgMgal_data.max(), n_points_mass)
+        return self.lgMgal_grid
 
-        z_vals = np.array(sorted(self.gsmf_data.keys()))
-        grid = np.array([self.gsmf_data[z] for z in z_vals])
-
-        interp_funcs = []
-        for i in range(grid.shape[1]):
-            col = grid[:, i]
-            mask = np.isfinite(col)
-
-            # If fewer than 2 valid points, return NaN
-            if mask.sum() < 2:
-                interp_funcs.append(lambda z: np.nan)
-                continue
-
-            # Linear interpolation + extrapolation
-            interp_funcs.append(
-                interp1d(
-                    z_vals[mask],
-                    col[mask],
-                    kind='linear',
-                    fill_value='extrapolate',
-                    bounds_error=False,
-                )
-            )
-
-        return np.column_stack([f(z_gal) for f in interp_funcs]).flatten()
-
-    def get_gsmf(self, lgMgal=None, z_gal=None):
+    def get_gsmf(self, z_gal, n_points_mass=1000):
         """
         Continuous GSMF:
         input: logMBH (scalar or array), z
         output: log10(phi)
         """
 
-        phi_z = self.gsmf_at_z(z_gal)
+        # this should have at least 1D shape for interpolation, even if it's just a single value
+        z_gal = np.atleast_1d(z_gal)
 
-        if lgMgal is None:
-            return phi_z
-        
+        # this one should be built from the mass grid of the data, not the input mass grid, since the interpolation is based on the data grid
+        lgMgal = self.build_mass_grid(n_points_mass=n_points_mass)  # (N_M,) 
+
+        Z, M = np.meshgrid(z_gal, lgMgal, indexing='ij')  # (N_z, N_M) same z repeated across rows, same lgMgal repeated across columns
+
+        # it goes like pts[len(M[0]):len(M[0])+len(M[1]),1] == pts[:len(M[0]),1]
+        # and for z it repeats for all M values for the same z, then moves to the next z
+        pts = np.stack([Z.ravel(), M.ravel()], axis=1)  # (N_z * N_M, 2) 
         # interpolate in mass
-        f_mass = interp1d(self.lgMgal_data, phi_z, kind='linear', bounds_error=False,fill_value=np.nan)
 
-        return f_mass(lgMgal)
+        f_mass = self.interp(pts).reshape(Z.shape)  # (N_z, N_M)
 
-    def sample_gsmf(self, z_gal, size=10000):
-        lgMgal_grid = self.lgMgal_data
-        
-        phi_z = self.get_gsmf(self.lgMgal_data, z_gal=z_gal)
-        phi_linear = 10**phi_z
-        phi_linear = np.nan_to_num(phi_linear, nan=0.0, posinf=0.0, neginf=0.0)
-        
-        dist = Distributions(lgMgal_grid, phi_linear)
-        return dist.get_samples(size=size)
+        return lgMgal, f_mass
+
+    def sample_gsmf(self, z_gal, size=1000):
+        lgMgal, phi = self.get_gsmf(z_gal, n_points_mass=size)
+        return lgMgal
 
 class MBHMassFunction:
 
     def __init__(self, gsmf: GalaxyStellarMassFunction):
         self.gsmf = gsmf
-        self.lgMgal_grid = gsmf.lgMgal_data
+        # self.lgMgal_grid = gsmf.lgMgal_data
 
-    def mbhmf_at_z(self, z_gal):
+    def get_mbhmf(self, z_gal, n_points_mass=1000):
 
-        phi_Mgal = self.gsmf.gsmf_at_z(z_gal)   # log10(phi)
-        logMBH_grid = np.array([
-            Galaxy(lgMgal, z_gal).lgMBH_from_Mgal(
-                lgMgal=lgMgal, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0,
-            )
-            for lgMgal in self.lgMgal_grid
-        ])
+        lgMgal_grid, phi = self.gsmf.get_gsmf(z_gal, n_points_mass=n_points_mass)
+        # breakpoint()
+
+        logMBH_grid = Galaxy.lgMBH_from_Mgal(lgMgal_grid)
 
         # since the GSMF is in log10(phi), convert to linear for the Jacobian
         # Jacobian must multiply actual number densities, not their logs
-        phi_linear = 10**phi_Mgal
+        phi_linear = 10**phi
 
-        dlogMBH_dlogMgal = np.gradient(logMBH_grid, self.lgMgal_grid)
+        dlogMBH_dlogMgal = np.gradient(logMBH_grid, lgMgal_grid)
         dlogMgal_dlogMBH = 1.0 / dlogMBH_dlogMgal
         dndlogMBH_linear = phi_linear * dlogMgal_dlogMBH
 
-        sort_idx = np.argsort(logMBH_grid)
         # dndlogMBH_linear needs to be reconverted to log10 for the output
-        return logMBH_grid[sort_idx], np.log10(dndlogMBH_linear[sort_idx])
-
-    def get_mbhmf(self, logMBH=None, z_gal=None):
-        """
-        Continuous MBHMF:
-        input: logMBH (scalar or array), z
-        output: log10(phi)
-        """
-        if logMBH is None:
-            logMBH_grid, dndlogMBH_grid = self.mbhmf_at_z(z_gal)
-            return dndlogMBH_grid
-
-        logMBH_grid, phi_grid = self.mbhmf_at_z(z_gal)
-        f = interp1d(logMBH_grid, phi_grid, bounds_error=False, fill_value=np.nan)
-        return f(logMBH)
-
-
-    def sample_mbhmf(self, z_gal, size=10000):
-        logMBH_grid, phi_grid = self.mbhmf_at_z(z_gal)
-        phi_linear = 10**phi_grid
-        phi_linear = np.nan_to_num(phi_linear, nan=0.0, posinf=0.0, neginf=0.0)
-
-        dist = Distributions(logMBH_grid, phi_linear)
-        return dist.get_samples(size=size)
+        return logMBH_grid, np.log10(dndlogMBH_linear)
 
 @dataclass
 class CO_mass_function:
@@ -282,11 +240,13 @@ class LastMajorMerger:
         return z_LMM, t_LMM, t_obs
 
 
+# z_grid = np.random.uniform(0.01, 10.0, size=100)
+# GSMF = GalaxyStellarMassFunction()
 
+# logMBH_grid, dlogMBH_dlogMgal = MBHMassFunction(gsmf=GSMF).get_mbhmf(z_gal=z_grid, n_points=50)
 
-# CO_mass_function = CO_mass_function()
-# m_grid = np.random.randint(1, 10, size=100)  # Example mass grid
-# print(m_grid)
-# M_CO = 5  # Example compact object mass
-# print(CO_mass_function.delta_distribution(m_grid, M_CO))
-# breakpoint()
+# print(logMBH_grid, dlogMBH_dlogMgal.shape)
+# lgMgal = gsmf.sample_gsmf(z_gal=z_grid, size=100)
+# print(lgMgal)
+
+# mbh_mass_function = MBHMassFunction(gsmf=galaxy_stellar_mass_function)

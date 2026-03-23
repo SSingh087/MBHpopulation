@@ -275,8 +275,8 @@ class dN_dCO_dz(Distribution2D):
 
 
 
-# dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(0.001, 10), limits_theta=(4, 8.5), npoints=5, grid_spacing='linear', device="cpu")
-# pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf(gamma=1.5)
+dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(0.001, 10), limits_theta=(4, 8.5), npoints=5, grid_spacing='linear', device="cpu")
+pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf(gamma=1.5)
 
 # z_samp, mbh_samp = dist_dN_dlgMBH_dz.draw_samples(50)
 

@@ -11,7 +11,7 @@ class Galaxy:
     Galaxy with simple size-mass, virial sigma, and M-sigma MBH.
     """
 
-    def __init__(self, lgMgal: float, z_gal: float, rng: Optional[np.random.Generator] = None, nucleation_occurs: bool = True):
+    def __init__(self, lgMgal: np.ndarray, z_gal: np.ndarray, rng: Optional[np.random.Generator] = None, nucleation_occurs: bool = True):
         """
         Parameters
         ----------
@@ -20,8 +20,8 @@ class Galaxy:
         nucleation_occurs : bool
             Whether nucleation occurs for this galaxy (flag decided externally).
         """
-        self.lgMgal = float(lgMgal)
-        self.z_gal = float(z_gal)
+        self.lgMgal = np.array(lgMgal)
+        self.z_gal = np.array(z_gal)
         self.nucleation_occurs = bool(nucleation_occurs)
         self.rng = rng if rng is not None else np.random.default_rng()
 
@@ -30,17 +30,20 @@ class Galaxy:
         """
         returns a Galaxy instance if nucleation occurs, else None.
         """
-        f = np.random.random()  # scalar in [0,1)
+        lgMgal = np.array(lgMgal)
+        z_gal = np.array(z_gal)
 
-        if f < _f_NSC_Hannah_(lgMgal):
-            # print(f"nucleation will occur for {lgMgal} (Hannah)")
-            return cls(lgMgal, z_gal, nucleation_occurs=True)
-        elif f < _f_NSC_Neumayer_(lgMgal):
-            # print(f"nucleation will occur for {lgMgal} (Neumayer)")
-            return cls(lgMgal, z_gal, nucleation_occurs=True)
-        else:
-            # print(f"NO nucleation for {lgMgal}")
-            return None
+        p1 = _f_NSC_Hannah_(lgMgal)
+        p2 = _f_NSC_Neumayer_(lgMgal)
+
+        p = np.maximum(p1, p2)
+
+        f = np.random.uniform(0.0, 1.0, size=lgMgal.shape)
+
+        mask = f < p
+
+        return mask
+
 
     def R_eff(self, lg_A=0.82, B=0.24, Re_scatter=0.20, unit='kpc'):
         """
@@ -88,7 +91,8 @@ class Galaxy:
         lgMBH += np.random.normal(0.0, MBH_scatter)
         return lgMBH
 
-    def lgMBH_from_Mgal(self, lgMgal, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0):
+    @staticmethod
+    def lgMBH_from_Mgal(lgMgal, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0):
         """
         Compute MBH for an arbitrary galaxy mass (log Mgal).
         Skips the nucleation check and uses the same sigma-Mstar relation
