@@ -60,7 +60,7 @@ truths = [
 
 # Load posterior samples
 
-output = '/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/_pop_MIX_B_B_NO_SF/1E2_events/inference'
+output = './INFERENCE_DATA/_pop_MIX_B_B_NO_SF/1E2_events/inference'
 
 hf = h5py.File(f'{output}/result.hdf5', 'r')
 
@@ -81,7 +81,7 @@ samples_1 = np.vstack([A_lambda_M, A_lambda_mu, A_mu_a, A_sigma_a,
                     B_lambda_M, B_lambda_mu, B_mu_a, B_sigma_a,
                     weight]).T
 # =======================================
-output = '/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/_pop_MIX_B_B_NO_SF/1E3_events/inference'
+output = './INFERENCE_DATA/_pop_MIX_B_B_NO_SF/1E3_events/inference'
 
 hf = h5py.File(f'{output}/result.hdf5', 'r')
 
@@ -103,7 +103,7 @@ samples_2 = np.vstack([A_lambda_M, A_lambda_mu, A_mu_a, A_sigma_a,
 
 # =======================================
 
-output = '/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/_pop_MIX_B_B_NO_SF/1E4_events/inference'
+output = './INFERENCE_DATA/_pop_MIX_B_B_NO_SF/1E4_events/inference'
 
 hf = h5py.File(f'{output}/result.hdf5', 'r')
 
@@ -147,5 +147,5 @@ E4 = mlines.Line2D([],[], color=pal[1], linewidth=2,label='$10^4$')
 
 fig.legend(handles=[E2, E3, E4], loc=(0.8,0.75), fontsize=28, frameon=True, title='Injections')
 
-fig.savefig(f'/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/1D-posteriors/pop_MIX_B_B.png',dpi=500, bbox_inches='tight')
-fig.savefig(f'/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/1D-posteriors/pop_MIX_B_B.pdf',dpi=500, bbox_inches='tight')
+fig.savefig(f'./PLOTS/1D-posteriors/pop_MIX_B_B.png',dpi=500, bbox_inches='tight')
+fig.savefig(f'./PLOTS/1D-posteriors/pop_MIX_B_B.pdf',dpi=500, bbox_inches='tight')
