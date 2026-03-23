@@ -73,7 +73,7 @@ class DehnenProfile:
         return np.trapezoid(nr, r_grid, axis=1)   # <-- (N,)
 
 
-    def mass_density(self, r_grid, Ntot, component_masses, kind='TDE', renormalize=False, unit='Msun/pc^3'):
+    def mass_density(self, r_grid, Ntot, component_masses, kind='TDE', unit='Msun/pc^3'):
         """
         Total 3D mass density: rho(r) = sum_i m_i * n_i(r)
 
@@ -90,11 +90,11 @@ class DehnenProfile:
 
         n_i = self.dehnen_number_density(r_grid, Ntot=Ntot, kind=kind)  # 1/pc^3
 
-        if renormalize:
-            nr = 4.0 * np.pi * r_grid**2 * n_i  # 1/pc
-            N_calc = np.trapezoid(nr, r_grid)
-            if np.isfinite(N_calc) and N_calc > 0.0:
-                n_i = n_i * (Ntot / N_calc)
+        # if renormalize:
+        #     nr = 4.0 * np.pi * r_grid**2 * n_i  # 1/pc
+        #     N_calc = np.trapezoid(nr, r_grid)
+        #     if np.isfinite(N_calc) and N_calc > 0.0:
+        #         n_i = n_i * (Ntot / N_calc)
         
         # Add component mass density (Msun/pc^3)
         if comp_mass.ndim == 1:
@@ -109,4 +109,67 @@ class DehnenProfile:
             return rho_Msun_pc3 * Msun_to_grams
         else:
             raise ValueError("unit must be 'Msun/pc^3' or 'g/pc^3'.")
+
+
+    def dehnen_n_at_radius(self, r, Ntot, kind='TDE'):
+        """
+        Vectorized number density evaluated at radius r_i for each galaxy.
+        r : (N,) array
+        Ntot : (N,) array
+        Returns n(r_i) : (N,)
+        """
+        r = np.asarray(r)
+        Ntot = np.asarray(Ntot)
+
+        r_a = self.nsc.scale_radius(kvir=1.0, factor=4.0, unit="pc")  # (N,)
+        r_k = (self.nsc.r_capture(unit="pc")
+            if kind.upper()=="EMRI"
+            else self.nsc.r_tidal(unit="pc"))                     # (N,)
+
+        # prefactor
+        coef = (3 - self.gamma_dehnen_initial) * Ntot * r_a / (4*np.pi)
+
+        # Dehnen density at radius r
+        n = coef / ( r**self.gamma_dehnen_initial * (r + r_a)**(4-self.gamma_dehnen_initial) )
+
+        # apply cutoff
+        n = np.where(r >= r_k, n, 0.0)
+
+        return n   # (N,)
+
+    def mass_density_at_rinfl(self, Ntot, component_masses, kvir=1.0, kind='TDE', unit='Msun/pc^3'):
+        """
+        Compute the mass density at the influence radius r_inf for each galaxy.
+
+        Parameters
+        ----------
+        Ntot : (N,) array
+            Total number of objects per galaxy.
+        component_masses : (species,) or (N, species)
+            Compact object masses.
+        Returns
+        -------
+        rho : (N,) or (N, species)
+        """
+
+        # r_inf for each galaxy
+        r_inf = self.nsc.r_influence(kvir=kvir, unit='pc')   # shape (N,)
+
+        # number density evaluated at r_inf
+        n = self.dehnen_n_at_radius(r_inf, Ntot, kind=kind)  # shape (N,)
+
+        comp_mass = np.asarray(component_masses)
+        # species is 1D array → sum over species
+        if comp_mass.ndim == 1:
+            rho = n * np.sum(comp_mass)              # (N,)
+        else:
+            # comp_mass shape (N, species)
+            rho = n[:,None] * comp_mass             # (N, species)
+
+        if unit == 'Msun/pc^3':
+            return rho
+        elif unit == 'g/pc^3':
+            return rho * Msun_to_grams
+        else:
+            raise ValueError("Invalid unit for mass density.")
 

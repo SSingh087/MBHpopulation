@@ -54,29 +54,28 @@ n_star = dehnen_obj.dehnen_number_density(r_grid, Ntot=Ntot, kind='EMRI')
 nr_star = dehnen_obj.radial_number_distribution(r_grid, Ntot=Ntot, kind='EMRI')
 Ncum_star = dehnen_obj.cumulative_number(r_grid, Ntot=Ntot, kind='EMRI')
 
-Plotting.plot_NSCprofile(NSC_obj, dehnen_obj, r_grid, component_masses=component_masses, kind='EMRI', Ntot=Ntot)
-breakpoint()
+# Plotting.plot_NSCprofile(NSC_obj, dehnen_obj, r_grid, component_masses=component_masses, kind='EMRI', Ntot=Ntot)
 
+total_N_star = dehnen_obj.number_of_CO_within_shell(r_grid[0], r_grid[-1], Ntot=Ntot, kind='EMRI')
+rho_star = dehnen_obj.mass_density(r_grid, Ntot=Ntot, component_masses=component_masses, kind='EMRI', unit='Msun/pc^3')
 
-
-
-
-# total_N_star = dehnen_obj.number_of_CO_within_shell(r_grid[0], r_grid[-1], Ntot=Ntot, kind='EMRI')
-# rho_star = dehnen_obj.mass_density(r_grid, Ntot=Ntot, component_masses=component_masses, kind='EMRI', unit='Msun/pc^3')
 
 # print(Ncum_star[-1], np.log10(Ncum_star[-1]))
 # print(total_N_star, np.log10(total_N_star))
-# Plotting.plot_NSCprofile(NSC_obj, dehnen_obj, r_grid, component_masses=component_masses, kind='EMRI', Ntot=Ntot)
-# plt.loglog(r_grid[:-1], Ncum_star, label='cumulative number')
+
+# plt.loglog(r_grid[:-1], Ncum_star.T, label='cumulative number')
 # plt.xlabel('Radius (pc)')
 # plt.ylabel('Cumulative Number')
 # plt.legend()
 # plt.savefig('cumulative_number.pdf', dpi=200)
 # plt.show()
 
-# relax_obj = RelaxationModel(NSC_obj, dehnen_obj)
-# rho_at_rinfl = relax_obj.rho_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', unit='Msun/pc^3', renormalize=False)
-# print(rho_at_rinfl)
+
+
+relax_obj = RelaxationModel(NSC_obj, dehnen_obj)
+
+rho_at_rinfl = relax_obj.profile.mass_density_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', unit='Msun/pc^3')
+print(rho_at_rinfl)
 
 # print(relax_obj.t_relax(rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10, unit='Gyr',))
 
@@ -84,6 +83,17 @@ breakpoint()
 
 # tau_grid = np.linspace(0, 1, 1000)
 # rate_obj = RateModel(NSC_obj)
+
+
+breakpoint()
+
+
+
+
+
+
+
+
 
 # print(f"t_EMRI: {rate_obj.time_to_peak_EMRI_rate()}, Gamma_hat_EMRI: {rate_obj.peak_EMRI_rate()}")
 
