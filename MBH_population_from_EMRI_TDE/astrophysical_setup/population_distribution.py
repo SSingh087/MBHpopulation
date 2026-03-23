@@ -10,7 +10,7 @@ from density import DehnenProfile
 from relaxation import RelaxationModel
 from rate import RateModel
 from evolution import CuspEvolution
-from cosmology import LastMajorMerger, GalaxyStellarMassFunction, MBHMassFunction, CosmologyModel
+from cosmology import LastMajorMerger, GalaxyStellarMassFunction, MBHMassFunction, CosmologyModel, CO_mass_function
 
 import matplotlib.pyplot as plt
 class Distribution2D:
@@ -28,9 +28,17 @@ class Distribution2D:
         # Store numpy for SciPy interpolation
         self.z_np = self.z_grid.cpu().numpy()
         self.theta_np = self.theta_grid.cpu().numpy()
-
+        self.r_grid = torch.logspace(-5, 3, 500, device=device)  # pc
+        
         self.pdf_grid = None
         self.interp = None
+
+        self.cosmo = CosmologyModel()
+        self.MBHMF = MBHMassFunction(gsmf=GalaxyStellarMassFunction())
+        self.T_obs_det = 4  # years
+        self.Ntot_EMRI = 1e6
+        self.component_masses_sBH = np.random.uniform(1., 100, 100000)
+        self.component_masses_stars = np.random.uniform(1., 100, 100000)
 
     def _sanitise_inputs(self, **inputs):
         outs = {}
@@ -106,21 +114,14 @@ class dN_dlgMBH_dz(Distribution2D):
     def __init__(self, limits_z, limits_theta, npoints=200, grid_spacing='linear', device="cpu"):
         super().__init__(limits_z, limits_theta, npoints, grid_spacing, device)
 
-        self.cosmo = CosmologyModel()
-        self.MBHMF = MBHMassFunction(gsmf=GalaxyStellarMassFunction())
-        self.T_obs_det = 4  # years
-        self.Ntot_EMRI = 1e6
-        self.component_masses_sBH = np.random.uniform(1., 100, 100000)
-        self.component_masses_stars = np.random.uniform(1., 100, 100000)
 
-
-    def pdf(self):
-        """
-        Computes the 2D PDF grid d^2N / (dz dlogM)
-        """
+    def pdf(self, **hypers):
 
         Nz, Nm = len(self.z_grid), len(self.theta_grid)
         pdf = np.zeros((Nz, Nm))
+
+        hypers = self._sanitise_inputs(**hypers)
+        gamma = float(hypers["gamma"])
 
         for i, z in enumerate(self.z_grid.cpu().numpy()):
 
@@ -132,7 +133,7 @@ class dN_dlgMBH_dz(Distribution2D):
                 lgMgal = Galaxy.lgMgal_from_lgMBH(lgMBH)
                 gal = Galaxy(lgMgal, z)
                 nsc = NSC(gal, lgMBH)
-                profile = DehnenProfile(nsc)
+                profile = DehnenProfile(nsc, gamma)
                 relax = RelaxationModel(nsc, profile)
                 rate = RateModel(nsc)
                 evol = CuspEvolution(nsc, relax, rate, LastMajorMerger(self.cosmo))
@@ -180,10 +181,12 @@ class dN_da_dz(Distribution2D):
         hypers = self._sanitise_inputs(**hypers)
         beta = float(hypers["beta"])
         lambda_alpha = float(hypers["lambda_alpha"])
+        gamma = float(hypers["gamma"])
+
 
         lgalpha_M = ( beta + lambda_alpha * (self.logMBH_grid - 6) ) # shape (Nm,)
 
-        pdf_dN_dlgMBH_dz = self.dN_dlgMBH_dz.pdf()
+        pdf_dN_dlgMBH_dz = self.dN_dlgMBH_dz.pdf(gamma=gamma) # shape (Nz, Nm)
 
         for i, z in enumerate(self.z_grid.cpu().numpy()):
 
@@ -203,45 +206,105 @@ class dN_da_dz(Distribution2D):
 
                 beta_matrix[j,:] = (a**(lgalpha_j - 1)) * ((1-a)**(beta - 1)) / B
 
-                print(beta_matrix, B)
             # Convolution in mass dimension:
             # sum_j [ pdf_dN_dlgMBH_dz[z,j] * beta_pdf[j,a] * dlogM[j] ]
             
             pdf[i,:] = np.sum(fM[:,None] * beta_matrix * self.dlogM[:,None], axis=0)
-            # breakpoint()
+
         pdf/=np.sum(pdf)
+        breakpoint()
         self.interpolate(pdf)
         return pdf
 
-dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(0.001, 10), limits_theta=(4, 8.5), npoints=50, grid_spacing='linear', device="cpu")
-pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf()
+class dN_dCO_dz(Distribution2D):
 
-z_samp, mbh_samp = dist_dN_dlgMBH_dz.draw_samples(50)
+    def __init__(self, limits_z, limits_theta, limits_MBH, npoints=200, grid_spacing='linear', device="cpu"):
+        super().__init__(limits_z, limits_theta, npoints, grid_spacing, device)
+        
+        self.dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z, limits_MBH, npoints, grid_spacing, device)
+        self.CO_mass_grid = self.theta_grid 
 
-plt.figure(figsize=(7,6))
-plt.imshow(pdf_dN_dlgMBH_dz.T, origin='lower',
-           extent=[dist_dN_dlgMBH_dz.z_np[0], dist_dN_dlgMBH_dz.z_np[-1], dist_dN_dlgMBH_dz.theta_np[0], dist_dN_dlgMBH_dz.theta_np[-1]],
-           aspect='auto', cmap='viridis')
-plt.colorbar(label=r'$d^2N/d\log M\, dz$')
-plt.xlabel('z')
-plt.ylabel(r'$\log_{10} M_{\rm BH}$')
-plt.title('EMRI 2D PDF')
-plt.savefig('dN_dlgMBH_dz.pdf', dpi=200)
-plt.show()
+        self.logMBH_grid = self.dN_dlgMBH_dz.theta_grid.cpu().numpy()
+        self.dlogM = np.diff(self.logMBH_grid, prepend=self.logMBH_grid[0])
 
-dist_dN_da_dz = dN_da_dz(limits_z=(0.001, 10), limits_theta=(0.1, 0.998), limits_MBH=(4, 8.5), npoints=50, grid_spacing='linear', device="cpu")
-pdf_dN_da_dz = dist_dN_da_dz.pdf(beta=6.0, lambda_alpha=2.7)
-z_samp, a_samp = dist_dN_da_dz.draw_samples(50)
+    def pdf(self, **hypers):
 
-plt.figure(figsize=(7,6))
-plt.imshow(pdf_dN_da_dz.T, origin='lower',
-           extent=[dist_dN_da_dz.z_np[0], dist_dN_da_dz.z_np[-1], dist_dN_da_dz.theta_np[0], dist_dN_da_dz.theta_np[-1]],
-           aspect='auto', cmap='viridis')
-plt.colorbar(label=r'$d^2N/da\,dz$')
-plt.xlabel('z')
-plt.ylabel(r'$a$')
-plt.title('EMRI 2D PDF')
-plt.savefig('dN_da_dz.pdf', dpi=200)
-plt.show()
+        Nz, Nm = len(self.z_grid), len(self.theta_grid)
+        pdf = np.zeros((Nz, Nm))
+
+        hypers = self._sanitise_inputs(**hypers)
+        gamma = float(hypers["gamma"])
+
+        pdf_dN_dlgMBH_dz = self.dN_dlgMBH_dz.pdf(gamma=gamma) # shape (Nz, Nm)
+
+        for i, z in enumerate(self.z_grid.cpu().numpy()):
+
+            # pdf_mass[iz,:] is 1D array over M
+            fM = pdf_dN_dlgMBH_dz[i, :]                # shape (Nm,)
+
+            # compute beta PDF for all a values for each mass point
+            mu = self.CO_mass_grid.cpu().numpy()       # shape (Na,)
+
+            p_mu_given_M = np.zeros((len(self.logMBH_grid), len(mu)))
+
+            for j, lgMBH in enumerate(self.logMBH_grid):
+
+                lgMgal = Galaxy.lgMgal_from_lgMBH(lgMBH)
+                gal = Galaxy(lgMgal, z)
+                nsc = NSC(gal, lgMBH)
+                
+                r_max = nsc.r_influence(unit='pc')
+                r_min = nsc.r_capture(unit='pc')
+
+                profile = DehnenProfile(nsc, gamma)
+
+                I_r = profile.number_of_CO_within_shell(r_min=r_min, r_max=r_max, Ntot=self.Ntot_EMRI, kind='EMRI', npts=len(self.r_grid))
+
+                psi = CO_mass_function().delta_distribution(m=self.CO_mass_grid, M_CO=10.0)
+                # breakpoint()
+
+                p_mu_given_M[j, :] = 1 # psi * I_r / (np.trapezoid(psi, self.CO_mass_grid) * I_r) 
+
+            # Convolution in mass dimension:
+            # sum_j [ pdf_dN_dlgMBH_dz[z,j] * pdf_mu[j,mu] * dlogM[j] ]
+            pdf[i,:] = np.sum(fM[:,None] * p_mu_given_M * self.dlogM[:,None], axis=0)
+        pdf/=np.sum(pdf)
+        breakpoint()
+        self.interpolate(pdf)
+        return pdf
 
 
+
+# dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(0.001, 10), limits_theta=(4, 8.5), npoints=5, grid_spacing='linear', device="cpu")
+# pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf(gamma=1.5)
+
+# z_samp, mbh_samp = dist_dN_dlgMBH_dz.draw_samples(50)
+
+# plt.figure(figsize=(7,6))
+# plt.imshow(pdf_dN_dlgMBH_dz.T, origin='lower',
+#            extent=[dist_dN_dlgMBH_dz.z_np[0], dist_dN_dlgMBH_dz.z_np[-1], dist_dN_dlgMBH_dz.theta_np[0], dist_dN_dlgMBH_dz.theta_np[-1]],
+#            aspect='auto', cmap='viridis')
+# plt.colorbar(label=r'$d^2N/d\log M\, dz$')
+# plt.xlabel('z')
+# plt.ylabel(r'$\log_{10} M_{\rm BH}$')
+# plt.title('EMRI 2D PDF')
+# plt.savefig('dN_dlgMBH_dz.pdf', dpi=200)
+# plt.show()
+
+# dist_dN_da_dz = dN_da_dz(limits_z=(0.001, 10), limits_theta=(0.1, 0.998), limits_MBH=(4, 8.5), npoints=5, grid_spacing='linear', device="cpu")
+# pdf_dN_da_dz = dist_dN_da_dz.pdf(beta=6.0, lambda_alpha=2.7, gamma=1.5)
+# z_samp, a_samp = dist_dN_da_dz.draw_samples(50)
+
+# plt.figure(figsize=(7,6))
+# plt.imshow(pdf_dN_da_dz.T, origin='lower',
+#            extent=[dist_dN_da_dz.z_np[0], dist_dN_da_dz.z_np[-1], dist_dN_da_dz.theta_np[0], dist_dN_da_dz.theta_np[-1]],
+#            aspect='auto', cmap='viridis')
+# plt.colorbar(label=r'$d^2N/da\,dz$')
+# plt.xlabel('z')
+# plt.ylabel(r'$a$')
+# plt.title('EMRI 2D PDF')
+# plt.savefig('dN_da_dz.pdf', dpi=200)
+# plt.show()
+
+# dN_dCO_dz = dN_dCO_dz(limits_z=(0.001, 10), limits_theta=(10-1E-7, 10+1E-7), limits_MBH=(4, 8.5), npoints=5, grid_spacing='linear', device="cpu")
+# pdf_dN_dCO_dz = dN_dCO_dz.pdf(gamma=1.5)

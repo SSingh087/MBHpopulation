@@ -27,44 +27,46 @@ class DehnenProfile:
         -------
         n_i : ndarray, number density [1/pc^3] same shape as r
         """
-        r_a = self.nsc.scale_radius(kvir=1.0, factor=4.0, unit='pc')
 
-        coef = (3.0 - self.gamma_dehnen_initial) * float(Ntot) / (4.0 * np.pi)
+        r = np.asarray(r, float)
 
-        r_k = self.nsc.r_capture(unit='pc') if kind.upper() == 'EMRI' else self.tidal_radius_star(unit='pc')
+        r_a = self.nsc.scale_radius(kvir=1.0, factor=4.0, unit="pc")
+        r_k = (self.nsc.r_capture(unit="pc")
+               if kind.upper() == "EMRI"
+               else self.nsc.r_tidal(unit="pc"))
 
-        n = coef * (r_a / (np.power(r, self.gamma_dehnen_initial) * np.power(r + r_a, 4.0 - self.gamma_dehnen_initial))) * np.heaviside(r - r_k, r_k)  # 1/pc^3
+        coef = (3 - self.gamma_dehnen_initial) * Ntot * r_a / (4 * np.pi)
+
+        n = coef / (
+            np.power(r, self.gamma_dehnen_initial) * np.power(r + r_a, 4 - self.gamma_dehnen_initial)
+        )
+
+        # apply cutoff (TDE or EMRI)
+        n = np.where(r >= r_k, n, 0.0)
         n = np.where(np.isfinite(n), n, 0.0)
-
-        return n  # 1/pc^3
+        return n  # [1/pc^3]
 
     def radial_number_distribution(self, r, Ntot, kind='TDE', unit='1/pc'):
         """
         Shell number distribution:
             n_r(r) = 4π r^2 n_i(r)    [units: 1/pc]
         """
-        return 4.0 * np.pi * r**2 * self.dehnen_number_density(r, Ntot=Ntot, kind=kind)  # 1/pc
+        r = np.asarray(r, float)
+        return 4 * np.pi * r**2 * self.dehnen_number_density(r, Ntot, kind)
 
-    def cumulative_number_within_radius(self, r, Ntot, kind='TDE'):
+    def cumulative_number(self, r, Ntot, kind='TDE'):
+        r = np.asarray(r)
+        nr = self.radial_number_distribution(r, Ntot=Ntot, kind=kind)
+        return np.cumsum(0.5 * (nr[1:] + nr[:-1]) * np.diff(r))
+
+    def number_of_CO_within_shell(self, r_min, r_max, Ntot, kind='TDE', npts=2000):
         """
-        Cumulative number:
-            N(<r) = ∫_0^r 4π r'^2 n_i(r') dr'
+        Number of objects between r_min and r_max:
+            N = ∫_{r_min}^{r_max} 4π r^2 n(r) dr
         """
-        nr = self.radial_number_distribution(r, Ntot=Ntot, kind=kind)  # 1/pc
-
-        sort = np.argsort(r)
-        r_s = r[sort]
-        nr_s = nr[sort]
-
-        # trapezoid cumulative
-        if r_s.size > 1:
-            partial = np.concatenate(([0.0], np.cumsum(0.5 * (nr_s[1:] + nr_s[:-1]) * np.diff(r_s))))
-        else:
-            partial = np.zeros_like(r_s)
-
-        # unsort
-        inv = np.argsort(sort)
-        return partial[inv]
+        r = np.logspace(np.log10(r_min), np.log10(r_max), npts)
+        nr = self.radial_number_distribution(r, Ntot=Ntot, kind=kind)
+        return np.trapezoid(nr, r)
 
     def mass_density(self, r, Ntot, component_masses, kind='TDE', renormalize=False, unit='Msun/pc^3'):
         """
@@ -79,24 +81,17 @@ class DehnenProfile:
         renormalize: if True, rescale n_i so that ∫ 4π r^2 n_i dr (over the provided grid) = Ntot
         """
         r = np.asarray(r, dtype=float)
-        m_i = np.asarray(component_masses, dtype=float) # in units of solar mass
-        rho_Msun_pc3 = np.zeros_like(r, dtype=float)  # accumulate in Msun/pc^3
+        comp_mass = np.asarray(component_masses, dtype=float) # in units of 
 
         n_i = self.dehnen_number_density(r, Ntot=Ntot, kind=kind)  # 1/pc^3
 
-        for i in range(len(m_i)):
-            m_Msun = m_i[i]
-
-
-            if renormalize:
-                nr = 4.0 * np.pi * r**2 * n_i  # 1/pc
-                sort = np.argsort(r)
-                r_s, nr_s = r[sort], nr[sort]
-                N_calc = np.trapz(nr_s, r_s) if r_s.size > 1 else 0.0
-                if np.isfinite(N_calc) and N_calc > 0.0:
-                    n_i = n_i * (Ntot / N_calc)
+        if renormalize:
+            nr = 4.0 * np.pi * r**2 * n_i  # 1/pc
+            N_calc = np.trapezoid(nr, r)
+            if np.isfinite(N_calc) and N_calc > 0.0:
+                n_i = n_i * (Ntot / N_calc)
             # Add component mass density (Msun/pc^3)
-            rho_Msun_pc3 += m_Msun * n_i
+        rho_Msun_pc3 = np.sum(comp_mass[:, None] * n_i, axis=0) if comp_mass.ndim == 1 else comp_mass * n_i
 
         if unit == 'Msun/pc^3':
             return rho_Msun_pc3

@@ -79,3 +79,10 @@ class NSC:
             return rt_pc * pc_to_cm
         else:
             raise ValueError("unit must be 'pc' or 'cm'")
+
+    def CO_mass_function(self):
+        """
+        Placeholder for compact object mass function in the NSC.
+        Could be a power-law, log-normal, or based on stellar evolution models.
+        """
+        raise NotImplementedError("CO mass function not implemented yet.")

@@ -157,6 +157,17 @@ class MBHMassFunction:
         return dist.get_samples(size=size)
 
 @dataclass
+class CO_mass_function:
+    
+    def delta_distribution(self, m, M_CO):
+        m = np.asarray(m[:, None])
+        # return np.where(m == M_CO, 1.0, 0.0).squeeze()
+
+        # this is a very narrow Gaussian centered at M_CO,
+        # which approximates a delta function for numerical purposes.
+        return np.exp(-(m - M_CO)**2 / (2*(1e-3)**2)).squeeze()
+
+@dataclass
 class CosmologyModel:
     """
     Sampler for the LAST major merger redshift z_LMM using an
@@ -269,3 +280,13 @@ class LastMajorMerger:
         t_LMM = self.cosmo_model.age_Gyr(z_LMM)
         t_obs = self.cosmo_model.age_Gyr(z_obs)
         return z_LMM, t_LMM, t_obs
+
+
+
+
+# CO_mass_function = CO_mass_function()
+# m_grid = np.random.randint(1, 10, size=100)  # Example mass grid
+# print(m_grid)
+# M_CO = 5  # Example compact object mass
+# print(CO_mass_function.delta_distribution(m_grid, M_CO))
+# breakpoint()
