@@ -159,12 +159,13 @@ class DehnenProfile:
         n = self.dehnen_n_at_radius(r_inf, Ntot, kind=kind)  # shape (N,)
 
         comp_mass = np.asarray(component_masses)
+
         # species is 1D array → sum over species
         if comp_mass.ndim == 1:
             rho = n * np.sum(comp_mass)              # (N,)
         else:
             # comp_mass shape (N, species)
-            rho = n[:,None] * comp_mass             # (N, species)
+            rho = np.sum(comp_mass * n[:, None], axis=1)   # (N,)
 
         if unit == 'Msun/pc^3':
             return rho
