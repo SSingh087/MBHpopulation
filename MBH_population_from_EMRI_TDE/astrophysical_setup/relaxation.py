@@ -13,16 +13,6 @@ class RelaxationModel:
         self.profile = profile
         self.lnLambda = float(lnLambda)
 
-
-    def rho_at_rinfl(self, Ntot, component_masses, kvir=1.0, kind='TDE', unit='Msun/pc^3', renormalize=False):
-        """
-        evaluate rho(r) at r = r_infl (influence radius).
-        Returns scalar density.
-        """
-        r_inf_pc = float(self.nsc.r_influence(kvir=kvir, unit='pc'))
-        rho_arr = self.profile.mass_density([r_inf_pc], Ntot=Ntot, component_masses=component_masses, kind=kind, unit=unit, renormalize=renormalize)
-        return float(rho_arr[0])
-
     def t_relax(self, rho_r, Ntot, component_masses, kvir=1.0, kind='TDE', mbar=None, unit='Gyr'):
         """
         Two-body (non-resonant) relaxation time at r_infl.:
