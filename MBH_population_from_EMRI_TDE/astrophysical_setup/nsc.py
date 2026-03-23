@@ -10,7 +10,7 @@ class NSC:
     Nuclear Star Cluster
     """
 
-    def __init__(self, galaxy: Galaxy, lgMBH: Optional[float] = None, MBH_params: Optional[dict] = None):
+    def __init__(self, galaxy: Galaxy, lgMBH: Optional[np.ndarray] = None, MBH_params: Optional[dict] = None):
 
         self.gal = galaxy
 
@@ -25,7 +25,7 @@ class NSC:
                 MBH_scatter=MBH_params.get('MBH_scatter', 0.53),
             )
         else:
-            self._lgMBH = float(lgMBH)
+            self._lgMBH = np.array(lgMBH)
 
     @property
     def lgMBH(self):
