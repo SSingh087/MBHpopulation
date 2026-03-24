@@ -4,8 +4,6 @@ from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
 from nsc import NSC
 from scipy.stats import beta, norm
 
-# from utils import Plotting, Distributions
-
 class RateModel:
     def __init__(self, nsc: NSC):
         self.nsc = nsc

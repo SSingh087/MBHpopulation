@@ -6,7 +6,6 @@ import astropy.units as u
 from scipy.interpolate import RegularGridInterpolator
 from galaxy import Galaxy
 from config import (MBH_A, MBH_B, MBH_sigma0)
-from utils import Distributions
 
 class HaloMassFunction:
     pass
@@ -163,7 +162,7 @@ class LastMajorMerger:
         self.cosmo_model = cosmology_model if cosmology_model is not None else CosmologyModel()
         self.z_max: float = 12.0
         # Resolution of hazard grid
-        self.n_grid: int = 6000
+        self.n_grid: int = 10
 
 
     def lambda_MM(self, z):
@@ -178,6 +177,7 @@ class LastMajorMerger:
         z = np.asarray(z)
 
         m = 2.0
+        # For now, we can keep λ0 constant and m fixed, but in the future we can make them mass-dependent.
         lambda0 = 0.25  # Gyr^-1
 
         return lambda0 * (1 + z)**m  # Gyr^-1
@@ -193,60 +193,58 @@ class LastMajorMerger:
         lambda_z_s = lambda_z_Gyr / (3.15576e16)  # convert to s^-1
         return lambda_z_s * self.cosmo_model.dt_dz(z)   # events per redshift (dimensionless)
 
-    def build_hazard_grid(self, z_obs):
-        """
-        Precompute:
-            z_grid
-            Λ(z_obs → z_grid)
-        """
-        z_grid = np.linspace(z_obs, self.z_max, self.n_grid)
+    def build_hazard_grid(self, z_obs_array):
+        z_obs_array = np.asarray(z_obs_array)
+        N = z_obs_array.shape[0]
+
+        # Create linear grid per galaxy
+        z_grid_lin = np.linspace(0, 1, self.n_grid)  # normalized 0→1
+        z_grid = z_obs_array[:, None] + (self.z_max - z_obs_array[:, None]) * z_grid_lin
 
         g = self.hazard_integrand(z_grid)
+        dz = np.diff(z_grid, axis=1)
 
         # Cumulative hazard Λ(z_obs → z)
         Lambda = np.zeros_like(z_grid)
-        Lambda[1:] = np.cumsum(0.5 * (g[1:] + g[:-1]) * np.diff(z_grid))
+        Lambda[:, 1:] = np.cumsum(0.5 * (g[:, 1:] + g[:, :-1]) * dz, axis=1)
 
         return z_grid, Lambda
 
-    def sample_z_LMM(self, z_obs, size=1):
-        """
-        Sample 'size' last-major-merger redshifts.
 
-        Steps:
-            1. Compute hazard grid
-            2. Draw U ~ Uniform(0,1)
-            3. H* = -ln(1 - U)
-            4. Invert cumulative hazard to find z_LMM
+    def sample_z_LMM(self, z_obs_array, size=1):
         """
-        z_grid, Lambda = self.build_hazard_grid(z_obs)
-
-        # Draw hazards
-        U = np.random.random(size)
-        H_star = -np.log1p(-U)  # numerically stable
-
-        # Invert Λ -> z_LMM
-        z_samples = np.interp(H_star, Lambda, z_grid)
-        return z_samples.squeeze()
-
-    def sample_LMM_times(self, z_obs, size=1):
+        size is the number of samples per galaxy. If size=1, returns shape (N,). If size>1, returns shape (N, size).
         """
-        Returns:
-            z_LMM, t_LMM[Gyr], t_obs[Gyr]
-        """
-        z_LMM = self.sample_z_LMM(z_obs, size=size)
+        z_obs_array = np.asarray(z_obs_array)
+        N = len(z_obs_array)
+
+        z_grid, Lambda = self.build_hazard_grid(z_obs_array)  # shapes (N, n_grid)
+
+        U = np.random.random((N, size))
+        H_star = -np.log1p(-U)  # shape (N, size)
+
+        z_samples = np.zeros((N, size))
+
+        # Loop over galaxies
+        # this needs to be worked on for vectorization, but for now we can just loop since n_grid is small
+        #also np.searchsorted does not support 3D arrays for and we get  got ValueError: object too deep for desired array ERROR
+        
+        for i in range(N):
+            # vectorized over 'size'
+            z_samples[i] = np.interp(H_star[i], Lambda[i], z_grid[i])
+
+        return z_samples.squeeze()  # (N,) if size==1 else (N, size)
+
+    # -----------------------------------
+    def sample_LMM_times(self, z_obs_array, size=1):
+        z_LMM = self.sample_z_LMM(z_obs_array, size=size)
         t_LMM = self.cosmo_model.age_Gyr(z_LMM)
-        t_obs = self.cosmo_model.age_Gyr(z_obs)
+        t_obs = self.cosmo_model.age_Gyr(z_obs_array)
         return z_LMM, t_LMM, t_obs
 
-
-# z_grid = np.random.uniform(0.01, 10.0, size=100)
-# GSMF = GalaxyStellarMassFunction()
-
-# logMBH_grid, dlogMBH_dlogMgal = MBHMassFunction(gsmf=GSMF).get_mbhmf(z_gal=z_grid, n_points=50)
-
-# print(logMBH_grid, dlogMBH_dlogMgal.shape)
-# lgMgal = gsmf.sample_gsmf(z_gal=z_grid, size=100)
-# print(lgMgal)
-
-# mbh_mass_function = MBHMassFunction(gsmf=galaxy_stellar_mass_function)
+# z_grid = np.linspace(0.01, 10.0, 50)
+# cosmology_model = CosmologyModel()
+# LastMajorMerger = LastMajorMerger(cosmology_model)
+# # breakpoint()
+# print(LastMajorMerger.sample_z_LMM(z_obs_array=z_grid))
+# LMM_sampler = LastMajorMerger(cosmology_model)

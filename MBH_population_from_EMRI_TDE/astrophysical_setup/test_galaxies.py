@@ -77,25 +77,14 @@ relax_obj = RelaxationModel(NSC_obj, dehnen_obj)
 rho_at_rinfl = relax_obj.profile.mass_density_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', unit='Msun/pc^3')
 print(rho_at_rinfl)
 
-# print(relax_obj.t_relax(rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10, unit='Gyr',))
+print(relax_obj.t_relax(rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10, unit='Gyr',))
 
-# print(relax_obj.t_relax_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr'))
+print(relax_obj.t_relax_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr'))
 
-# tau_grid = np.linspace(0, 1, 1000)
-# rate_obj = RateModel(NSC_obj)
+tau_grid = np.linspace(0, 1, 1000)
+rate_obj = RateModel(NSC_obj)
 
-
-breakpoint()
-
-
-
-
-
-
-
-
-
-# print(f"t_EMRI: {rate_obj.time_to_peak_EMRI_rate()}, Gamma_hat_EMRI: {rate_obj.peak_EMRI_rate()}")
+print(f"t_EMRI: {rate_obj.time_to_peak_EMRI_rate()}, Gamma_hat_EMRI: {rate_obj.peak_EMRI_rate()}")
 
 # Plotting.plot_rate_evolution(tau_grid, rate_obj.universal_EMRI_rate(tau_grid), rate_obj.universal_TDE_rate(tau_grid))
 
@@ -110,18 +99,18 @@ breakpoint()
 # plt.savefig('samples_Rate_EMRI.pdf', dpi=200)
 # plt.show()
 
-# cusp_evolution_object = CuspEvolution(NSC_obj, relax_obj, rate_obj, LastMajorMerger(CosmologyModel()))
-# t_on = cusp_evolution_object.cusp_turn_on_time(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
-# cusp_age = cusp_evolution_object.cusp_age(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
-# print(f"t_ON : {t_on}, T_c : {cusp_age}")
 
-# accumulated_EMRIs = cusp_evolution_object.accumulated_objects_within_time(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
+cusp_evolution_object = CuspEvolution(NSC_obj, relax_obj, rate_obj, LastMajorMerger(CosmologyModel()))
+t_on = cusp_evolution_object.cusp_turn_on_time(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
+cusp_age = cusp_evolution_object.cusp_age(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
+print(f"t_ON : {t_on}, T_c : {cusp_age}")
 
-# print(f"Total number of EMRIs accumulated for a cusp age of {cusp_age} Gyr is {accumulated_EMRIs}.")
+print(cusp_evolution_object.evaluate_tau(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter))
 
-# else:
-# print("No nucleation in this draw.")
+accumulated_EMRIs = cusp_evolution_object.accumulated_objects_within_time(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
 
+
+print(f"Total number of EMRIs accumulated for a cusp age of {cusp_age} Gyr is {accumulated_EMRIs}.")
 
 
 
