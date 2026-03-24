@@ -1,6 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
-from typing import Optional, Callable
+from typing import Optional, Callable, Tuple, Dict, Any
 from astropy.cosmology import FlatLambdaCDM
 import astropy.units as u
 from scipy.interpolate import RegularGridInterpolator
@@ -89,29 +89,83 @@ class GalaxyStellarMassFunction:
         lgMgal, phi = self.get_gsmf(z_gal, n_points_mass=size)
         return lgMgal
 
+
 class MBHMassFunction:
 
     def __init__(self, gsmf: GalaxyStellarMassFunction):
         self.gsmf = gsmf
-        # self.lgMgal_grid = gsmf.lgMgal_data
+        self._cache: Dict[Tuple[bytes, int], Dict[str, Any]] = {}
 
-    def get_mbhmf(self, z_gal, n_points_mass=1000):
+    def get_mbhmf(self, z_gal, n_points_mass: int = 1000):
 
-        lgMgal_grid, phi = self.gsmf.get_gsmf(z_gal, n_points_mass=n_points_mass)
-        # breakpoint()
+        lgMgal_grid, log10phi_gsmf = self.gsmf.get_gsmf(z_gal, n_points_mass=n_points_mass)  # (Nm,), (Nz,Nm)
 
-        logMBH_grid = Galaxy.lgMBH_from_Mgal(lgMgal_grid)
-
-        # since the GSMF is in log10(phi), convert to linear for the Jacobian
-        # Jacobian must multiply actual number densities, not their logs
-        phi_linear = 10**phi
+        logMBH_grid = Galaxy.lgMBH_from_Mgal(lgMgal_grid)  # (Nm,)
 
         dlogMBH_dlogMgal = np.gradient(logMBH_grid, lgMgal_grid)
-        dlogMgal_dlogMBH = 1.0 / dlogMBH_dlogMgal
-        dndlogMBH_linear = phi_linear * dlogMgal_dlogMBH
+        dlogMgal_dlogMBH = 1.0 / dlogMBH_dlogMgal  # (Nm,)
 
-        # dndlogMBH_linear needs to be reconverted to log10 for the output
-        return logMBH_grid, np.log10(dndlogMBH_linear)
+        phi_linear = np.power(10.0, log10phi_gsmf)                # (Nz, Nm)
+        dndlogMBH_linear = phi_linear * dlogMgal_dlogMBH[None, :] # (Nz, Nm)
+
+        # Back to log10, clamp non-positive to -inf (so 10**(-inf)=0 on eval)
+        # use np.errstate to suppress warnings about log of non-positive numbers, since we handle that with np.where
+        with np.errstate(divide='ignore'):
+            log10phi_mbh = np.where(dndlogMBH_linear > 0.0,
+                                    np.log10(dndlogMBH_linear),
+                                    -np.inf)
+
+        return logMBH_grid, log10phi_mbh  # (Nm,), (Nz,Nm)
+
+    def _make_cache_key(self, z_vals, n_points_mass: int):
+        # Cache key is a tuple of (z_vals as bytes, n_points_mass).
+        z = np.asarray(z_vals, dtype=np.float64)
+        return (z.tobytes(), int(n_points_mass))
+
+    def build_interpolator(self, z_vals, n_points_mass: int = 1000):
+        # build interpolator here to avoid in distribution 
+        # this is majorly for multiple likelihood evaluations at the same z grid and same mass grid.
+        key = self._make_cache_key(z_vals, n_points_mass)
+        hit = self._cache.get(key)
+        if hit is not None:
+            return hit["interp"], hit["axes"]
+
+        z_axis = np.asarray(z_vals, dtype=float)
+        logMBH_axis, log10phi_table = self.get_mbhmf(z_axis, n_points_mass=n_points_mass)
+
+        interp = RegularGridInterpolator(
+            (z_axis, logMBH_axis),
+            log10phi_table,
+            bounds_error=False,
+            fill_value=-np.inf
+        )
+        self._cache[key] = {"interp": interp, "axes": (z_axis, logMBH_axis)}
+        return interp, (z_axis, logMBH_axis)
+
+    def reset_cache(self):
+        # this resets the cache if 
+        # - the distribution changes 
+        # - change in grid / resolution
+        self._cache.clear()
+
+    def evaluate_on_mesh(self, Z, LGMBH, n_points_mass: int = 1000):
+        """
+        Evaluate linear φ_MBH on a 2-D mesh (Z, LGMBH) of shape (Nz, Nm).
+        Assumes Z is built with indexing='ij' so each row has constant z.
+        Returns φ(z,logMBH) in linear space, shape (Nz, Nm).
+        """
+        Z = np.asarray(Z)
+        LGMBH = np.asarray(LGMBH)
+        assert Z.shape == LGMBH.shape, "Z and LGMBH must have the same shape"
+
+        z_axis = Z[:, 0]  # one z per row
+        interp, _ = self.build_interpolator(z_axis, n_points_mass=n_points_mass)
+
+        pts = np.stack([Z.ravel(), LGMBH.ravel()], axis=1)
+        log10phi = interp(pts).reshape(Z.shape)   # log10 table evaluation
+
+        phi = np.power(10.0, log10phi)
+        return np.nan_to_num(phi, nan=0.0, posinf=0.0, neginf=0.0)
 
 @dataclass
 class CO_mass_function:
@@ -241,10 +295,3 @@ class LastMajorMerger:
         t_LMM = self.cosmo_model.age_Gyr(z_LMM)
         t_obs = self.cosmo_model.age_Gyr(z_obs_array)
         return z_LMM, t_LMM, t_obs
-
-# z_grid = np.linspace(0.01, 10.0, 50)
-# cosmology_model = CosmologyModel()
-# LastMajorMerger = LastMajorMerger(cosmology_model)
-# # breakpoint()
-# print(LastMajorMerger.sample_z_LMM(z_obs_array=z_grid))
-# LMM_sampler = LastMajorMerger(cosmology_model)
