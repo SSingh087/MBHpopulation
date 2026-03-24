@@ -41,6 +41,6 @@ class RelaxationModel:
 
     def t_relax_at_rinfl(self, Ntot, component_masses, kvir=1.0, kind='TDE', mbar=None, unit='Gyr'):
 
-        rho_at_rinfl = self.rho_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, unit='Msun/pc^3')
+        rho_at_rinfl = self.profile.mass_density_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, unit='Msun/pc^3')
 
         return self.t_relax(rho_r=rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, kvir=kvir, kind=kind, mbar=mbar, unit=unit)
