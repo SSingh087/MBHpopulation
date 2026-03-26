@@ -18,6 +18,7 @@ class NSC:
             MBH_params = dict(A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53)
 
         if lgMBH is None:
+            # this block assumes that the galaxy instance has already computed sigma_pc_yr and lgMgal, which is true if it was initialized with lgMgal. If it was initialized with lgMBH, then this block will not be executed and we will use the provided lgMBH directly.
             self._lgMBH = self.gal.lgMBH_mass(
                 A=MBH_params.get('A', 7.87),
                 B=MBH_params.get('B', 4.55),
@@ -25,7 +26,8 @@ class NSC:
                 MBH_scatter=MBH_params.get('MBH_scatter', 0.53),
             )
         else:
-            self._lgMBH = np.array(lgMBH)
+            self._lgMBH = np.asarray(lgMBH)
+
 
     @property
     def lgMBH(self):
@@ -40,7 +42,7 @@ class NSC:
         """
         r_inf = G * M_bh / sigma^2
         """
-        r_inf_pc = G_pc3_per_Msun_yr2 * self.MBH_mass / (self.gal.sigma(unit='pc/year')**2)
+        r_inf_pc = G_pc3_per_Msun_yr2 * self.MBH_mass / (self.gal.sigma_pc_yr**2)
         if unit == 'pc':
             return r_inf_pc
         elif unit == 'cm':
@@ -86,3 +88,26 @@ class NSC:
         Could be a power-law, log-normal, or based on stellar evolution models.
         """
         raise NotImplementedError("CO mass function not implemented yet.")
+
+
+# class NSC:
+#     """
+#     Nuclear Star Cluster
+#     """
+
+#     def __init__(self, galaxy: Galaxy, lgMBH: Optional[np.ndarray] = None, MBH_params: Optional[dict] = None):
+
+#         self.gal = galaxy
+
+#         if MBH_params is None:
+#             MBH_params = dict(A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53)
+
+#         if lgMBH is None:
+#             self._lgMBH = self.gal.lgMBH_mass(
+#                 A=MBH_params.get('A', 7.87),
+#                 B=MBH_params.get('B', 4.55),
+#                 sigma_0=MBH_params.get('sigma_0', 160.0),
+#                 MBH_scatter=MBH_params.get('MBH_scatter', 0.53),
+#             )
+#         else:
+#             self._lgMBH = np.array(lgMBH)

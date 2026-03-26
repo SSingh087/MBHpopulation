@@ -1,6 +1,7 @@
-import numpy as np
 import torch
-from scipy.interpolate import RegularGridInterpolator
+import numpy as np
+import warnings
+import matplotlib.pyplot as plt
 
 from cosmology import CosmologyModel, GalaxyStellarMassFunction, MBHMassFunction, LastMajorMerger
 from galaxy import Galaxy
@@ -10,415 +11,324 @@ from relaxation import RelaxationModel
 from rate import RateModel
 from evolution import CuspEvolution
 
-# (Place above Distribution2D in the same file)
-from dataclasses import dataclass, field
-from typing import Optional, Tuple, Union
-
-ArrayLike = Union[float, np.ndarray]
-
-@dataclass
-class PopulationCache:
-    Nz: int
-    Nm: int
-    seed: Optional[int] = None
-    rng: np.random.Generator = field(init=False)
-
-    # cached arrays for EMRI and TDE populations; set via setters, used in pdf evaluation
-    Ntot_emri: Optional[np.ndarray] = None        # (Nz,Nm)
-    masses_emri: Optional[np.ndarray] = None      # (Nz,Nm,S)
-    Ntot_tde: Optional[np.ndarray] = None         # (Nz,Nm)
-    masses_tde: Optional[np.ndarray] = None       # (Nz,Nm,S)
-
-    def __post_init__(self):
-        self.rng = np.random.default_rng(self.seed)
-
-    def _broadcast_N(self, N: ArrayLike) -> np.ndarray:
-        N = np.asarray(N, dtype=float)
-        if N.ndim == 0:
-            # If N is a scalar (e.g., 1e5), fill the full (Nz, Nm) grid with that value.
-            # np.full((Nz, Nm), N) → each redshift and galaxy bin gets the same total number
-            return np.full((self.Nz, self.Nm), N, dtype=float)
-        
-        if N.shape == (self.Nm,):
-            # If N is 1D with shape (Nm,) → one value per galaxy, same across all redshifts.
-            # N[None, :] adds a new axis for redshift → (1, Nm)
-            # np.tile(..., (Nz, 1)) repeats this along the redshift axis → (Nz, Nm)
-            return np.tile(N[None, :], (self.Nz, 1))
-        
-        if N.shape == (self.Nz,):
-            # If N is 1D with shape (Nz,) → one value per redshift, same across all galaxies.
-            # N[:, None] adds a new axis for galaxy → (Nz, 1)
-            # np.tile(..., (1, Nm)) repeats this along the galaxy axis → (Nz, Nm)
-            return np.tile(N[:, None], (1, self.Nm))
-        
-        if N.shape == (self.Nz, self.Nm):
-            # If N is already 2D with shape (Nz, Nm), we can use it directly.
-            return N
-        raise ValueError(f"Ntot has incompatible shape {N.shape}; expected scalar, (Nm,), (Nz,), or (Nz,Nm).")
-
-    def _broadcast_masses(self, M: Optional[ArrayLike], n_species: int, mass_range: Tuple[float, float]) -> np.ndarray:
-        
-        S = max(1, int(n_species)) # number of species (e.g. MS, WD, NS, sBH, etc.)
-        
-        if M is None:
-            # If no mass array is provided, sample random masses uniformly over mass_range for every redshift, galaxy, and species
-            low, high = mass_range
-            return self.rng.uniform(low, high, size=(self.Nz, self.Nm, S))
-
-        M = np.asarray(M, dtype=float)
-        
-        if M.ndim == 0:
-            # Scalar mass → broadcast to all redshifts, galaxies, species
-            return np.full((self.Nz, self.Nm, 1), float(M))
-        if M.ndim == 1:
-            # (S,)
-            if M.size != S:
-                # if size differs, just tile provided vector (more flexible)
-                return np.tile(M[None, None, :], (self.Nz, self.Nm, 1))
-            return np.tile(M[None, None, :], (self.Nz, self.Nm, 1))
-        if M.ndim == 2:
-            # (Nm,S) or (Nz,S)
-            if M.shape[0] == self.Nm:
-                return np.tile(M[None, :, :], (self.Nz, 1, 1))
-            if M.shape[0] == self.Nz:
-                return np.tile(M[:, None, :], (1, self.Nm, 1))
-            raise ValueError(f"2-D masses must be (Nm,S) or (Nz,S); got {M.shape}.")
-        if M.ndim == 3:
-            if M.shape[:2] != (self.Nz, self.Nm):
-                raise ValueError(f"3-D masses must start with (Nz,Nm, S); got {M.shape}.")
-            return M
-        raise ValueError(f"component_masses has incompatible ndim={M.ndim}.")
-
-    def set_emri(self, Ntot: ArrayLike = 1.0e5, component_masses: Optional[ArrayLike] = None,
-                 n_species: int = 1, mass_range: Tuple[float, float] = (10.0, 10.0)):
-        self.Ntot_emri = self._broadcast_N(Ntot)
-        self.masses_emri = self._broadcast_masses(component_masses, n_species, mass_range)
-        return self
-
-    def set_tde(self, Ntot: ArrayLike = 1.0e5, component_masses: Optional[ArrayLike] = None,
-                n_species: int = 1, mass_range: Tuple[float, float] = (1.0, 1.0)):
-        self.Ntot_tde = self._broadcast_N(Ntot)
-        self.masses_tde = self._broadcast_masses(component_masses, n_species, mass_range)
-        return self
-
-    def get_emri_flat(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        if self.Ntot_emri is None or self.masses_emri is None:
-            self.set_emri()
-        N_flat = self.Ntot_emri.reshape(-1)               # (N_flat,)
-        M_flat = self.masses_emri.reshape(self.Nz*self.Nm, -1)  # (N_flat,S)
-        mbar_flat = M_flat.mean(axis=1)                    # (N_flat,)
-        return N_flat, M_flat, mbar_flat
-
-    def get_tde_flat(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        if self.Ntot_tde is None or self.masses_tde is None:
-            self.set_tde()
-        N_flat = self.Ntot_tde.reshape(-1)
-        M_flat = self.masses_tde.reshape(self.Nz*self.Nm, -1)
-        mbar_flat = M_flat.mean(axis=1)
-        return N_flat, M_flat, mbar_flat
-
-    def reseed(self, seed: Optional[int] = None):
-        self.seed = seed
-        self.rng = np.random.default_rng(self.seed)
+from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
 
 
-class Distribution2D:
+class PopulationDistribution:
     """
-    Base class: builds grid, provides vectorized helpers for:
-      - mesh/flatten/reshape
-      - MBH mass function φ(z, logMBH) on the current grid
-      - EMRI rate Γ(z, logMBH) on the current grid
-      - cosmology terms (dVc/dz, T_obs)
-      - interpolation + sampling
-    Derived classes should only combine these pieces to produce a PDF on (z, θ).
+    Torch-first base: builds grid and offers helpers (mesh/flatten/reshape),
+    cosmology terms, MBH MF, EMRI rate, interpolation + sampling.
     """
-
-    def __init__(self, limits_z, limits_theta, npoints=200, grid_spacing="linear", device="cpu"):
+    def __init__(self, limits_z, limits_theta, limits_MBH, npoints=1000, grid_spacing="linear", device="cpu", dtype=torch.float64):
         self.device = device
+        self.dtype = dtype
 
+
+        # z-grid is always linear.
+        self.z_grid = torch.linspace(limits_z[0], limits_z[1], npoints, device=device, dtype=dtype)
+
+
+        # The theta grid can be either linear or logarithmic depending on the user's choice.
         if grid_spacing == "linear":
-            self.z_grid = torch.linspace(limits_z[0], limits_z[1], npoints, device=device)
-            self.theta_grid = torch.linspace(limits_theta[0], limits_theta[1], npoints, device=device)
+            self.theta_grid = torch.linspace(limits_theta[0], limits_theta[1], npoints, device=device, dtype=dtype)
         else:
-            self.z_grid = torch.logspace(torch.log10(torch.tensor(limits_z[0], device=device)),
-                                         torch.log10(torch.tensor(limits_z[1], device=device)),
-                                         npoints, device=device)
-            self.theta_grid = torch.logspace(torch.log10(torch.tensor(limits_theta[0], device=device)),
-                                             torch.log10(torch.tensor(limits_theta[1], device=device)),
-                                             npoints, device=device)
-
-        self.z_grid = self.z_grid.detach()
-        self.theta_grid = self.theta_grid.detach()
-
-
-        # ---- Torch mesh ----
-        self.Z, self.TH = torch.meshgrid(self.z_grid, self.theta_grid, indexing='ij')  # (Nz,Nm)
-        self.Nz, self.Nm = self.Z.shape
-        self.N_flat = self.Nz * self.Nm
-
-        # ---- NumPy views ----
-        self.z_np = self.z_grid.cpu().numpy()
-        self.theta_np = self.theta_grid.cpu().numpy()
-        self.Z_np = self.Z.cpu().numpy()
-        self.TH_np = self.TH.cpu().numpy()
+            self.theta_grid = torch.logspace(
+                torch.log10(torch.tensor(limits_theta[0], device=device, dtype=dtype)),
+                torch.log10(torch.tensor(limits_theta[1], device=device, dtype=dtype)),
+                npoints, device=device, dtype=dtype
+            )
 
         self.cosmo = CosmologyModel()
         self._gsmf = GalaxyStellarMassFunction()
         self._mbhmf = MBHMassFunction(gsmf=self._gsmf)
 
-        self.T_obs_det = 4.0
+        # here we need to evaluate if the galaxies corresponding to the MBHs 
+        # actually exisits when sampled from the GalaxyMassFunction
 
-        # we will need to cache the population inputs since the calculation is
-        # expensive and we want to allow flexible input shapes (scalar, vector, or full grid)
-        self.population_cache = PopulationCache(self.Nz, self.Nm, seed=None)
+        self.lgMgal, _ = self._gsmf.get_gsmf(z_gal=self.z_grid, n_points_mass=len(self.theta_grid))
+        self.nucleation_indices = Galaxy.check_nucleation(self.lgMgal, self.z_grid)
 
-        # Interpolator cache for any derived PDF (e.g. dN/dlogMBH/dz or dN/da/dz) that we want to evaluate continuously
-        self.pdf_grid = None
-        self.interp = None
+        self.galaxies_on_grid = Galaxy(lgMgal=self.lgMgal, z_gal=self.z_grid, nucleation_occurs=self.nucleation_indices)
 
-    def set_emri_population(self, Ntot=1.0e5, component_masses=None, n_species=1, mass_range=(10.0, 10.0), seed=None):
-        if seed is not None:
-            self.population_cache.reseed(seed)
-        self.population_cache.set_emri(Ntot=Ntot, component_masses=component_masses, n_species=n_species, mass_range=mass_range)
-        return self
+        print(f"Number of galaxies in grid: {len(self.z_grid)}, Number of nucleated galaxies: {self.nucleation_indices.sum()}")
 
-    def set_tde_population(self, Ntot=1.0e5, component_masses=None, n_species=1, mass_range=(1.0, 1.0), seed=None):
-        if seed is not None:
-            self.population_cache.reseed(seed)
-        self.population_cache.set_tde(Ntot=Ntot, component_masses=component_masses, n_species=n_species, mass_range=mass_range)
-        return self
+        # calculate sigma and lgMBH
+        self.lgMgal = self.lgMgal[self.nucleation_indices]
+        self.sigma_pc_yr = torch.tensor(self.galaxies_on_grid.sigma_pc_yr)
+        self.lgMBH_mass_from_galaxy_object = torch.tensor(self.galaxies_on_grid.lgMBH_mass, device=self.device, dtype=self.dtype)
+        
+        self.z_grid = self.z_grid[self.nucleation_indices]
+        
+        # sort by lgMBH, z and other parameters accordingly to ensure that the grid is consistent with the MBH mass function and the galaxy properties.
+        # This is important because the MBH mass function is derived from the galaxy properties, and we want to make sure that the grid points are ordered in a way that reflects this relationship
+        self.lgMBH_sorted, sorted_indices = torch.sort(self.lgMBH_mass_from_galaxy_object)
+        self.lgMgal_sorted = self.lgMgal[sorted_indices]
+        self.z_grid_sorted = self.z_grid[sorted_indices]
+        self.theta_grid_sorted = self.theta_grid[sorted_indices] 
+        self.sigma_pc_yr_grid_sorted = self.sigma_pc_yr[sorted_indices]
 
-    def mesh(self):
-        """Return (Z, TH) mesh with shape (Nz, Nm)."""
-        return self.Z, self.TH
+        print(f"Number of galaxies after sorting: {len(self.z_grid)}")
 
-    def mesh_np(self):     # NumPy
-        return self.Z_np, self.TH_np
+        # at this stage we have a pair of lgMBH_sorted and z_grid that are consistent with
+        # each other, and we can use them to construct the 2D mesh after checking
+        # if max and min of MBH grid are within the limits provided by the user
 
-    def flatten(self, A2):
-        """(Nz, Nm) → (Nz*Nm,)"""
-        return np.asarray(A2).reshape(-1)
+        self.Ntot_EMRI = 1E5 * torch.ones_like(self.z_grid) # this is the total number of COs in the NSC, can be scaled with galaxy properties in the future
+        self.component_masses_sBH = torch.full_like(self.z_grid, 10.0) # this is the mass of the sBHs in the NSC, can be scaled with galaxy properties in the future
 
-    def unflatten(self, A1):
-        """(Nz*Nm,) → (Nz, Nm)"""
-        return np.asarray(A1).reshape(self.Nz, self.Nm)
-
-    def dVc_dz_on_grid(self):
-        """Return dVc/dz(z) broadcast to (Nz, 1) for safe multiplication."""
-        return self.cosmo.dVc_dz(self.z_grid)[:, None]  # (Nz,1)
-
-    def T_obs_on_grid(self):
-        """Return observer-frame time T_obs(z) on the mesh (Nz, Nm)."""
-        Z, _ = self.mesh()
-        return self.T_obs_det / (1.0 + Z)
-
-    def phi_MBH_on_grid(self, n_points_mass=512):
-        """NumPy array (Nz,Nm): φ_MBH(z,logMBH) in linear space."""
-        Z, TH = self.mesh_np()
-        return self._mbhmf.evaluate_on_mesh(Z, TH, n_points_mass=n_points_mass)
-
-    def emri_rate_on_grid(self, gamma=1.5, kind='EMRI', kvir=1.0, mbar=None,
-                          Ntot=None, component_masses=None, unit='Gyr'):
-        Z, TH = self.mesh_np()
-        z_flat = Z.reshape(-1)          # (N_flat,)
-        lgMBH_flat = TH.reshape(-1)     # (N_flat,)
-        lgMgal_flat = Galaxy.lgMgal_from_lgMBH(lgMBH_flat)
-
-        gal = Galaxy(lgMgal_flat, z_flat)
-        nsc = NSC(gal, lgMBH_flat)
-        prof = DehnenProfile(nsc, gamma)
-        relax = RelaxationModel(nsc, prof)
-        rate = RateModel(nsc)
-        evol = CuspEvolution(nsc, relax, rate, LastMajorMerger(self.cosmo))
-
-        # ---- population inputs (prefer explicit overrides; else cache) ----
-        if (Ntot is None) or (component_masses is None):
-            Ntot_flat, masses_flat, mbar_flat_from_masses = self.population_cache.get_emri_flat()  # (N_flat,), (N_flat,S), (N_flat,)
+        if limits_MBH[-1] < max(self.lgMBH_sorted) and limits_MBH[0] > min(self.lgMBH_sorted):
+            print("MBH grid is consistent with limits_MBH.")
         else:
-            # normalize explicit overrides
-            Ntot_flat = np.asarray(Ntot).reshape(-1)
-            if Ntot_flat.size == 1:
-                Ntot_flat = np.full(self.N_flat, float(Ntot_flat))
-            masses = np.asarray(component_masses)
 
-            if masses.ndim == 0:
-                masses_flat = np.full((self.N_flat, 1), float(masses))
-            elif masses.ndim == 1:
-                masses_flat = np.tile(masses[None, :], (self.N_flat, 1))
-            elif masses.ndim == 2 and masses.shape[0] == self.N_flat:
-                masses_flat = masses
-            else:
-                raise ValueError("component_masses must be scalar, (S,), or (N_flat,S).")
-            mbar_flat_from_masses = masses_flat.mean(axis=1)
+            # this part is to ensure that the MBH grid is consistent with the limits provided by the user
+            # if not we adjust the grid to be within the limits and issue a warning. 
+            # This is important because the MBH grid is derived from the 
+            # galaxy properties and may not always align perfectly with the user's specified 
+            # limits, especially if the limits are narrow or if the GalaxyMassFunction 
+            # parameters lead to a different distribution of MBHs.
 
-        # choose mbar: explicit scalar/array overrides take precedence
-        if mbar is None:
-            mbar_vec = mbar_flat_from_masses            # (N_flat,)
-        else:
-            mbar_arr = np.asarray(mbar)
-            if mbar_arr.ndim == 0:
-                mbar_vec = np.full(self.N_flat, float(mbar_arr))
-            else:
-                if mbar_arr.size != self.N_flat:
-                    raise ValueError("mbar array must be length N_flat when provided.")
-                mbar_vec = mbar_arr
+            warnings.warn("MBH grid from GalaxyMassFunction is not consistent with limits_MBH. Please adjust limits or check GalaxyMassFunction parameters.")
 
-        # ---- evaluate τ, T_c, t_EMRI, Γ_hat with full population ----
-        tau, T_c, t_EMRI, Gamma_hat = evol.evaluate_tau(
-            Ntot=Ntot_flat,
-            component_masses=masses_flat,  # (N_flat,S) or (N_flat,1)
-            kvir=kvir, kind=kind, mbar=mbar_vec, unit=unit
-        )
+            mask = (self.lgMBH_sorted >= limits_MBH[0]) & (self.lgMBH_sorted <= limits_MBH[1])
 
-        if kind.upper() == 'EMRI':
-            Gamma_flat = Gamma_hat * rate.universal_EMRI_rate(tau)
-        else:
-            Gamma_flat = Gamma_hat * rate.universal_TDE_rate(tau)
+            self.lgMgal_sorted = self.lgMgal_sorted[mask]
 
-        return Gamma_flat.reshape(self.Nz, self.Nm)
+            self.lgMBH_sorted = self.lgMBH_sorted[mask]
+            self.sigma_pc_yr_grid_sorted = self.sigma_pc_yr_grid_sorted[mask]
 
-    def interpolate(self, pdf_2d_normalized: np.ndarray):
-        self.pdf_grid = pdf_2d_normalized
-        self.interp = RegularGridInterpolator(
-            (self.z_np, self.theta_np),
-            pdf_2d_normalized,
-            bounds_error=False,
-            fill_value=0.0
-        )
+            self.z_grid_sorted = self.z_grid_sorted[mask]
+            self.theta_grid_sorted = self.theta_grid_sorted[mask]
 
-    def evaluate_at_z_theta(self, z, theta):
-        if self.interp is None:
-            raise RuntimeError("Call .pdf(...) once before evaluating.")
-        z = np.atleast_1d(np.asarray(z, dtype=float))
-        th = np.atleast_1d(np.asarray(theta, dtype=float))
-        pts = np.stack([z, th], axis=1)
-        return self.interp(pts)
+            # nucleation check is already applied before, so we can set nucleation_occurs=True for all of them.
+            self.galaxies_on_grid = Galaxy(lgMgal=self.lgMgal_sorted, lgMBH=self.lgMBH_sorted, z_gal=self.z_grid_sorted, nucleation_occurs=True)
 
-    def cdf(self, **pdf_kwargs):
-        if self.pdf_grid is None:
-            self.pdf_grid = self.pdf(**pdf_kwargs)
-        flat = self.pdf_grid.ravel()
-        c = np.cumsum(flat)
-        total = c[-1]
-        if not np.isfinite(total) or total <= 0:
-            raise RuntimeError("PDF integrates to zero; cannot sample.")
-        return c / total
+            self.Ntot_EMRI = 1E5 * torch.ones_like(self.z_grid_sorted) # this is the total number of COs in the NSC, can be scaled with galaxy properties in the future
+            self.component_masses_sBH = torch.full_like(self.z_grid_sorted, 10.0) # this is the mass of the sBHs in the NSC, can be scaled with galaxy properties in the future
 
-    def draw_samples(self, size, **pdf_kwargs):
-        cdf = self.cdf(**pdf_kwargs)
-        u = np.random.rand(size)
-        idx = np.searchsorted(cdf, u)
-        iz = idx // self.Nm
-        it = idx % self.Nm
-        z_s = torch.as_tensor(self.z_np[iz], device=self.device)
-        th_s = torch.as_tensor(self.theta_np[it], device=self.device)
-        return z_s, th_s
+            print(f"Number of galaxies after applying MBH limits: {len(self.z_grid_sorted)}")
 
-    def pdf(self, **kwargs):
+        self.T_obs_det = torch.tensor(4.0)
+
+        self.N = self.z_grid_sorted.numel() # this is the number of valid (z, lgMBH) pairs after nucleation check and sorting
+    
+    def _sanitise_inputs(self, **inputs):
+        outs = {}
+        for a, b in inputs.items():
+            b_tensor = torch.as_tensor(b, device=self.device)
+            if b_tensor.ndim == 0:
+                b_tensor = b_tensor[None]
+            outs[a] = b_tensor
+        return outs
+
+    def pdf(self, **kwargs) -> torch.Tensor:
         raise NotImplementedError
 
+    def plot_marginal_theta(self, theta, pdf, bins=40, ax=None):
+        """
+        Plot weighted 1D marginal distribution over log10(M_BH).
+        """
+        theta = self._to_numpy(theta)
+        pdf   = self._to_numpy(pdf)
 
-class dN_dlgMBH_dz(Distribution2D):
-    def __init__(self, limits_z, limits_theta, npoints=200, grid_spacing='linear', device="cpu"):
-        super().__init__(limits_z, limits_theta, npoints, grid_spacing, device)
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6,4))
 
-    def pdf(self, gamma=1.5, kind='EMRI', kvir=1.0, mbar=None, n_points_mass=512):
-        dVc  = self.dVc_dz_on_grid()                      # (Nz,1)
-        phi  = self.phi_MBH_on_grid(n_points_mass)        # (Nz,Nm)
-        Gamma = self.emri_rate_on_grid(gamma=gamma, kind=kind, kvir=kvir, mbar=mbar)  # (Nz,Nm)
-        Tobs = self.T_obs_on_grid()                       # (Nz,Nm)
-        breakpoint()
-        pdf = dVc * phi * Gamma * Tobs
-        total = np.sum(pdf)
-        if not np.isfinite(total) or total <= 0:
+        ax.hist(theta, bins=bins, weights=pdf, density=True, alpha=0.75)
+        ax.set_xlabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
+        ax.set_ylabel(r'$p(\log M_{\rm BH})$')
+        ax.set_title("Marginal MBH Distribution")
+
+        return ax
+
+    def plot_marginal_z(self, z, pdf, bins=40, ax=None):
+        """
+        Plot weighted 1D marginal distribution over redshift.
+        """
+        z = self._to_numpy(z)
+        pdf = self._to_numpy(pdf)
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6,4))
+
+        ax.hist(z, bins=bins, weights=pdf, density=True, alpha=0.75)
+        ax.set_xlabel(r'$z$')
+        ax.set_ylabel(r'$p(z)$')
+        ax.set_title("Redshift Marginal Distribution")
+
+        return ax
+
+    def plot_joint_2D(self, z, theta, pdf, bins=40, ax=None):
+        """
+        Weighted 2D joint distribution p(z, logMBH)
+        """
+        z = self._to_numpy(z)
+        theta = self._to_numpy(theta)
+        pdf = self._to_numpy(pdf)
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6,5))
+
+        h = ax.hist2d(z, theta, bins=bins, weights=pdf,
+                      density=True, cmap='viridis')
+        plt.colorbar(h[3], ax=ax, label=r'$p(z, \log M_{\rm BH})$')
+
+        ax.set_xlabel(r'$z$')
+        ax.set_ylabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
+        ax.set_title("Joint Distribution p(z, log M_BH)")
+
+        return ax
+
+    def plot_joint_2D_smooth(self, z, theta, pdf, bins=100, ax=None):
+        """
+        Kernel-smoothed 2D density estimator for nicer publication-quality plots.
+        """
+        from scipy.stats import gaussian_kde
+
+        z = self._to_numpy(z)
+        theta = self._to_numpy(theta)
+        pdf = self._to_numpy(pdf)
+
+        # Weighted KDE
+        kde = gaussian_kde(np.vstack([z, theta]), weights=pdf)
+
+        # Create grid for contour plot
+        z_lin = np.linspace(z.min(), z.max(), bins)
+        t_lin = np.linspace(theta.min(), theta.max(), bins)
+        Zg, Tg = np.meshgrid(z_lin, t_lin)
+
+        pos = np.vstack([Zg.ravel(), Tg.ravel()])
+        density = kde(pos).reshape(Zg.shape)
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6,5))
+
+        cf = ax.contourf(Zg, Tg, density, levels=40, cmap="inferno")
+        plt.colorbar(cf, ax=ax, label="Density")
+
+        ax.set_xlabel(r"$z$")
+        ax.set_ylabel(r"$\log_{10}(M_{\rm BH}/M_\odot)$")
+        ax.set_title("Smoothed Joint PDF (KDE)")
+
+        return ax
+
+    def _to_numpy(self, x):
+        """Convert torch tensor or numpy array to numpy array."""
+        if isinstance(x, torch.Tensor):
+            return x.detach().cpu().numpy()
+        return np.asarray(x)
+
+
+class dN_dlgMBH_dz(PopulationDistribution):
+    def __init__(self, limits_z, limits_theta, limits_MBH, npoints=200, grid_spacing='linear', device="cpu", dtype=torch.float64):
+        super().__init__(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device, dtype)
+
+    @torch.no_grad()
+    def pdf(self, X, **hypers) -> torch.Tensor:
+        
+        z_gal, theta = X
+        
+        hypers = self._sanitise_inputs(**hypers)
+        gamma = float(hypers["gamma"])
+        
+        
+        z_gal = torch.as_tensor(z_gal, device=self.device, dtype=self.dtype)
+        theta = torch.as_tensor(theta, device=self.device, dtype=self.dtype)
+        
+        # compare closest MBH in the grid to the input theta (lgMBH) and get the corresponding galaxy properties (lgMgal, sigma, etc.) for that grid point.
+        # This is necessary because the input theta may not exactly match the grid points, so we need to find the closest one and use its properties for the calculations.
+        idx = torch.searchsorted(self.theta_grid_sorted, theta)
+        idx = torch.clamp(idx, 1, len(self.theta_grid_sorted) - 1)
+        left = self.theta_grid_sorted[idx - 1]
+        right = self.theta_grid_sorted[idx]
+        idx -= (torch.abs(theta - left) < torch.abs(theta - right)).long()
+
+        # galactic parmeters corresponding to the input theta (lgMBH) after checking for nucleation and sorting
+        lgMgal_derived = self.lgMgal_sorted[idx]
+        sigma_pc_yr_derived = self.sigma_pc_yr_grid_sorted[idx]
+
+        # NSC and EMRI parameters corresponding to the input theta (lgMBH) after checking for nucleation and sorting
+        Ntot_EMRI = self.Ntot_EMRI[idx]
+        component_masses_sBH = self.component_masses_sBH[idx]
+
+        __galaxies__ = Galaxy(lgMgal=lgMgal_derived, lgMBH=theta, sigma_pc_yr=sigma_pc_yr_derived, z_gal=z_gal, nucleation_occurs=True)
+
+        nscs = NSC(__galaxies__, theta)
+        profiles = DehnenProfile(nscs, gamma)
+        relax_models = RelaxationModel(nscs, profiles)
+        rates = RateModel(nscs)
+        evol = CuspEvolution(nscs, relax_models, rates, LastMajorMerger(self.cosmo))
+        tau, T_c, t_EMRI, Gamma_hat_EMRI = evol.evaluate_tau(Ntot=Ntot_EMRI, component_masses=component_masses_sBH, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)
+
+        Gamma = torch.tensor(Gamma_hat_EMRI * rates.universal_EMRI_rate(tau))
+
+        T_obs = self.T_obs_det / (1 + z_gal)  
+
+        phi_linear = torch.tensor(self._mbhmf.eval_mbhmf(z=z_gal, logMBH=theta, n_points_mass=len(theta), return_log10=False))
+        phi_linear = torch.nan_to_num(phi_linear, nan=0.0, posinf=0.0, neginf=0.0) # 
+        
+        dVc_dz = torch.tensor(self.cosmo.dVc_dz(z_gal))
+
+        pdf = dVc_dz * phi_linear * Gamma * T_obs
+
+        total = torch.sum(pdf)
+
+        if (not torch.isfinite(total)) or (total <= 0):
             raise RuntimeError("Computed PDF is zero everywhere. Check inputs/units.")
-        pdf /= total
-        self.interpolate(pdf)
+
+        pdf = pdf / total
+        # self.interpolate(pdf)
         return pdf
 
-distribution = Distribution2D((0.01, 10.0), (4.0, 8.5), npoints=10, device='cpu')
+
+N_objs = 100
+
+z_gal = torch.tensor(np.random.uniform(0.01, 5, size=N_objs))
+
+GSMF = GalaxyStellarMassFunction()
+lgMgal_samples = GSMF.sample_gsmf(z_gal=z_gal, size=N_objs)
+nucleation_indices = Galaxy.check_nucleation(lgMgal_samples, z_gal)
 
 
-# One species everywhere
-dist = dN_dlgMBH_dz((0.01, 10.0), (4.0, 8.5), npoints=10, device='cpu')
-dist.set_emri_population(Ntot=1.0e5, component_masses=10.0, n_species=1)  # (Nz,Nm,1) after broadcast
-pdf = dist.pdf(gamma=1.5)
+galaxies = Galaxy(lgMgal=lgMgal_samples, z_gal=z_gal, nucleation_occurs=nucleation_indices)
+lgMBH_mass_from_galaxies = torch.tensor(galaxies.lgMBH_mass)
+z_gal = z_gal[nucleation_indices]
 
-# # Three species everywhere, per‑species masses fixed
-# species = np.array([5.0, 10.0, 30.0])   # (S,)
-# dist.set_emri_population(Ntot=1.0e5, component_masses=species, n_species=species.size)
+print(f"passing {nucleation_indices.sum()} nucleated galaxies")
 
-# # Fully per‑grid masses with 3 species (different at each cell)
-# Nz, Nm = dist.Nz, dist.Nm
-# Ntot_grid = 1.0e5 * np.ones((Nz, Nm))
-# masses_grid = np.random.uniform(1.0, 50.0, size=(Nz, Nm, 3))
-# dist.set_emri_population(Ntot=Ntot_grid, component_masses=masses_grid)
+# in this instance we fix the z_gals and MBHs and all its properties
 
-# # Override mbar explicitly
-# mbar_vec = np.full(dist.N_flat, 8.5)  # (N_flat,)
-# pdf = dist.pdf(gamma=1.5, mbar=mbar_vec)
+# now for all the nucleated galaxies we will simulate EMRIs and TDEs
+# for all the similated TDEs and EMRI check the SNR 
+# if SNR > threshhold the pass it to Fisher Matrix code 
+# assuming Fisher matrix returns values as gaussian around the injected values
+# so z_Gal and lgMBH should be gaussian around the mean for testing purposes
+
+dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), limits_MBH=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), npoints=10, grid_spacing='linear', device="cpu")
+pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf(X=(z_gal, lgMBH_mass_from_galaxies), gamma=1.5)
 
 
-breakpoint()
+# dist_dN_dlgMBH_dz.plot_marginal_theta(lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz.cpu(), bins=20)
+# plt.show()  
+
+# dist_dN_dlgMBH_dz.plot_marginal_z(z_gal, pdf_dN_dlgMBH_dz.cpu(), bins=20)
+# plt.show()
+
+dist_dN_dlgMBH_dz.plot_joint_2D_smooth(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz.cpu(), bins=50)
+plt.show()
 
 
+# distribution = Distribution2D(limits_z=(0.01, 10.0), limits_theta=(4.0, 8.5), limits_MBH=(4.0, 8.5), npoints=500, device='cpu', dtype=torch.float64)
 
-# class dN_dlgMBH_dz(Distribution2D):
+# dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(0.001, 10), limits_theta=(4, 8.5), limits_MBH=(4, 8.5), npoints=1000, grid_spacing='log', device="cpu")
 
-#     def __init__(self, limits_z, limits_theta, npoints=200, grid_spacing='linear', device="cpu"):
-#         super().__init__(limits_z, limits_theta, npoints, grid_spacing, device)
-
-
-#     def pdf(self, **hypers):
-
-#         lgMBH = self.theta_grid.cpu().numpy()
-#         Nz, Nm = len(self.z_grid), len(self.theta_grid)
-#         pdf = np.zeros((Nz, Nm))
-
-#         hypers = self._sanitise_inputs(**hypers)
-#         gamma = float(hypers["gamma"])
-
-#         dVc_dz = self.cosmo.dVc_dz(self.z_grid)
-
-#         _, dlogMBH_dlogMgal = self.MBHMF.get_mbhmf(z_gal=self.z_grid)
-
-#         dlogMBH_dlogMgal_linear = 10.0**dlogMBH_dlogMgal
-
-#         lgMgal = Galaxy.lgMgal_from_lgMBH(lgMBH)
-
-#         gal = Galaxy(lgMgal, self.z_grid)
-#         nsc = NSC(gal, lgMBH)
-
-#         profile = DehnenProfile(nsc, gamma)
-#         relax = RelaxationModel(nsc, profile)
-#         rate = RateModel(nsc)
-#         evol = CuspEvolution(nsc, relax, rate, LastMajorMerger(self.cosmo))
-
-#         tau, T_c, t_EMRI, Gamma_hat_EMRI = self.evaluate_tau(
-#             Ntot=self.Ntot_EMRI, component_masses=evol.component_masses_sBH, kvir=kvir,
-#             kind=kind, mbar=mbar, unit=unit, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter
-#         )
-
-#         Gamma_EMRI = Gamma_hat_EMRI * rate.universal_EMRI_rate(tau)
-
-#         T_obs = self.T_obs_det / (1 + z)
-
-#         breakpoint()
-
-#         for i, z in enumerate(self.z_grid.cpu().numpy()):
-
-            
-
-#             for j, lgMBH in enumerate(self.theta_grid.cpu().numpy()):
-
-#                 lgMgal = Galaxy.lgMgal_from_lgMBH(lgMBH)
-
-#                 pdf[i, j] = dVc_dz * phi[j] * Gamma * T_obs
-#                 # print(i, j, z, lgMBH, dVc_dz, phi[j], pdf[i, j])
-        
-#         pdf /= np.sum(pdf)
-#         self.interpolate(pdf)
-#         return pdf
+# pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf( , gamma=1.5)
+# # breakpoint()
+# plt.scatter(dist_dN_dlgMBH_dz.theta_grid.cpu().numpy(), dist_dN_dlgMBH_dz.lgMBH_sorted.cpu().numpy(),
+#     c=pdf_dN_dlgMBH_dz.cpu().numpy(), s=5, cmap='viridis')
+# plt.xlabel(r'$z$')
+# plt.ylabel(r'$dN/dzd\log_{10}M_{\rm BH}$')
+# plt.colorbar(label='PDF')
+# plt.show()
 
 # class dN_da_dz(Distribution2D):
 
@@ -537,14 +447,11 @@ breakpoint()
 
 
 
-# dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(0.001, 10), limits_theta=(4, 8.5), npoints=5, grid_spacing='linear', device="cpu")
-# pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf(gamma=1.5)
-
 # z_samp, mbh_samp = dist_dN_dlgMBH_dz.draw_samples(50)
 
 # plt.figure(figsize=(7,6))
 # plt.imshow(pdf_dN_dlgMBH_dz.T, origin='lower',
-#            extent=[dist_dN_dlgMBH_dz.z_grid[0], dist_dN_dlgMBH_dz.z_grid[-1], dist_dN_dlgMBH_dz.theta_np[0], dist_dN_dlgMBH_dz.theta_np[-1]],
+#            extent=[dist_dN_dlgMBH_dz.z_np[0], dist_dN_dlgMBH_dz.z_np[-1], dist_dN_dlgMBH_dz.theta_np[0], dist_dN_dlgMBH_dz.theta_np[-1]],
 #            aspect='auto', cmap='viridis')
 # plt.colorbar(label=r'$d^2N/d\log M\, dz$')
 # plt.xlabel('z')
@@ -559,7 +466,7 @@ breakpoint()
 
 # plt.figure(figsize=(7,6))
 # plt.imshow(pdf_dN_da_dz.T, origin='lower',
-#            extent=[dist_dN_da_dz.z_grid[0], dist_dN_da_dz.z_grid[-1], dist_dN_da_dz.theta_np[0], dist_dN_da_dz.theta_np[-1]],
+#            extent=[dist_dN_da_dz.z_np[0], dist_dN_da_dz.z_np[-1], dist_dN_da_dz.theta_np[0], dist_dN_da_dz.theta_np[-1]],
 #            aspect='auto', cmap='viridis')
 # plt.colorbar(label=r'$d^2N/da\,dz$')
 # plt.xlabel('z')
@@ -570,3 +477,4 @@ breakpoint()
 
 # dN_dCO_dz = dN_dCO_dz(limits_z=(0.001, 10), limits_theta=(10-1E-7, 10+1E-7), limits_MBH=(4, 8.5), npoints=5, grid_spacing='linear', device="cpu")
 # pdf_dN_dCO_dz = dN_dCO_dz.pdf(gamma=1.5)
+

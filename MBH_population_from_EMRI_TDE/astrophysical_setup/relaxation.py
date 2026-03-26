@@ -30,7 +30,7 @@ class RelaxationModel:
         t_rlx : float, relaxation time in requested unit
         """
 
-        t_yr = 0.34 * (self.nsc.gal.sigma(unit='pc/year')**3) / (G_pc3_per_Msun_yr2**2 * mbar * rho_r * lnLambda)
+        t_yr = 0.34 * (self.nsc.gal.sigma(unit='pc/year')[self.nsc.gal.nucleation_occurs]**3) / (G_pc3_per_Msun_yr2**2 * mbar * rho_r * lnLambda)
 
         if unit == 'yr':
             return t_yr

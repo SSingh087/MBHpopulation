@@ -12,8 +12,8 @@ class RateModel:
         """
         $\hat{\Gamma}_\mathrm{EMRI}
         """
-        sigma = self.nsc.gal.sigma(unit='km/s')
-        lgMBH = self.nsc.gal.lgMBH_mass(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+        sigma = self.nsc.gal.sigma(unit='km/s')[self.nsc.gal.nucleation_occurs]
+        lgMBH = self.nsc.gal.lgMBH_mass
         MBH = 10.0**lgMBH
         a, b, c = 6.2e-6, -0.25, 3.09 
 
@@ -23,8 +23,8 @@ class RateModel:
         """
         $t_\mathrm{EMRI}
         """
-        sigma = self.nsc.gal.sigma(unit='km/s')
-        lgMBH = self.nsc.gal.lgMBH_mass(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+        sigma = self.nsc.gal.sigma(unit='km/s')[self.nsc.gal.nucleation_occurs]
+        lgMBH = self.nsc.gal.lgMBH_mass
         MBH = 10.0**lgMBH
         a, b, c = 6.4e-9, 1.29, -2.97
         

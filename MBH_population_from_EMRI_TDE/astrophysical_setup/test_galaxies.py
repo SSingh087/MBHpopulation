@@ -27,8 +27,8 @@ nucleation_indices = Galaxy.check_nucleation(lgMgal_samples, z_grid)
  
 obj = Galaxy(lgMgal=lgMgal_samples, z_gal=z_grid, nucleation_occurs=True)
 
-print(obj.z_gal)
-print(obj.lgMBH_mass())
+print("obj.z_gal:", obj.z_gal)
+print("obj.lgMBH_mass():", obj.lgMBH_mass())
 
 NSC_obj = NSC(obj, obj.lgMBH_mass())
 
@@ -75,11 +75,11 @@ rho_star = dehnen_obj.mass_density(r_grid, Ntot=Ntot, component_masses=component
 relax_obj = RelaxationModel(NSC_obj, dehnen_obj)
 
 rho_at_rinfl = relax_obj.profile.mass_density_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', unit='Msun/pc^3')
-print(rho_at_rinfl)
+print("rho_at_rinfl:", rho_at_rinfl)
 
-print(relax_obj.t_relax(rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10, unit='Gyr',))
+print("t_relax:", relax_obj.t_relax(rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10, unit='Gyr',))
 
-print(relax_obj.t_relax_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr'))
+print("t_relax_at_rinfl:", relax_obj.t_relax_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr'))
 
 tau_grid = np.linspace(0, 1, 1000)
 rate_obj = RateModel(NSC_obj)
