@@ -64,7 +64,6 @@ class PopulationDistribution:
         self.lgMBH_sorted, sorted_indices = torch.sort(self.lgMBH_mass_from_galaxy_object)
         self.lgMgal_sorted = self.lgMgal[sorted_indices]
         self.z_grid_sorted = self.z_grid[sorted_indices]
-        self.theta_grid_sorted = self.theta_grid[sorted_indices] 
         self.sigma_pc_yr_grid_sorted = self.sigma_pc_yr[sorted_indices]
 
         print(f"Number of galaxies after sorting: {len(self.z_grid)}")
@@ -75,6 +74,9 @@ class PopulationDistribution:
 
         self.Ntot_EMRI = 1E5 * torch.ones_like(self.z_grid) # this is the total number of COs in the NSC, can be scaled with galaxy properties in the future
         self.component_masses_sBH = torch.full_like(self.z_grid, 10.0) # this is the mass of the sBHs in the NSC, can be scaled with galaxy properties in the future
+
+        self.Ntot_EMRI = self.Ntot_EMRI[sorted_indices]
+        self.component_masses_sBH = self.component_masses_sBH[sorted_indices]
 
         if limits_MBH[-1] < max(self.lgMBH_sorted) and limits_MBH[0] > min(self.lgMBH_sorted):
             print("MBH grid is consistent with limits_MBH.")
@@ -97,13 +99,12 @@ class PopulationDistribution:
             self.sigma_pc_yr_grid_sorted = self.sigma_pc_yr_grid_sorted[mask]
 
             self.z_grid_sorted = self.z_grid_sorted[mask]
-            self.theta_grid_sorted = self.theta_grid_sorted[mask]
 
             # nucleation check is already applied before, so we can set nucleation_occurs=True for all of them.
             self.galaxies_on_grid = Galaxy(lgMgal=self.lgMgal_sorted, lgMBH=self.lgMBH_sorted, z_gal=self.z_grid_sorted, nucleation_occurs=True)
 
-            self.Ntot_EMRI = 1E5 * torch.ones_like(self.z_grid_sorted) # this is the total number of COs in the NSC, can be scaled with galaxy properties in the future
-            self.component_masses_sBH = torch.full_like(self.z_grid_sorted, 10.0) # this is the mass of the sBHs in the NSC, can be scaled with galaxy properties in the future
+            self.Ntot_EMRI = self.Ntot_EMRI[mask]
+            self.component_masses_sBH = self.component_masses_sBH[mask]
 
             print(f"Number of galaxies after applying MBH limits: {len(self.z_grid_sorted)}")
 
@@ -122,6 +123,9 @@ class PopulationDistribution:
 
     def pdf(self, **kwargs) -> torch.Tensor:
         raise NotImplementedError
+
+    def plot_allowed_region(self, z, theta, ax=None, bins=100):
+        None
 
     def plot_marginal_theta(self, theta, pdf, bins=40, ax=None):
         """
@@ -201,6 +205,7 @@ class PopulationDistribution:
 
         if ax is None:
             fig, ax = plt.subplots(figsize=(6,5))
+        self.plot_allowed_region(z, theta, ax=ax)
 
         cf = ax.contourf(Zg, Tg, density, levels=40, cmap="inferno")
         plt.colorbar(cf, ax=ax, label="Density")
@@ -225,24 +230,28 @@ class dN_dlgMBH_dz(PopulationDistribution):
     @torch.no_grad()
     def pdf(self, X, **hypers) -> torch.Tensor:
         
-        z_gal, theta = X
+        z_gal, mbhmass = X
         
         hypers = self._sanitise_inputs(**hypers)
         gamma = float(hypers["gamma"])
         
-        
         z_gal = torch.as_tensor(z_gal, device=self.device, dtype=self.dtype)
-        theta = torch.as_tensor(theta, device=self.device, dtype=self.dtype)
+        mbhmass = torch.as_tensor(mbhmass, device=self.device, dtype=self.dtype)
         
         # compare closest MBH in the grid to the input theta (lgMBH) and get the corresponding galaxy properties (lgMgal, sigma, etc.) for that grid point.
         # This is necessary because the input theta may not exactly match the grid points, so we need to find the closest one and use its properties for the calculations.
-        idx = torch.searchsorted(self.theta_grid_sorted, theta)
-        idx = torch.clamp(idx, 1, len(self.theta_grid_sorted) - 1)
-        left = self.theta_grid_sorted[idx - 1]
-        right = self.theta_grid_sorted[idx]
-        idx -= (torch.abs(theta - left) < torch.abs(theta - right)).long()
+        
+        idx = torch.searchsorted(self.lgMBH_sorted, mbhmass)
+        idx = torch.clamp(idx, 1, len(self.lgMBH_sorted) - 1)
+        
+        left = self.lgMBH_sorted[idx - 1]
+        right = self.lgMBH_sorted[idx]
+        
+        choose_left = (torch.abs(mbhmass - left) <= torch.abs(mbhmass - right))
+        idx = idx - choose_left.long()
 
         # galactic parmeters corresponding to the input theta (lgMBH) after checking for nucleation and sorting
+        
         lgMgal_derived = self.lgMgal_sorted[idx]
         sigma_pc_yr_derived = self.sigma_pc_yr_grid_sorted[idx]
 
@@ -250,9 +259,9 @@ class dN_dlgMBH_dz(PopulationDistribution):
         Ntot_EMRI = self.Ntot_EMRI[idx]
         component_masses_sBH = self.component_masses_sBH[idx]
 
-        __galaxies__ = Galaxy(lgMgal=lgMgal_derived, lgMBH=theta, sigma_pc_yr=sigma_pc_yr_derived, z_gal=z_gal, nucleation_occurs=True)
+        __galaxies__ = Galaxy(lgMgal=lgMgal_derived, lgMBH=mbhmass, sigma_pc_yr=sigma_pc_yr_derived, z_gal=z_gal, nucleation_occurs=True)
 
-        nscs = NSC(__galaxies__, theta)
+        nscs = NSC(__galaxies__, mbhmass)
         profiles = DehnenProfile(nscs, gamma)
         relax_models = RelaxationModel(nscs, profiles)
         rates = RateModel(nscs)
@@ -263,7 +272,7 @@ class dN_dlgMBH_dz(PopulationDistribution):
 
         T_obs = self.T_obs_det / (1 + z_gal)  
 
-        phi_linear = torch.tensor(self._mbhmf.eval_mbhmf(z=z_gal, logMBH=theta, n_points_mass=len(theta), return_log10=False))
+        phi_linear = torch.tensor(self._mbhmf.eval_mbhmf(z=z_gal, logMBH=mbhmass, n_points_mass=len(mbhmass), return_log10=False))
         phi_linear = torch.nan_to_num(phi_linear, nan=0.0, posinf=0.0, neginf=0.0) # 
         
         dVc_dz = torch.tensor(self.cosmo.dVc_dz(z_gal))
@@ -280,7 +289,47 @@ class dN_dlgMBH_dz(PopulationDistribution):
         return pdf
 
 
-N_objs = 100
+class dN_da_dz(PopulationDistribution):
+
+    def __init__(self, limits_z, limits_theta, limits_MBH, npoints=200, grid_spacing='linear', device="cpu"):
+        super().__init__(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device)
+        self._dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device)
+
+    @torch.no_grad()
+    def pdf(self, X, **hypers) -> torch.Tensor:
+
+        z_gal, mbhspin, mbhmass = X
+
+        z_gal = torch.as_tensor(z_gal, device=self.device, dtype=self.dtype)
+        mbhspin = torch.as_tensor(mbhspin, device=self.device, dtype=self.dtype)
+        mbhmass = torch.as_tensor(mbhmass, device=self.device, dtype=self.dtype)
+
+        hypers = self._sanitise_inputs(**hypers)
+        beta = hypers["beta"]
+        if "alpha" not in hypers:
+            lambda_alpha = hypers["lambda_alpha"]
+            alpha_M = ( beta + lambda_alpha * (mbhmass - 6) )
+            # alpha = 10**lgalpha_M
+        else:
+            alpha_M = hypers["alpha"] * torch.ones_like(mbhmass)
+
+        gamma = hypers["gamma"]
+
+        B = torch.exp(torch.lgamma(alpha_M) + torch.lgamma(beta) - torch.lgamma(alpha_M + beta))
+        beta_matrix = (mbhspin[:, None] ** (alpha_M[None, :] - 1)) * ((1 - mbhspin[:, None]) ** (beta - 1)) / B[None, :]
+
+        pdf_dN_dlgMBH_dz = self._dN_dlgMBH_dz.pdf(X=(z_gal, mbhmass), gamma=gamma)
+
+        dlogM = torch.diff(mbhmass, prepend=mbhmass[:1].clone())
+
+        # Final contraction over mass dimension
+        pdf = torch.sum(pdf_dN_dlgMBH_dz[None, :] * beta_matrix * dlogM[None, :], dim=1)
+        pdf/=torch.sum(pdf)
+
+        return pdf
+
+
+N_objs = 50
 
 z_gal = torch.tensor(np.random.uniform(0.01, 5, size=N_objs))
 
@@ -303,8 +352,13 @@ print(f"passing {nucleation_indices.sum()} nucleated galaxies")
 # assuming Fisher matrix returns values as gaussian around the injected values
 # so z_Gal and lgMBH should be gaussian around the mean for testing purposes
 
-dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), limits_MBH=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), npoints=10, grid_spacing='linear', device="cpu")
-pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf(X=(z_gal, lgMBH_mass_from_galaxies), gamma=1.5)
+# dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), limits_MBH=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), npoints=500, grid_spacing='linear', device="cpu")
+# pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf(X=(z_gal, lgMBH_mass_from_galaxies), gamma=1.5)
+
+MBHspins = torch.tensor(np.random.uniform(0, 1, size=N_objs)[nucleation_indices])
+dist_dN_da_dz = dN_da_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(MBHspins.min(), MBHspins.max()), limits_MBH=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), npoints=100, grid_spacing='linear', device="cpu")
+pdf_dN_da_dz = dist_dN_da_dz.pdf(X=(z_gal, MBHspins, lgMBH_mass_from_galaxies), gamma=1.5, lambda_alpha=0.5, beta=12.0)
+
 
 
 # dist_dN_dlgMBH_dz.plot_marginal_theta(lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz.cpu(), bins=20)
@@ -313,13 +367,15 @@ pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf(X=(z_gal, lgMBH_mass_from_galaxies), ga
 # dist_dN_dlgMBH_dz.plot_marginal_z(z_gal, pdf_dN_dlgMBH_dz.cpu(), bins=20)
 # plt.show()
 
-dist_dN_dlgMBH_dz.plot_joint_2D_smooth(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz.cpu(), bins=50)
-plt.show()
+# dist_dN_dlgMBH_dz.plot_joint_2D(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz.cpu(), bins=50)
+# plt.show()
 
+# dist_dN_dlgMBH_dz.plot_joint_2D_smooth(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz.cpu(), bins=50)
+# plt.show()
 
-# distribution = Distribution2D(limits_z=(0.01, 10.0), limits_theta=(4.0, 8.5), limits_MBH=(4.0, 8.5), npoints=500, device='cpu', dtype=torch.float64)
+# dist_dN_dlgMBH_dz.plot_allowed_region(z_gal, lgMBH_mass_from_galaxies)
+# plt.show()
 
-# dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(0.001, 10), limits_theta=(4, 8.5), limits_MBH=(4, 8.5), npoints=1000, grid_spacing='log', device="cpu")
 
 # pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf( , gamma=1.5)
 # # breakpoint()
@@ -330,61 +386,6 @@ plt.show()
 # plt.colorbar(label='PDF')
 # plt.show()
 
-# class dN_da_dz(Distribution2D):
-
-#     def __init__(self, limits_z, limits_theta, limits_MBH, npoints=200, grid_spacing='linear', device="cpu"):
-#         super().__init__(limits_z, limits_theta, npoints, grid_spacing, device)
-        
-#         self.dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z, limits_MBH, npoints, grid_spacing, device)
-#         self.a_grid = self.theta_grid 
-
-#         self.logMBH_grid = self.dN_dlgMBH_dz.theta_grid.cpu().numpy()
-#         # self.logMBH_grid_max  = self.logMBH_grid.max()
-
-#         self.dlogM = np.diff(self.logMBH_grid, prepend=self.logMBH_grid[0])
-
-#     def pdf(self, **hypers):
-
-#         Nz, Nm = len(self.z_grid), len(self.theta_grid)
-#         pdf = np.zeros((Nz, Nm))
-
-#         hypers = self._sanitise_inputs(**hypers)
-#         beta = float(hypers["beta"])
-#         lambda_alpha = float(hypers["lambda_alpha"])
-#         gamma = float(hypers["gamma"])
-
-
-#         lgalpha_M = ( beta + lambda_alpha * (self.logMBH_grid - 6) ) # shape (Nm,)
-
-#         pdf_dN_dlgMBH_dz = self.dN_dlgMBH_dz.pdf(gamma=gamma) # shape (Nz, Nm)
-
-#         for i, z in enumerate(self.z_grid.cpu().numpy()):
-
-#             # pdf_mass[iz,:] is 1D array over M
-#             fM = pdf_dN_dlgMBH_dz[i, :]                # shape (Nm,)
-
-#             # compute beta PDF for all a values for each mass point
-#             a = self.a_grid.cpu().numpy()       # shape (Na,)
-
-#             # matrix of shape (Nm, Na)
-#             beta_matrix = np.zeros((len(self.logMBH_grid), len(a)))
-
-#             for j, lgalpha_j in enumerate(lgalpha_M):
-#                 # Beta(alpha_j, beta) normalization:
-
-#                 B = math.gamma(lgalpha_j) * math.gamma(beta) / math.gamma(lgalpha_j + beta)
-
-#                 beta_matrix[j,:] = (a**(lgalpha_j - 1)) * ((1-a)**(beta - 1)) / B
-
-#             # Convolution in mass dimension:
-#             # sum_j [ pdf_dN_dlgMBH_dz[z,j] * beta_pdf[j,a] * dlogM[j] ]
-            
-#             pdf[i,:] = np.sum(fM[:,None] * beta_matrix * self.dlogM[:,None], axis=0)
-
-#         pdf/=np.sum(pdf)
-#         breakpoint()
-#         self.interpolate(pdf)
-#         return pdf
 
 # class dN_dCO_dz(Distribution2D):
 
@@ -442,39 +443,4 @@ plt.show()
 #         breakpoint()
 #         self.interpolate(pdf)
 #         return pdf
-
-
-
-
-
-# z_samp, mbh_samp = dist_dN_dlgMBH_dz.draw_samples(50)
-
-# plt.figure(figsize=(7,6))
-# plt.imshow(pdf_dN_dlgMBH_dz.T, origin='lower',
-#            extent=[dist_dN_dlgMBH_dz.z_np[0], dist_dN_dlgMBH_dz.z_np[-1], dist_dN_dlgMBH_dz.theta_np[0], dist_dN_dlgMBH_dz.theta_np[-1]],
-#            aspect='auto', cmap='viridis')
-# plt.colorbar(label=r'$d^2N/d\log M\, dz$')
-# plt.xlabel('z')
-# plt.ylabel(r'$\log_{10} M_{\rm BH}$')
-# plt.title('EMRI 2D PDF')
-# plt.savefig('dN_dlgMBH_dz.pdf', dpi=200)
-# plt.show()
-
-# dist_dN_da_dz = dN_da_dz(limits_z=(0.001, 10), limits_theta=(0.1, 0.998), limits_MBH=(4, 8.5), npoints=5, grid_spacing='linear', device="cpu")
-# pdf_dN_da_dz = dist_dN_da_dz.pdf(beta=6.0, lambda_alpha=2.7, gamma=1.5)
-# z_samp, a_samp = dist_dN_da_dz.draw_samples(50)
-
-# plt.figure(figsize=(7,6))
-# plt.imshow(pdf_dN_da_dz.T, origin='lower',
-#            extent=[dist_dN_da_dz.z_np[0], dist_dN_da_dz.z_np[-1], dist_dN_da_dz.theta_np[0], dist_dN_da_dz.theta_np[-1]],
-#            aspect='auto', cmap='viridis')
-# plt.colorbar(label=r'$d^2N/da\,dz$')
-# plt.xlabel('z')
-# plt.ylabel(r'$a$')
-# plt.title('EMRI 2D PDF')
-# plt.savefig('dN_da_dz.pdf', dpi=200)
-# plt.show()
-
-# dN_dCO_dz = dN_dCO_dz(limits_z=(0.001, 10), limits_theta=(10-1E-7, 10+1E-7), limits_MBH=(4, 8.5), npoints=5, grid_spacing='linear', device="cpu")
-# pdf_dN_dCO_dz = dN_dCO_dz.pdf(gamma=1.5)
 
