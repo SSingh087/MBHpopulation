@@ -13,6 +13,9 @@ from evolution import CuspEvolution
 
 from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
 
+from utils import Plotting
+
+
 
 class PopulationDistribution:
     """
@@ -123,104 +126,6 @@ class PopulationDistribution:
 
     def pdf(self, **kwargs) -> torch.Tensor:
         raise NotImplementedError
-
-    def plot_allowed_region(self, z, theta, ax=None, bins=100):
-        None
-
-    def plot_marginal_theta(self, theta, pdf, bins=40, ax=None):
-        """
-        Plot weighted 1D marginal distribution over log10(M_BH).
-        """
-        theta = self._to_numpy(theta)
-        pdf   = self._to_numpy(pdf)
-
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(6,4))
-
-        ax.hist(theta, bins=bins, weights=pdf, density=True, alpha=0.75)
-        ax.set_xlabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
-        ax.set_ylabel(r'$p(\log M_{\rm BH})$')
-        ax.set_title("Marginal MBH Distribution")
-
-        return ax
-
-    def plot_marginal_z(self, z, pdf, bins=40, ax=None):
-        """
-        Plot weighted 1D marginal distribution over redshift.
-        """
-        z = self._to_numpy(z)
-        pdf = self._to_numpy(pdf)
-
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(6,4))
-
-        ax.hist(z, bins=bins, weights=pdf, density=True, alpha=0.75)
-        ax.set_xlabel(r'$z$')
-        ax.set_ylabel(r'$p(z)$')
-        ax.set_title("Redshift Marginal Distribution")
-
-        return ax
-
-    def plot_joint_2D(self, z, theta, pdf, bins=40, ax=None):
-        """
-        Weighted 2D joint distribution p(z, logMBH)
-        """
-        z = self._to_numpy(z)
-        theta = self._to_numpy(theta)
-        pdf = self._to_numpy(pdf)
-
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(6,5))
-
-        h = ax.hist2d(z, theta, bins=bins, weights=pdf,
-                      density=True, cmap='viridis')
-        plt.colorbar(h[3], ax=ax, label=r'$p(z, \log M_{\rm BH})$')
-
-        ax.set_xlabel(r'$z$')
-        ax.set_ylabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
-        ax.set_title("Joint Distribution p(z, log M_BH)")
-
-        return ax
-
-    def plot_joint_2D_smooth(self, z, theta, pdf, bins=100, ax=None):
-        """
-        Kernel-smoothed 2D density estimator for nicer publication-quality plots.
-        """
-        from scipy.stats import gaussian_kde
-
-        z = self._to_numpy(z)
-        theta = self._to_numpy(theta)
-        pdf = self._to_numpy(pdf)
-
-        # Weighted KDE
-        kde = gaussian_kde(np.vstack([z, theta]), weights=pdf)
-
-        # Create grid for contour plot
-        z_lin = np.linspace(z.min(), z.max(), bins)
-        t_lin = np.linspace(theta.min(), theta.max(), bins)
-        Zg, Tg = np.meshgrid(z_lin, t_lin)
-
-        pos = np.vstack([Zg.ravel(), Tg.ravel()])
-        density = kde(pos).reshape(Zg.shape)
-
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(6,5))
-        self.plot_allowed_region(z, theta, ax=ax)
-
-        cf = ax.contourf(Zg, Tg, density, levels=40, cmap="inferno")
-        plt.colorbar(cf, ax=ax, label="Density")
-
-        ax.set_xlabel(r"$z$")
-        ax.set_ylabel(r"$\log_{10}(M_{\rm BH}/M_\odot)$")
-        ax.set_title("Smoothed Joint PDF (KDE)")
-
-        return ax
-
-    def _to_numpy(self, x):
-        """Convert torch tensor or numpy array to numpy array."""
-        if isinstance(x, torch.Tensor):
-            return x.detach().cpu().numpy()
-        return np.asarray(x)
 
 
 class dN_dlgMBH_dz(PopulationDistribution):
@@ -379,7 +284,6 @@ class dN_dCO_dz(PopulationDistribution):
 
         I_rs = profiles.number_of_CO_within_shell(r_min=r_mins, r_max=r_maxs, Ntot=Ntot_EMRI, kind='EMRI', npts=2000)
         
-        breakpoint()
         if torch.all(torch.diff(co_mass) == 0):
             co_mf = torch.ones_like(co_mass, device=self.device, dtype=self.dtype)
             pdf_mu = co_mf / co_mf.sum()     # trivial delta
@@ -405,7 +309,7 @@ class dN_dCO_dz(PopulationDistribution):
         return pdf
 
 
-N_objs = 50
+N_objs = 5000
 
 z_gal = torch.tensor(np.random.uniform(0.01, 5, size=N_objs))
 
@@ -440,17 +344,23 @@ dist_dN_dCO_dz = dN_dCO_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(CO_mass
 pdf_dN_dCO_dz = dist_dN_dCO_dz.pdf(X=(z_gal, CO_masses, lgMBH_mass_from_galaxies), gamma=1.5)
 
 
-dist_dN_dlgMBH_dz.plot_marginal_theta(lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz.cpu(), bins=20)
-plt.show()  
-
-dist_dN_dlgMBH_dz.plot_marginal_z(z_gal, pdf_dN_dlgMBH_dz.cpu(), bins=20)
+Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz, smooth=True, cmap="magma")
+plt.tight_layout()
+plt.savefig("dN_dlgMBH_dz.pdf", dpi=300)
 plt.show()
 
-dist_dN_dlgMBH_dz.plot_joint_2D(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz.cpu(), bins=50)
+
+Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_da_dz, smooth=True, cmap="magma")
+plt.tight_layout()
+plt.savefig("dN_da_dz.pdf", dpi=300)
 plt.show()
 
-dist_dN_dlgMBH_dz.plot_joint_2D_smooth(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz.cpu(), bins=50)
+Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dCO_dz, smooth=True, cmap="magma")
+plt.tight_layout()
+plt.savefig("dN_dCO_dz.pdf", dpi=300)
 plt.show()
 
-dist_dN_dlgMBH_dz.plot_allowed_region(z_gal, lgMBH_mass_from_galaxies)
-plt.show()
+# Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz, smooth=True, cmap="magma")
+# plt.tight_layout()
+# plt.savefig("dN_dlgMBH_dz.pdf", dpi=300)
+# plt.show()

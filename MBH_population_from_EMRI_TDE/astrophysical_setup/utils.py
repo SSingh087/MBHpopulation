@@ -5,6 +5,16 @@ import matplotlib
 from astropy.constants import G, M_sun, c
 from astropy import units as u
 
+from scipy.stats import gaussian_kde
+
+import torch
+
+def _to_numpy(x):
+    """Convert torch tensor or numpy array to numpy array."""
+    if isinstance(x, torch.Tensor):
+        return x.detach().cpu().numpy()
+    return np.asarray(x)
+
 class Distributions:
     def __init__(self, x, pdf):
         self.x = x
@@ -196,3 +206,181 @@ class Plotting:
         plt.tight_layout()
         plt.savefig('rate_evolution.pdf', dpi=200)
         plt.show()
+
+    @staticmethod
+    def plot_allowed_region(z, theta, ax=None, bins=100):
+        None
+
+    @staticmethod
+    def plot_marginal_theta(theta, pdf, bins=40, ax=None):
+        """
+        Plot weighted 1D marginal distribution over log10(M_BH).
+        """
+        theta = _to_numpy(theta)
+        pdf   = _to_numpy(pdf)
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6,4))
+
+        ax.hist(theta, bins=bins, weights=pdf, density=True, alpha=0.75)
+        ax.set_xlabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
+        ax.set_ylabel(r'$p(\log M_{\rm BH})$')
+        ax.set_title("Marginal MBH Distribution")
+
+        return ax
+
+    @staticmethod
+    def plot_marginal_z(z, pdf, bins=40, ax=None):
+        """
+        Plot weighted 1D marginal distribution over redshift.
+        """
+        z = _to_numpy(z)
+        pdf = _to_numpy(pdf)
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6,4))
+
+        ax.hist(z, bins=bins, weights=pdf, density=True, alpha=0.75)
+        ax.set_xlabel(r'$z$')
+        ax.set_ylabel(r'$p(z)$')
+        ax.set_title("Redshift Marginal Distribution")
+
+        return ax
+
+    @staticmethod
+    def plot_joint_2D(z, theta, pdf, bins=40, ax=None):
+        """
+        Weighted 2D joint distribution p(z, logMBH)
+        """
+        z = _to_numpy(z)
+        theta = _to_numpy(theta)
+        pdf = _to_numpy(pdf)
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6,5))
+
+        h = ax.hist2d(z, theta, bins=bins, weights=pdf,
+                      density=True, cmap='viridis')
+        plt.colorbar(h[3], ax=ax, label=r'$p(z, \log M_{\rm BH})$')
+
+        ax.set_xlabel(r'$z$')
+        ax.set_ylabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
+        ax.set_title("Joint Distribution p(z, log M_BH)")
+
+        return ax
+
+    @staticmethod
+    def plot_joint_2D_smooth(z, theta, pdf, bins=100, ax=None):
+        """
+        Kernel-smoothed 2D density estimator for nicer publication-quality plots.
+        """
+        from scipy.stats import gaussian_kde
+
+        z = _to_numpy(z)
+        theta = _to_numpy(theta)
+        pdf = _to_numpy(pdf)
+        # Weighted KDE
+        kde = gaussian_kde(np.vstack([z, theta]), weights=pdf)
+
+        # Create grid for contour plot
+        z_lin = np.linspace(z.min(), z.max(), bins)
+        t_lin = np.linspace(theta.min(), theta.max(), bins)
+        Zg, Tg = np.meshgrid(z_lin, t_lin)
+
+        pos = np.vstack([Zg.ravel(), Tg.ravel()])
+        density = kde(pos).reshape(Zg.shape)
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6,5))
+        plot_allowed_region(z, theta, ax=ax)
+
+        cf = ax.contourf(Zg, Tg, density, levels=40, cmap="inferno")
+        plt.colorbar(cf, ax=ax, label="Density")
+
+        ax.set_xlabel(r"$z$")
+        ax.set_ylabel(r"$\log_{10}(M_{\rm BH}/M_\odot)$")
+        ax.set_title("Smoothed Joint PDF (KDE)")
+
+        return ax
+
+    @staticmethod
+    def plot_joint_with_marginals(z, theta, pdf, bins=40, smooth=False, cmap="magma"):
+        """
+        Produce a corner-style plot with:
+        - Joint 2D histogram or KDE
+        - 1D marginals (histograms or KDE)
+        - External colorbar
+        - Correct shared axes
+        """
+
+        # Convert tensors → numpy
+        z = _to_numpy(z)
+        theta = _to_numpy(theta)
+        pdf = _to_numpy(pdf)
+        pdf = pdf / pdf.sum()
+
+        fig = plt.figure(figsize=(9, 9))
+        gs  = fig.add_gridspec(4, 4, wspace=0.05, hspace=0.05)
+
+        ax_joint = fig.add_subplot(gs[1:, 0:3])
+        ax_top   = fig.add_subplot(gs[0, 0:3], sharex=ax_joint)
+        ax_right = fig.add_subplot(gs[1:, 3],  sharey=ax_joint)
+
+        # ---------------------------------------------------
+        # Histogram mode
+        # ---------------------------------------------------
+        if not smooth:
+            h = ax_joint.hist2d(theta, z, bins=bins, weights=pdf,
+                                density=True, cmap=cmap)
+
+            cax = fig.add_axes([0.92, 0.15, 0.02, 0.6])
+            fig.colorbar(h[3], cax=cax, label="p(z, log MBH)")
+
+            ax_top.hist(theta, bins=bins, weights=pdf, density=True,
+                        color='C0', alpha=0.7)
+            ax_right.hist(z, bins=bins, weights=pdf, density=True,
+                        orientation='horizontal', color='C1', alpha=0.7)
+
+        # ---------------------------------------------------
+        # KDE mode
+        # ---------------------------------------------------
+        else:
+            kde_2d = gaussian_kde(np.vstack([theta, z]), weights=pdf)
+
+            th_lin = np.linspace(theta.min(), theta.max(), bins)
+            z_lin  = np.linspace(z.min(), z.max(), bins)
+            TH, ZH = np.meshgrid(th_lin, z_lin)
+
+            dens_2d = kde_2d(np.vstack([TH.ravel(), ZH.ravel()])).reshape(TH.shape)
+
+            cf = ax_joint.contourf(TH, ZH, dens_2d, 40, cmap=cmap)
+
+            cax = fig.add_axes([0.92, 0.15, 0.02, 0.6])
+            fig.colorbar(cf, cax=cax, label="KDE Density")
+
+            # 1D KDE marginals
+            kde_theta = gaussian_kde(theta, weights=pdf)
+            kde_z     = gaussian_kde(z, weights=pdf)
+
+            d_theta = kde_theta(th_lin)
+            d_z     = kde_z(z_lin)
+
+            d_theta /= np.trapezoid(d_theta, th_lin)
+            d_z     /= np.trapezoid(d_z, z_lin)
+
+            ax_top.plot(th_lin, d_theta, color="C0")
+            ax_top.fill_between(th_lin, d_theta, color="C0", alpha=0.3)
+
+            ax_right.plot(d_z, z_lin, color="C1")
+            ax_right.fill_betweenx(z_lin, d_z, color="C1", alpha=0.3)
+
+        # Labels
+        ax_joint.set_xlabel(r"$\log_{10}(M_{\rm BH}/M_\odot)$")
+        ax_joint.set_ylabel(r"$z$")
+        ax_top.set_ylabel(r"$p(\log M_{\rm BH})$")
+        ax_right.set_xlabel(r"$p(z)$")
+
+        ax_top.tick_params(axis="x", labelbottom=False)
+        ax_right.tick_params(axis="y", labelleft=False)
+
+        return fig, ax_joint, ax_top, ax_right
