@@ -189,14 +189,72 @@ class MBHMassFunction:
 
 @dataclass
 class CO_mass_function:
-    
     def delta_distribution(self, m, M_CO):
-        m = np.asarray(m[:, None])
-        # return np.where(m == M_CO, 1.0, 0.0).squeeze()
+        m = np.asarray(m)
+        # exact discrete delta at nearest bin
+        psi = np.zeros_like(m, dtype=float)
+        idx = np.argmin(np.abs(m - M_CO))
+        psi[idx] = 1.0
+        return psi
 
-        # this is a very narrow Gaussian centered at M_CO,
-        # which approximates a delta function for numerical purposes.
-        return np.exp(-(m - M_CO)**2 / (2*(1e-3)**2)).squeeze()
+    def power_law(self, m, alpha=2.35):
+        """Return power-law distribution ψ(m) ∝ m^{-α}."""
+        m = np.asarray(m, float)
+        return m**(-alpha)
+
+    def kroupa_imf(self, m):
+        """Return Kroupa IMF ψ(m) ∝ m^{-1.3} for m < 0.5 Msun and ψ(m) ∝ m^{-2.3} for m ≥ 0.5 Msun."""
+        m = np.asarray(m, float)
+        psi = np.zeros_like(m)
+        
+        # m < 0.5
+        mask1 = m < 0.5
+        psi[mask1] = m[mask1]**(-1.3)
+
+        # m ≥ 0.5
+        mask2 = ~mask1
+        psi[mask2] = m[mask2]**(-2.3)
+
+        return psi
+
+    def salpeter(self, m):
+        """Return Salpeter IMF ψ(m) ∝ m^{-2.35}."""
+        return self.power_law(m, alpha=2.35)
+
+    def normalize(self, func, m):
+        """Return func(m) normalized so ∫func(m) dm = 1."""
+        psi = np.asarray(func, float)
+        m = np.asarray(m, float)
+
+        integral = np.trapz(psi, m)
+        if integral == 0:
+            raise ValueError("CO mass function integral is zero; check grid or function.")
+
+        return psi / integral
+
+    # ------------------------------------------------------
+    # 6. Unified interface
+    # ------------------------------------------------------
+    def mass_distribution(self, m, kind="kroupa", M_CO=10.0, alpha=2.35):
+        m = np.asarray(m, float)
+
+        if kind == "delta":
+            psi = self.delta_distribution(m, M_CO)
+
+        elif kind == "power_law":
+            psi = self.power_law(m, alpha=alpha)
+
+        elif kind == "kroupa":
+            psi = self.kroupa_imf(m)
+
+        elif kind == "salpeter":
+            psi = self.salpeter(m)
+
+        else:
+            raise ValueError(f"Unknown mass function kind: {kind}")
+
+        return self.normalize(psi, m)
+
 
 @dataclass
 class CosmologyModel:

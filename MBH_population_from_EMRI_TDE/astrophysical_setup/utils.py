@@ -91,38 +91,99 @@ class Plotting:
         plt.show()
         plt.close()
 
-
     @staticmethod
-    def plot_NSCprofile(NSC_obj, profile_obj, r_grid: np.ndarray, component_masses: np.ndarray, kind='TDE', Ntot=1e5):
-        
-        r_inf = NSC_obj.r_influence(unit='pc')
-        r_cap = NSC_obj.r_capture(unit='pc')
-        r_tid = NSC_obj.r_tidal(unit='pc')
+    def plot_NSCprofile(NSC_obj, profile_obj, r_grid: np.ndarray,
+                        component_masses: np.ndarray, kind='TDE', Ntot=1e5):
+        """
+        Plots:
+            - number density n(r)
+            - shell number nr(r)
+            - mass density rho(r)
+        for all nucleated galaxies in the NSC population.
 
-        n_star = profile_obj.dehnen_number_density(r_grid, Ntot=Ntot, kind=kind, unit='1/pc^3')
-        nr_star = profile_obj.radial_number_distribution(r_grid, Ntot=Ntot, kind=kind, unit='1/pc')
-        rho_star = profile_obj.mass_density(r_grid=r_grid, Ntot=Ntot, component_masses=component_masses, kind=kind, unit='Msun/pc^3')
+        r_grid must be shape (N, Nr).
+        """
+        from density import ensure_2d, squeeze_if_single, vectorize_r_grid
 
-        fig, ax = plt.subplots(1, 3, figsize=(16, 5), sharex=True)
-        ax[0].loglog(r_grid, n_star.T, label='$n_i^\mathrm{EMRI}(r)$')
+        # ---------------------------------------------------------------
+        # Ensure all inputs have correct shapes
+        # ---------------------------------------------------------------
+        r_grid = ensure_2d(r_grid)          # (N, Nr)
+        N, Nr = r_grid.shape
+
+        # Broadcast Ntot correctly
+        if np.isscalar(Ntot):
+            Ntot = Ntot * np.ones(N)
+        Ntot = np.asarray(Ntot).reshape(N)
+
+        # component_masses: allow 1D or (N, species)
+        comp_mass = np.asarray(component_masses)
+        if comp_mass.ndim == 1:
+            comp_mass = np.broadcast_to(comp_mass, (N, comp_mass.size))
+
+        # ---------------------------------------------------------------
+        # Compute fundamental NSC radii
+        # ---------------------------------------------------------------
+        r_inf = NSC_obj.r_influence(unit='pc')   # (N,)
+        r_cap = NSC_obj.r_capture(unit='pc')     # (N,)
+        r_tid = NSC_obj.r_tidal(unit='pc')       # (N,)
+
+        # ---------------------------------------------------------------
+        # Compute profiles
+        # ---------------------------------------------------------------
+        n_star   = profile_obj.dehnen_number_density(r_grid, Ntot=Ntot, kind=kind)
+        nr_star  = profile_obj.radial_number_distribution(r_grid, Ntot=Ntot, kind=kind)
+        rho_star = profile_obj.mass_density(r_grid=r_grid, Ntot=Ntot,
+                                            component_masses=comp_mass,
+                                            kind=kind, unit='Msun/pc^3')
+
+        # ---------------------------------------------------------------
+        # Plotting
+        # ---------------------------------------------------------------
+        fig, ax = plt.subplots(1, 3, figsize=(17, 5), sharex=False)
+
+        # ------------------------------
+        # Panel 1: n(r)
+        # ------------------------------
+        for i in range(N):
+            ax[0].loglog(r_grid[i], n_star[i], label=f'Galaxy {i}')
         ax[0].set_xlabel('r [pc]')
-        ax[0].set_ylabel(r'$1/\mathrm{pc}^3$')
-        ax[0].vlines(r_inf, np.min(n_star), np.max(n_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
-        ax[0].legend()
+        ax[0].set_ylabel(r'$n(r)$ [1/pc$^3$]')
+        for i in range(N):
+            ax[0].axvline(r_inf[i], linestyle='--', color='gray', alpha=0.5)
+        ax[0].set_title("Number Density $n(r)$")
 
-        ax[1].loglog(r_grid, nr_star.T, label='$n_r^\mathrm{EMRI}(r)$')
+        # ------------------------------
+        # Panel 2: n_r(r)
+        # ------------------------------
+        for i in range(N):
+            ax[1].loglog(r_grid[i], nr_star[i], label=f'Galaxy {i}')
         ax[1].set_xlabel('r [pc]')
-        ax[1].set_ylabel(r'$1/\mathrm{pc}$')
-        ax[1].vlines(r_inf, np.min(nr_star), np.max(nr_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
-        ax[1].legend()  
+        ax[1].set_ylabel(r'$4\pi r^2 n(r)$ [1/pc]')
+        for i in range(N):
+            ax[1].axvline(r_inf[i], linestyle='--', color='gray', alpha=0.5)
+        ax[1].set_title("Shell Number Distribution $n_r(r)$")
 
-        ax[2].loglog(r_grid, rho_star.T, label='$\\rho^\mathrm{EMRI}(r)$')
+        # ------------------------------
+        # Panel 3: Mass Density rho(r)
+        # ------------------------------
+        for i in range(N):
+            ax[2].loglog(r_grid[i], rho_star[i], label=f'Galaxy {i}')
         ax[2].set_xlabel('r [pc]')
-        ax[2].set_ylabel('$M_\odot/\mathrm{pc}^3$')
-        ax[2].vlines(r_inf, np.min(rho_star), np.max(rho_star), label='$r_\mathrm{infl.}$', linestyle='--', color='black')
-        ax[2].legend()
+        ax[2].set_ylabel(r'$\rho(r)$ [M$_\odot$/pc$^3$]')
+        for i in range(N):
+            ax[2].axvline(r_inf[i], linestyle='--', color='gray', alpha=0.5)
+        ax[2].set_title("Mass Density $\rho(r)$")
 
-        plt.savefig(f"{NSC_obj.gal.lgMgal}_properties.pdf", dpi=200)
+        # ---------------------------------------------------------------
+        # Legend and saving
+        # ---------------------------------------------------------------
+        ax[2].legend(loc='upper right', fontsize=8)
+
+        filename = f"NSC_profile_{NSC_obj.gal.lgMgal}.pdf"
+
+        plt.tight_layout()
+        plt.savefig(filename, dpi=200)
         plt.show()
 
     @staticmethod
