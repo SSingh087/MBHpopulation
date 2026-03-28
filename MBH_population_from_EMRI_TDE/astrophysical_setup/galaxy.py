@@ -56,6 +56,7 @@ class Galaxy:
             # we also here care for galaxies which are nucleated.
             self.sigma_pc_yr = self.sigma(unit='pc/year')[self.nucleation_occurs]
             self.lgMBH_mass = self.lgMBH(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)[self.nucleation_occurs]
+            self.z_gal = self.z_gal[self.nucleation_occurs]
         
             # print(f"Number of galaxies: {self.lgMgal.shape[0]} with nucleation_occurs={self.nucleation_occurs.sum()} out of {self.lgMgal.shape[0]} total.")
 

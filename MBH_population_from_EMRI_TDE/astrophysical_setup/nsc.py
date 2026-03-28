@@ -19,12 +19,7 @@ class NSC:
 
         if lgMBH is None:
             # this block assumes that the galaxy instance has already computed sigma_pc_yr and lgMgal, which is true if it was initialized with lgMgal. If it was initialized with lgMBH, then this block will not be executed and we will use the provided lgMBH directly.
-            self._lgMBH = self.gal.lgMBH_mass(
-                A=MBH_params.get('A', 7.87),
-                B=MBH_params.get('B', 4.55),
-                sigma_0=MBH_params.get('sigma_0', 160.0),
-                MBH_scatter=MBH_params.get('MBH_scatter', 0.53),
-            )
+            self._lgMBH = self.gal.lgMBH_mass
         else:
             self._lgMBH = np.asarray(lgMBH)
 
