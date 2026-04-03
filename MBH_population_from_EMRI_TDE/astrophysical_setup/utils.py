@@ -298,13 +298,13 @@ class Plotting:
         plt.colorbar(cf, ax=ax, label="Density")
 
         ax.set_xlabel(r"$z$")
-        ax.set_ylabel(r"$\log_{10}(M_{\rm BH}/M_\odot)$")
+        ax.set_ylabel(r"$\log_{10}(M_{\rm MBH}/M_\odot)$")
         ax.set_title("Smoothed Joint PDF (KDE)")
 
         return ax
 
     @staticmethod
-    def plot_joint_with_marginals(z, theta, pdf, bins=40, smooth=False, cmap="magma"):
+    def plot_joint_with_marginals(z, theta, pdf, theta_label, bins=40, smooth=False, cmap="magma"):
         """
         Produce a corner-style plot with:
         - Joint 2D histogram or KDE
@@ -334,7 +334,7 @@ class Plotting:
                                 density=True, cmap=cmap)
 
             cax = fig.add_axes([0.92, 0.15, 0.02, 0.6])
-            fig.colorbar(h[3], cax=cax, label="p(z, log MBH)")
+            fig.colorbar(h[3], cax=cax, label=r"$p(z, " + theta_label + ")$")
 
             ax_top.hist(theta, bins=bins, weights=pdf, density=True,
                         color='C0', alpha=0.7)
@@ -375,9 +375,9 @@ class Plotting:
             ax_right.fill_betweenx(z_lin, d_z, color="C1", alpha=0.3)
 
         # Labels
-        ax_joint.set_xlabel(r"$\log_{10}(M_{\rm BH}/M_\odot)$")
+        ax_joint.set_xlabel(r"$" + theta_label + "$")
         ax_joint.set_ylabel(r"$z$")
-        ax_top.set_ylabel(r"$p(\log M_{\rm BH})$")
+        ax_top.set_ylabel(r"$p(" + theta_label + ")$")
         ax_right.set_xlabel(r"$p(z)$")
 
         ax_top.tick_params(axis="x", labelbottom=False)

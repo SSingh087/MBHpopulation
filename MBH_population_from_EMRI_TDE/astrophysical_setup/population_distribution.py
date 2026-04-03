@@ -309,7 +309,7 @@ class dN_dCO_dz(PopulationDistribution):
         return pdf
 
 
-N_objs = 5000
+N_objs = 50
 
 z_gal = torch.tensor(np.random.uniform(0.01, 5, size=N_objs))
 
@@ -344,18 +344,18 @@ dist_dN_dCO_dz = dN_dCO_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(CO_mass
 pdf_dN_dCO_dz = dist_dN_dCO_dz.pdf(X=(z_gal, CO_masses, lgMBH_mass_from_galaxies), gamma=1.5)
 
 
-Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz, smooth=True, cmap="magma")
+Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz, theta_label=r"\log_{10}(M_{\rm BH}/M_\odot)", smooth=True, cmap="magma")
 plt.tight_layout()
 plt.savefig("dN_dlgMBH_dz.pdf", dpi=300)
 plt.show()
 
 
-Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_da_dz, smooth=True, cmap="magma")
+Plotting.plot_joint_with_marginals(z_gal, MBHspins, pdf_dN_da_dz, theta_label=r"a", smooth=True, cmap="magma")
 plt.tight_layout()
 plt.savefig("dN_da_dz.pdf", dpi=300)
 plt.show()
 
-Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dCO_dz, smooth=True, cmap="magma")
+Plotting.plot_joint_with_marginals(z_gal, CO_masses, pdf_dN_dCO_dz, theta_label=r"\mu", smooth=True, cmap="magma")
 plt.tight_layout()
 plt.savefig("dN_dCO_dz.pdf", dpi=300)
 plt.show()
