@@ -63,12 +63,9 @@ Ncum_star = dehnen_obj.cumulative_number(r_grid, Ntot=Ntot, kind='EMRI')
 r_min = r_grid[:, 0]      # smallest radius
 r_max = r_grid[:, -1]
 
-breakpoint()
 total_N_star = dehnen_obj.number_of_CO_within_shell(r_min, r_max, Ntot=Ntot, kind='EMRI')
 
-
 rho_star = dehnen_obj.mass_density(r_grid, Ntot=Ntot, component_masses=component_masses, kind='EMRI', unit='Msun/pc^3')
-
 
 # print(Ncum_star[-1], np.log10(Ncum_star[-1]))
 print(total_N_star, np.log10(total_N_star))

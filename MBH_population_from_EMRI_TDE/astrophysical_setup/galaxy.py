@@ -28,9 +28,6 @@ class Galaxy:
         if lgMgal is None and lgMBH is None:
             raise ValueError("Must specify either lgMgal or lgMBH. They are related by the M-sigma relation. Specify one or the other, or neither to compute lgMBH from lgMgal.")
 
-        # if lgMgal is None and lgMBH is None:
-        #     raise ValueError("Must specify either lgMgal or lgMBH. They are related by the M-sigma relation. Specify one or the other, or neither to compute lgMBH from lgMgal.")
-        
         # Case 1: MBH → sigma, Mgal   (inverse deterministic mode)
         if lgMgal is not None and lgMBH is not None:
             warnings.warn("Both lgMgal and lgMBH are provided. This will ignore the M-sigma relation and treat them as independent. Ensure this is intended behavior.")
@@ -147,25 +144,25 @@ class Galaxy:
         # donot apply scatter here since this is used for the grid calculation in cosmology.py and we want a deterministic grid. Scatter can be applied later when sampling from the interpolator.
         return A + B * np.log10(sigma / sigma_0)
 
-    @staticmethod
-    def lgMgal_from_lgMBH(lgMBH, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0):
-        """
-        Analytic inversion of the M-sigma relation used in lgMBH_from_Mgal.
-        Returns log10(Mgal/Msun).
-        """
+    # @staticmethod
+    # def lgMgal_from_lgMBH(lgMBH, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0):
+    #     """
+    #     Analytic inversion of the M-sigma relation used in lgMBH_from_Mgal.
+    #     Returns log10(Mgal/Msun).
+    #     """
 
-        # reproduce sigma(lgMgal) = C * 10^(beta * lgMgal)
-        # using same coefficients as R_eff and M_enc relations
-        beta = 0.5 - 0.12   # = 0.38
-        const_sigma = -0.41 + 1.284  # constants from Re and M_enc pieces
+    #     # reproduce sigma(lgMgal) = C * 10^(beta * lgMgal)
+    #     # using same coefficients as R_eff and M_enc relations
+    #     beta = 0.5 - 0.12   # = 0.38
+    #     const_sigma = -0.41 + 1.284  # constants from Re and M_enc pieces
 
-        # from MBH = A + B*(log10(sigma) − log10(sigma0)):
-        log_sigma = (lgMBH - A)/B + np.log10(sigma_0)
+    #     # from MBH = A + B*(log10(sigma) − log10(sigma0)):
+    #     log_sigma = (lgMBH - A)/B + np.log10(sigma_0)
 
-        # invert log_sigma = const_sigma + beta * lgMgal
-        lgMgal = (log_sigma - const_sigma)/beta
+    #     # invert log_sigma = const_sigma + beta * lgMgal
+    #     lgMgal = (log_sigma - const_sigma)/beta
 
-        return lgMgal
+    #     return lgMgal
 
 
 

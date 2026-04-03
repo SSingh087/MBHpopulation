@@ -89,29 +89,6 @@ class GalaxyStellarMassFunction:
         lgMgal, phi = self.get_gsmf(z_gal, n_points_mass=size)
         return lgMgal
 
-
-class MBHMassFunction:
-
-    def __init__(self, gsmf: GalaxyStellarMassFunction):
-        self.gsmf = gsmf
-        self._cache: Dict[Tuple[bytes, int], Dict[str, Any]] = {}
-
-    def get_mbhmf(self, z_gal, n_points_mass: int = 1000):
-
-        lgMgal_grid, log10phi_gsmf = self.gsmf.get_gsmf(z_gal, n_points_mass=n_points_mass)  # (Nm,), (Nz,Nm)
-
-        logMBH_grid = Galaxy.lgMBH_from_Mgal(lgMgal_grid)  # (Nm,)
-
-        dlogMBH_dlogMgal = np.gradient(logMBH_grid, lgMgal_grid)
-        dlogMgal_dlogMBH = 1.0 / dlogMBH_dlogMgal  # (Nm,)
-
-        phi_linear = np.power(10.0, log10phi_gsmf)                # (Nz, Nm)
-        dndlogMBH_linear = phi_linear * dlogMgal_dlogMBH[None, :] # (Nz, Nm)
-
-        return logMBH_grid, np.log10(dndlogMBH_linear)  # (Nm,), (Nz,Nm)
-
-        
-
 class MBHMassFunction:
 
     def __init__(self, gsmf):
@@ -186,7 +163,6 @@ class MBHMassFunction:
 
         return 10**log10phi_vals
 
-
 @dataclass
 class CO_mass_function:
     def delta_distribution(self, m, M_CO):
@@ -254,7 +230,6 @@ class CO_mass_function:
             raise ValueError(f"Unknown mass function kind: {kind}")
 
         return self.normalize(psi, m)
-
 
 @dataclass
 class CosmologyModel:

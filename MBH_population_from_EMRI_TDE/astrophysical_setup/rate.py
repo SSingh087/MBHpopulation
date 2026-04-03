@@ -12,32 +12,37 @@ class RateModel:
         """
         $\hat{\Gamma}_\mathrm{EMRI}
         """
-        sigma = self.nsc.gal.sigma(unit='km/s')[self.nsc.gal.nucleation_occurs]
+        sigma = self.nsc.gal.sigma(unit='km/s')
         lgMBH = self.nsc.gal.lgMBH_mass
         MBH = 10.0**lgMBH
         a, b, c = 6.2e-6, -0.25, 3.09 
 
-        return a * (MBH)**b + (sigma/sigma_0)**c 
+        return a * (MBH)**b * (sigma/sigma_0)**c 
 
     def time_to_peak_EMRI_rate(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
         """
         $t_\mathrm{EMRI}
         """
-        sigma = self.nsc.gal.sigma(unit='km/s')[self.nsc.gal.nucleation_occurs]
+        sigma = self.nsc.gal.sigma(unit='km/s')
         lgMBH = self.nsc.gal.lgMBH_mass
         MBH = 10.0**lgMBH
         a, b, c = 6.4e-9, 1.29, -2.97
         
-        return a * (MBH)**b + (sigma/sigma_0)**c 
+        return a * (MBH)**b * (sigma/sigma_0)**c 
 
-    def universal_EMRI_rate(self, tau):
+
+@dataclass
+class UniversalRate:
+
+    @staticmethod
+    def EMRI_rate(tau):
         # this should be replaced by the values that Luca will provide, but for now we can use similar looking distributions to test the code
         # From arXiv:2205.06277v1 Fig 6 
         a, b = 2.0, 5.0
         return beta.pdf(tau, a, b)
 
-
-    def universal_TDE_rate(self, tau):
+    @staticmethod
+    def TDE_rate(tau):
         # this should be replaced by the values that Luca will provide, but for now we can use similar looking distributions to test the code
         # From arXiv:2205.06277v1 Fig 6 
         mu, sigma = 1e-7, 0.05
