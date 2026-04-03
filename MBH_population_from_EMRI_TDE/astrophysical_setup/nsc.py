@@ -76,33 +76,3 @@ class NSC:
             return rt_pc * pc_to_cm
         else:
             raise ValueError("unit must be 'pc' or 'cm'")
-
-    def CO_mass_function(self):
-        """
-        Placeholder for compact object mass function in the NSC.
-        Could be a power-law, log-normal, or based on stellar evolution models.
-        """
-        raise NotImplementedError("CO mass function not implemented yet.")
-
-
-# class NSC:
-#     """
-#     Nuclear Star Cluster
-#     """
-
-#     def __init__(self, galaxy: Galaxy, lgMBH: Optional[np.ndarray] = None, MBH_params: Optional[dict] = None):
-
-#         self.gal = galaxy
-
-#         if MBH_params is None:
-#             MBH_params = dict(A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53)
-
-#         if lgMBH is None:
-#             self._lgMBH = self.gal.lgMBH_mass(
-#                 A=MBH_params.get('A', 7.87),
-#                 B=MBH_params.get('B', 4.55),
-#                 sigma_0=MBH_params.get('sigma_0', 160.0),
-#                 MBH_scatter=MBH_params.get('MBH_scatter', 0.53),
-#             )
-#         else:
-#             self._lgMBH = np.array(lgMBH)

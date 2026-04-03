@@ -127,6 +127,18 @@ class PopulationDistribution:
     def pdf(self, **kwargs) -> torch.Tensor:
         raise NotImplementedError
 
+    def cdf(self, **kwargs) -> torch.Tensor:
+        raise NotImplementedError
+    
+    def interpolate(self, pdf):
+        # this method can be used to create an interpolator for the pdf, which can then be used for sampling or evaluating the pdf at arbitrary points.
+        # we can use scipy's griddata or RegularGridInterpolator for this purpose, depending on the structure of the grid and the desired interpolation method.
+        pass
+
+    def draw_sample(self, num_samples, **kwargs):
+        # this method can be used to draw samples from the distribution defined by the pdf. 
+        # We can use inverse transform sampling, rejection sampling, or any other appropriate method depending on the structure of the pdf and the grid.
+        pass
 
 class dN_dlgMBH_dz(PopulationDistribution):
     def __init__(self, limits_z, limits_theta, limits_MBH, npoints=200, grid_spacing='linear', device="cpu", dtype=torch.float64):
