@@ -32,6 +32,18 @@ class RateModel:
         return a * (MBH)**b * (sigma/sigma_0)**c 
 
 
+    def peak_TDE_rate(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
+        """
+        $\hat{\Gamma}_\mathrm{TDE}
+        """
+        sigma = self.nsc.gal.sigma_km_s
+        lgMBH = self.nsc.gal.lgMBH_mass
+        MBH = 10.0**lgMBH
+        a, b, c = 1.6e-4, -0.22, 1.16 
+
+        return a * (MBH)**b * (sigma/sigma_0)**c
+
+
 @dataclass
 class UniversalRate:
 

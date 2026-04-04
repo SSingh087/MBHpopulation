@@ -1,3 +1,6 @@
+import os, sys, argparse
+sys.path.insert(0, os.path.abspath('../astrophysical_setup'))
+
 from utils import *
 
 from galaxy import *
@@ -10,7 +13,7 @@ from cosmology import LastMajorMerger, CosmologyModel, GalaxyStellarMassFunction
 # from distributions import Distributions
 
 cosmo_model = CosmologyModel()
-N_objs = 10
+N_objs = 5
 
 # right now this is just a random draw of redshifts for testing.
 # In the future, we can use a more physically motivated distribution
@@ -97,7 +100,3 @@ accumulated_TDEs = cusp_evolution_object.accumulated_objects_within_time(kvir=1.
 
 print(f"Total number of EMRIs accumulated for a cusp age of {cusp_age} Gyr is {accumulated_EMRIs}.")
 print(f"Total number of TDEs accumulated for a cusp age of {cusp_age} Gyr is {accumulated_TDEs}.")
-
-
-
-

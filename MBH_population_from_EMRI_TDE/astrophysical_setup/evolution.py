@@ -54,8 +54,13 @@ class CuspEvolution:
     def t_EMRI(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
         return self.rate_model.time_to_peak_EMRI_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
     
-    def Gamma_hat_EMRI(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
-        return self.rate_model.peak_EMRI_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+    def Gamma_hat(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, kind: str = 'EMRI'):
+        if kind.upper() == 'EMRI':
+            return self.rate_model.peak_EMRI_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+        elif kind.upper() == 'TDE':
+            return self.rate_model.peak_TDE_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+        else:
+            raise ValueError(f"Unknown kind: {kind}")
 
     def evaluate_tau(self, kvir, unit: str = 'Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
         
@@ -75,7 +80,7 @@ class CuspEvolution:
         
         t_EMRI = self.t_EMRI(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
         
-        Gamma_hat_EMRI = self.Gamma_hat_EMRI(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+        Gamma_hat = self.Gamma_hat(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind)
 
         tau = np.atleast_1d(tau)
         N = tau.size
@@ -92,6 +97,6 @@ class CuspEvolution:
             raise ValueError(f"Unknown kind: {kind}")
 
         cumulative_distribution = np.trapezoid(_rate_grid, tau_grid, axis=1)  # shape (N,)
-        N_objects = Gamma_hat_EMRI * t_EMRI * cumulative_distribution  # scalar * scalar * (N,) = (N,)
+        N_objects = Gamma_hat * t_EMRI * cumulative_distribution  # scalar * scalar * (N,) = (N,)
 
         return N_objects

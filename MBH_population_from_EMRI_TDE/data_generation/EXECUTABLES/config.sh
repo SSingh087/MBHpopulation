@@ -1,0 +1,4 @@
+#!/bin/sh
+
+GALAXIES=100
+OBSERVING_WINDOW=4
