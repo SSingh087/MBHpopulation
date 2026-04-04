@@ -4,13 +4,13 @@ from galaxy import *
 from nsc import NSC, CompactObject
 from density import DehnenProfile
 from relaxation import RelaxationModel
-from rate import RateModel
+from rate import RateModel, UniversalRate
 from evolution import CuspEvolution
 from cosmology import LastMajorMerger, CosmologyModel, GalaxyStellarMassFunction, MBHMassFunction
 # from distributions import Distributions
 
 cosmo_model = CosmologyModel()
-N_objs = 5
+N_objs = 10
 
 # right now this is just a random draw of redshifts for testing.
 # In the future, we can use a more physically motivated distribution
@@ -57,70 +57,46 @@ nr_star = dehnen_obj.radial_number_distribution(r_grid, kind='EMRI')
 Ncum_star = dehnen_obj.cumulative_number(r_grid, kind='EMRI')
 
 
-Plotting.plot_NSCprofile(NSC_obj, CO_objs, dehnen_obj, r_grid, kind='EMRI')
+# Plotting.plot_NSCprofile(NSC_obj, CO_objs, dehnen_obj, r_grid, kind='EMRI')
 
 print("mass density at influence radius:", mass_density_at_rinfl := dehnen_obj.mass_density_at_rinfl(kvir=1.0, unit='Msun/pc^3'))
-# r_min = r_grid[:, 0]      # smallest radius
-# r_max = r_grid[:, -1]
 
-# total_N_star = dehnen_obj.number_of_CO_within_shell(r_min, r_max, Ntot=Ntot, kind='EMRI')
+r_min = r_grid[:, 0]      # smallest radius
+r_max = r_grid[:, -1]
 
-# rho_star = dehnen_obj.mass_density(r_grid, Ntot=Ntot, component_masses=component_masses, kind='EMRI', unit='Msun/pc^3')
+total_CO_in_shell = dehnen_obj.number_of_CO_within_shell(r_min, r_max, kind='EMRI')
 
-# # print(Ncum_star[-1], np.log10(Ncum_star[-1]))
-# print(total_N_star, np.log10(total_N_star))
+# print(Ncum_star, np.log10(Ncum_star))
+# print(total_CO_in_shell, np.log10(total_CO_in_shell))
 
-# # plt.loglog(r_grid[:-1], Ncum_star.T, label='cumulative number')
-# # plt.xlabel('Radius (pc)')
-# # plt.ylabel('Cumulative Number')
-# # plt.legend()
-# # plt.savefig('cumulative_number.pdf', dpi=200)
-# # plt.show()
+relax_obj = RelaxationModel(nsc=NSC_obj, compact_object=CO_objs, profile=dehnen_obj)
 
+print("t_relax:", relax_obj.t_relax(rho_r=mass_density_at_rinfl, kvir=1.0, unit='Gyr'))
 
+print("t_relax_at_rinfl:", relax_obj.t_relax_at_rinfl(kvir=1.0, unit='Gyr'))
 
-# relax_obj = RelaxationModel(NSC_obj, dehnen_obj)
+tau_grid = np.linspace(0, 1, 1000)
+rate_obj = RateModel(NSC_obj)
 
-# rho_at_rinfl = relax_obj.profile.mass_density_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', unit='Msun/pc^3')
+print(f"t_EMRI: {rate_obj.time_to_peak_EMRI_rate()}, Gamma_hat_EMRI: {rate_obj.peak_EMRI_rate()}")
 
-# print("rho_at_rinfl:", rho_at_rinfl)
+# Plotting.plot_rate_evolution(tau_grid, UniversalRate.EMRI_rate(tau_grid), UniversalRate.TDE_rate(tau_grid))
 
-# print("t_relax:", relax_obj.t_relax(rho_at_rinfl, Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10, unit='Gyr',))
+cusp_evolution_object = CuspEvolution(nsc=NSC_obj, compact_object=CO_objs, relaxation=relax_obj, rate_model=rate_obj, LastMajorMerger=LastMajorMerger(CosmologyModel()))
 
-# print("t_relax_at_rinfl:", relax_obj.t_relax_at_rinfl(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr'))
+t_on = cusp_evolution_object.cusp_turn_on_time(kvir=1.0, unit='Gyr')
 
-# tau_grid = np.linspace(0, 1, 1000)
-# rate_obj = RateModel(NSC_obj)
+cusp_age = cusp_evolution_object.cusp_age(kvir=1.0, unit='Gyr')
+print(f"t_ON : {t_on}, T_c : {cusp_age}")
 
-# print(f"t_EMRI: {rate_obj.time_to_peak_EMRI_rate()}, Gamma_hat_EMRI: {rate_obj.peak_EMRI_rate()}")
+print("tau = ", tau := cusp_evolution_object.evaluate_tau(kvir=1.0, unit='Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter))
 
-# # Plotting.plot_rate_evolution(tau_grid, rate_obj.universal_EMRI_rate(tau_grid), rate_obj.universal_TDE_rate(tau_grid))
+accumulated_EMRIs = cusp_evolution_object.accumulated_objects_within_time(kvir=1.0, kind='EMRI', unit='Gyr')
 
-# # pdf = rate_obj.universal_EMRI_rate(tau_grid)
-# # samples = Distributions(tau_grid, pdf).get_samples(size=1000)
+accumulated_TDEs = cusp_evolution_object.accumulated_objects_within_time(kvir=1.0, kind='TDE', unit='Gyr')
 
-# # import matplotlib.pyplot as plt
-# # plt.hist(samples, bins=50, density=True)
-# # plt.xlabel(r'$\tau$')
-# # plt.ylabel('samples')
-# # plt.tight_layout()
-# # plt.savefig('samples_Rate_EMRI.pdf', dpi=200)
-# # plt.show()
-
-
-# cusp_evolution_object = CuspEvolution(NSC_obj, relax_obj, rate_obj, LastMajorMerger(CosmologyModel()))
-# t_on = cusp_evolution_object.cusp_turn_on_time(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
-
-# cusp_age = cusp_evolution_object.cusp_age(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
-# print(f"t_ON : {t_on}, T_c : {cusp_age}")
-
-# print(cusp_evolution_object.evaluate_tau(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter))
-
-# accumulated_EMRIs = cusp_evolution_object.accumulated_objects_within_time(Ntot=Ntot, component_masses=component_masses, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr')
-
-
-# print(f"Total number of EMRIs accumulated for a cusp age of {cusp_age} Gyr is {accumulated_EMRIs}.")
-
+print(f"Total number of EMRIs accumulated for a cusp age of {cusp_age} Gyr is {accumulated_EMRIs}.")
+print(f"Total number of TDEs accumulated for a cusp age of {cusp_age} Gyr is {accumulated_TDEs}.")
 
 
 
