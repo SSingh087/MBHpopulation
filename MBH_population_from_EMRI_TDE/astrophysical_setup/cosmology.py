@@ -263,6 +263,10 @@ class CosmologyModel:
         dVc_dz_dOmega = self.cosmo.differential_comoving_volume(z).to(u.Mpc**3 / u.sr).value
         return 4 * np.pi * dVc_dz_dOmega  # Mpc^3 per unit z assuming whole sky
 
+    def luminosity_distance(self, z):
+        """Luminosity distance D_L(z) in Mpc."""
+        return self.cosmo.luminosity_distance(z).to(u.Mpc)
+
 class LastMajorMerger:
 
     def __init__(self, cosmology_model: CosmologyModel):
