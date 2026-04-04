@@ -109,7 +109,7 @@ class PopulationDistribution:
         return out
 
 # --- Paths and load samples ---
-base_path = '/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/_pop_A'
+base_path = './INFERENCE_DATA/_pop_A'
 event_dirs = ['1E2_events', '1E3_events', '1E4_events']
 samples_all = [load_samples(f'{base_path}/{event}/inference') for event in event_dirs]
 
@@ -288,5 +288,5 @@ for idx, label in enumerate(labels_post):
 
 plt.tight_layout()
 
-plt.savefig("/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/combine_plot_A_posterior1D_PPD.png", dpi=300, bbox_inches="tight")
-plt.savefig("/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/combine_plot_A_posterior1D_PPD.pdf", dpi=300, bbox_inches="tight")
+plt.savefig("./PLOTS/combine_plot_A_posterior1D_PPD.png", dpi=300, bbox_inches="tight")
+plt.savefig("./PLOTS/combine_plot_A_posterior1D_PPD.pdf", dpi=300, bbox_inches="tight")
