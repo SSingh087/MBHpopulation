@@ -76,3 +76,44 @@ class NSC:
             return rt_pc * pc_to_cm
         else:
             raise ValueError("unit must be 'pc' or 'cm'")
+
+
+class CompactObject:
+    def __init__(self, nsc, masses, total_mass, types_CO, types_masses, type_CO_limits=None):
+
+        self.nsc = nsc
+        self.types_CO = types_CO  # 'sBH' or 'star'
+        self.total_number = {}
+        self.types_masses = types_masses  # 'same_mass' or 'random_mass'
+        self.masses = masses  # dict of masses for each CO type, e.g. {'sBH': 10.0, 'star': 1.0}
+        self.total_mass = total_mass  # dict of total mass for each CO type, e.g. {'sBH': 20.0, 'star': 100.0}
+
+        # other CO types can be added in the future,
+        # but for now we only have sBHs and stars,
+        # so we can initialize the total_number dict with these two keys.
+        if self.types_masses == 'same_mass':
+            for type_CO in self.types_CO:
+                self.total_number[type_CO] = self.total_mass[type_CO] * self.nsc.MBH_mass / self.masses[type_CO]
+        
+        elif self.types_masses == 'random_mass':
+            raise NotImplementedError("Random mass sampling for COs is not implemented yet. Please use 'same_mass' for now.")
+            # the issue here is that it will need number of COs for 
+            # counting which is what we are trying to compute in the 
+            # first place, so we will need to do some iterative sampling 
+            # from the CO mass function until we reach the total/close
+            # to the mass we want, and then count the number of COs.
+        else:
+            raise ValueError("types_masses must be 'same_mass' or 'random_mass'")
+
+    @property
+    def total_number_CO(self):
+        return self.total_number
+
+    # @property
+    # def component_masses(self):
+    #     if self.types_masses == 'same_mass':
+    #         breakpoint()
+    #         y = np.zeros_like(self.total_number['sBH'])
+    #         return {type_CO: np.full_like(y, self.masses[type_CO]) for type_CO in self.types_CO}
+    #     else:
+    #         raise NotImplementedError("Random mass sampling for COs is not implemented yet. Please use 'same_mass' for now.")

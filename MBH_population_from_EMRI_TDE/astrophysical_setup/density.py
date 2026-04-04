@@ -1,6 +1,6 @@
 import numpy as np
 from config import Msun_to_grams, gamma_dehnen_initial
-from nsc import NSC
+from nsc import NSC, CompactObject
 
 class DehnenProfile:
     """
@@ -11,16 +11,18 @@ class DehnenProfile:
     use helper functions at the bottom of the file.
     """
 
-    def __init__(self, nsc: NSC, gamma: float = gamma_dehnen_initial):
+    def __init__(self, nsc: NSC, compact_object: CompactObject, gamma: float = gamma_dehnen_initial):
         self.nsc = nsc
+        self.compact_object = compact_object
         self.gamma_dehnen_initial = float(gamma)
 
-    def dehnen_number_density(self, r_grid, Ntot, kind='TDE', unit='1/pc^3'):
+    def dehnen_number_density(self, r_grid, kind='TDE', unit='1/pc^3'):
         """
         Returns n(r) with shape (N, Nr)
         """
         r_grid = np.asarray(r_grid, float)         # expect shape (N, Nr)
-        Ntot   = np.asarray(Ntot, float)           # (N,)
+        
+        Ntot = self.compact_object.total_number['sBH'] if kind.upper() == 'EMRI' else self.compact_object.total_number['star']        # (N,)
 
         N, Nr = r_grid.shape
 
@@ -45,17 +47,17 @@ class DehnenProfile:
 
         return n
 
-    def radial_number_distribution(self, r_grid, Ntot, kind='TDE', unit='1/pc'):
+    def radial_number_distribution(self, r_grid, kind='TDE', unit='1/pc'):
         r_grid = np.asarray(r_grid, float)
-        n = self.dehnen_number_density(r_grid, Ntot, kind)   # (N, Nr)
+        n = self.dehnen_number_density(r_grid, kind)   # (N, Nr)
         return 4.0 * np.pi * (r_grid ** 2) * n
 
-    def cumulative_number(self, r_grid, Ntot, kind='TDE'):
+    def cumulative_number(self, r_grid, kind='TDE'):
         """
         Returns N(<r) with shape (N, Nr-1)
         """
         r_grid = np.asarray(r_grid, float)          # (N, Nr)
-        nr = self.radial_number_distribution(r_grid, Ntot, kind)  # (N, Nr)
+        nr = self.radial_number_distribution(r_grid, kind)  # (N, Nr)
 
         dr = np.diff(r_grid, axis=1)               # (N, Nr-1)
 
@@ -63,7 +65,7 @@ class DehnenProfile:
         Ncum = np.cumsum(0.5 * (nr[:, 1:] + nr[:, :-1]) * dr, axis=1)
         return Ncum
 
-    def number_of_CO_within_shell(self, r_min, r_max, Ntot, kind='TDE', npts=2000):
+    def number_of_CO_within_shell(self, r_min, r_max, kind='TDE', npts=2000):
         """
         Computes the number of objects between r_min and r_max for each galaxy.
         Accepts scalar or array radii. Returns array of shape (N,).
@@ -71,7 +73,7 @@ class DehnenProfile:
 
         r_min = np.asarray(r_min, float)
         r_max = np.asarray(r_max, float)
-        Ntot  = np.asarray(Ntot, float)
+        Ntot = self.compact_object.total_number['sBH'] if kind.upper() == 'EMRI' else self.compact_object.total_number['star'] # (N,)
 
         # Scalar → broadcast to arrays of shape (N,)
         N = Ntot.size
@@ -84,9 +86,6 @@ class DehnenProfile:
         if r_min.shape != (N,) or r_max.shape != (N,):
             raise ValueError("r_min, r_max, and Ntot must all have shape (N,)")
 
-        # ----------------------------------------------
-        # Build per-galaxy radius grids: shape (N, npts)
-        # ----------------------------------------------
         # log r_min, log r_max shapes: (N,1)
         log_rmin = np.log10(r_min)[:, None]
         log_rmax = np.log10(r_max)[:, None]
@@ -97,14 +96,14 @@ class DehnenProfile:
         # final radius grid: (N, npts)
         r_grid = 10**(log_rmin + u * (log_rmax - log_rmin))
 
-        nr = self.radial_number_distribution(r_grid, Ntot, kind)  # (N, npts)
+        nr = self.radial_number_distribution(r_grid, kind)  # (N, npts)
         N_objects = np.trapezoid(nr, r_grid, axis=1)              # (N,)
 
         return N_objects
 
-    def dehnen_n_at_radius(self, r, Ntot, kind='TDE'):
+    def dehnen_n_at_radius(self, r, kind='TDE'):
         r = np.asarray(r, float)           # (N,)
-        Ntot = np.asarray(Ntot, float)
+        Ntot = self.compact_object.total_number['sBH'] if kind.upper() == 'EMRI' else self.compact_object.total_number['star']    
 
         r_a = self.nsc.scale_radius(kvir=1.0, factor=4.0, unit="pc")
         r_k = (self.nsc.r_capture(unit="pc") if kind.upper() == "EMRI"
@@ -120,17 +119,24 @@ class DehnenProfile:
 
         return n                              # (N,)
 
-    def mass_density(self, r_grid, Ntot, component_masses, kind='TDE', unit='Msun/pc^3'):
+    def mass_density(self, r_grid, unit='Msun/pc^3'):
         r_grid = np.asarray(r_grid, float)       # (N, Nr)
         N, Nr = r_grid.shape
 
-        comp_mass = np.asarray(component_masses, float)
-        n_i = self.dehnen_number_density(r_grid, Ntot, kind)   # (N, Nr)
-
-        if comp_mass.ndim == 1:
-            rho = np.sum(comp_mass) * n_i                      # (N, Nr)
+        if self.compact_object.types_masses == 'same_mass':
+            sBH_mass = self.compact_object.total_mass['sBH']  # scalar
+            star_mass = self.compact_object.total_mass['star']  # scalar
+            rho = sBH_mass * self.dehnen_number_density(r_grid, kind='EMRI') + star_mass * self.dehnen_number_density(r_grid, kind='TDE')  # (N, Nr)
         else:
-            rho = np.sum(comp_mass[:, :, None] * n_i[:, None, :], axis=1)
+            raise NotImplementedError("Random mass sampling for COs is not implemented yet. Please use 'same_mass' for now.")
+
+            # comp_mass = np.asarray(self.compact_object.component_masses, float)
+            # n_i = self.dehnen_number_density(r_grid, kind)   # (N, Nr)
+
+            # if comp_mass.ndim == 1:
+            #     rho = np.sum(comp_mass) * n_i                      # (N, Nr)
+            # else:
+            #     rho = np.sum(comp_mass[:, :, None] * n_i[:, None, :], axis=1)
 
         if unit == 'Msun/pc^3':
             return rho
@@ -139,17 +145,19 @@ class DehnenProfile:
         else:
             raise ValueError("unit must be 'Msun/pc^3' or 'g/pc^3'.")
 
-    def mass_density_at_rinfl(self, Ntot, component_masses, kvir=1.0,
-                              kind='TDE', unit='Msun/pc^3'):
+    def mass_density_at_rinfl(self, kvir=1.0, unit='Msun/pc^3'):
+        
         r_inf = self.nsc.r_influence(kvir=kvir, unit='pc')   # (N,)
-        n = self.dehnen_n_at_radius(r_inf, Ntot, kind)       # (N,)
 
-        comp_mass = np.asarray(component_masses)
-
-        if comp_mass.ndim == 1:
-            rho = n * np.sum(comp_mass)
+        if self.compact_object.types_masses == 'same_mass':
+            rho = (self.compact_object.total_mass['sBH'] * self.dehnen_n_at_radius(r_inf, kind='EMRI')) + (self.compact_object.total_mass['star'] * self.dehnen_n_at_radius(r_inf, kind='TDE'))  # (N,)
         else:
-            rho = np.sum(comp_mass * n[:, None], axis=1)
+            raise NotImplementedError("Random mass sampling for COs is not implemented yet. Please use 'same_mass' for now.")
+
+            # if comp_mass.ndim == 1:
+            #     rho = n * np.sum(comp_mass)
+            # else:
+            #     rho = np.sum(comp_mass * n[:, None], axis=1)
 
         if unit == 'Msun/pc^3':
             return rho

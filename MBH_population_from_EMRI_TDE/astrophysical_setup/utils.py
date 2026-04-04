@@ -15,6 +15,41 @@ def _to_numpy(x):
         return x.detach().cpu().numpy()
     return np.asarray(x)
 
+def ensure_2d(arr):
+    """
+    Ensures arr has shape (N, Nr).
+    If arr is (Nr,), returns (1, Nr).
+    """
+    arr = np.asarray(arr)
+    if arr.ndim == 1:
+        return arr.reshape(1, -1)
+    return arr
+
+
+def squeeze_if_single(arr):
+    """
+    If arr has shape (1, Nr), return (Nr,).
+    Otherwise return arr unchanged.
+    """
+    arr = np.asarray(arr)
+    if arr.ndim == 2 and arr.shape[0] == 1:
+        return arr[0]
+    return arr
+
+
+def vectorize_r_grid(r_grid, N):
+    """
+    Ensures r_grid has shape (N, Nr).
+    Accepts (Nr,) or (1, Nr).
+    """
+    r_grid = np.asarray(r_grid)
+    if r_grid.ndim == 1:
+        return np.broadcast_to(r_grid, (N, len(r_grid)))
+    if r_grid.shape[0] == 1 and N > 1:
+        return np.broadcast_to(r_grid, (N, r_grid.shape[1]))
+    return r_grid
+
+
 class Distributions:
     def __init__(self, x, pdf):
         self.x = x
@@ -102,8 +137,7 @@ class Plotting:
         plt.close()
 
     @staticmethod
-    def plot_NSCprofile(NSC_obj, profile_obj, r_grid: np.ndarray,
-                        component_masses: np.ndarray, kind='TDE', Ntot=1e5):
+    def plot_NSCprofile(NSC_obj, CO_obj, profile_obj, r_grid: np.ndarray, kind='TDE', Ntot=1e5):
         """
         Plots:
             - number density n(r)
@@ -113,23 +147,12 @@ class Plotting:
 
         r_grid must be shape (N, Nr).
         """
-        from density import ensure_2d, squeeze_if_single, vectorize_r_grid
 
         # ---------------------------------------------------------------
         # Ensure all inputs have correct shapes
         # ---------------------------------------------------------------
         r_grid = ensure_2d(r_grid)          # (N, Nr)
         N, Nr = r_grid.shape
-
-        # Broadcast Ntot correctly
-        if np.isscalar(Ntot):
-            Ntot = Ntot * np.ones(N)
-        Ntot = np.asarray(Ntot).reshape(N)
-
-        # component_masses: allow 1D or (N, species)
-        comp_mass = np.asarray(component_masses)
-        if comp_mass.ndim == 1:
-            comp_mass = np.broadcast_to(comp_mass, (N, comp_mass.size))
 
         # ---------------------------------------------------------------
         # Compute fundamental NSC radii
@@ -141,11 +164,9 @@ class Plotting:
         # ---------------------------------------------------------------
         # Compute profiles
         # ---------------------------------------------------------------
-        n_star   = profile_obj.dehnen_number_density(r_grid, Ntot=Ntot, kind=kind)
-        nr_star  = profile_obj.radial_number_distribution(r_grid, Ntot=Ntot, kind=kind)
-        rho_star = profile_obj.mass_density(r_grid=r_grid, Ntot=Ntot,
-                                            component_masses=comp_mass,
-                                            kind=kind, unit='Msun/pc^3')
+        n_star   = profile_obj.dehnen_number_density(r_grid, kind=kind)
+        nr_star  = profile_obj.radial_number_distribution(r_grid, kind=kind)
+        rho_star = profile_obj.mass_density(r_grid=r_grid, unit='Msun/pc^3')
 
         # ---------------------------------------------------------------
         # Plotting
@@ -161,7 +182,7 @@ class Plotting:
         ax[0].set_ylabel(r'$n(r)$ [1/pc$^3$]')
         for i in range(N):
             ax[0].axvline(r_inf[i], linestyle='--', color='gray', alpha=0.5)
-        ax[0].set_title("Number Density $n(r)$")
+        ax[0].set_title("$n(r)$")
 
         # ------------------------------
         # Panel 2: n_r(r)
@@ -172,18 +193,19 @@ class Plotting:
         ax[1].set_ylabel(r'$4\pi r^2 n(r)$ [1/pc]')
         for i in range(N):
             ax[1].axvline(r_inf[i], linestyle='--', color='gray', alpha=0.5)
-        ax[1].set_title("Shell Number Distribution $n_r(r)$")
+        ax[1].set_title("$n_r(r)$")
 
         # ------------------------------
         # Panel 3: Mass Density rho(r)
         # ------------------------------
         for i in range(N):
-            ax[2].loglog(r_grid[i], rho_star[i], label=f'Galaxy {i}')
+            ax[2].loglog(r_grid[i], rho_star[i], label=f'$10^{{{NSC_obj.gal.lgMgal[i]:.2f}}}~M_\odot$')
+            ax[2].scatter(r_inf[i], profile_obj.mass_density_at_rinfl(kvir=1.0, unit='Msun/pc^3')[i], color='red', marker='x', s=100, label=f'$\\rho(r_{{inf}})$ Galaxy {i}' if i == 0 else None)
         ax[2].set_xlabel('r [pc]')
         ax[2].set_ylabel(r'$\rho(r)$ [M$_\odot$/pc$^3$]')
         for i in range(N):
             ax[2].axvline(r_inf[i], linestyle='--', color='gray', alpha=0.5)
-        ax[2].set_title("Mass Density $\rho(r)$")
+        ax[2].set_title(r"$\rho(r)$")
 
         # ---------------------------------------------------------------
         # Legend and saving
