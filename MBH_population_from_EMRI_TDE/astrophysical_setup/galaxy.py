@@ -33,6 +33,7 @@ class Galaxy:
             warnings.warn("Both lgMgal and lgMBH are provided. This will ignore the M-sigma relation and treat them as independent. Ensure this is intended behavior.")
             self.lgMBH_mass = np.asarray(lgMBH)
             self.sigma_pc_yr = np.asarray(sigma_pc_yr)
+            self.sigma_km_s = self.sigma_pc_yr * pc_to_cm / sec_per_year / 1e5  # convert to km/s
             self.lgMgal = np.asarray(lgMgal)
 
             # No nucleation randomness in PDF mode since we are conditioning on lgMBH which implies a nucleated galaxy. So we can set nucleation_occurs=True for all of them.
@@ -52,6 +53,7 @@ class Galaxy:
 
             # we also here care for galaxies which are nucleated.
             self.sigma_pc_yr = self.sigma(unit='pc/year')[self.nucleation_occurs]
+            self.sigma_km_s = self.sigma_pc_yr * pc_to_cm / sec_per_year / 1e5  # convert to km/s
             self.lgMBH_mass = self.lgMBH(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)[self.nucleation_occurs]
             self.z_gal = self.z_gal[self.nucleation_occurs]
         

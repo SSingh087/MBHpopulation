@@ -101,7 +101,7 @@ class DehnenProfile:
 
         return N_objects
 
-    def dehnen_n_at_radius(self, r, kind='TDE'):
+    def dehnen_at_radius(self, r, kind='TDE'):
         r = np.asarray(r, float)           # (N,)
         Ntot = self.compact_object.total_number['sBH'] if kind.upper() == 'EMRI' else self.compact_object.total_number['star']    
 
@@ -150,7 +150,7 @@ class DehnenProfile:
         r_inf = self.nsc.r_influence(kvir=kvir, unit='pc')   # (N,)
 
         if self.compact_object.types_masses == 'same_mass':
-            rho = (self.compact_object.total_mass['sBH'] * self.dehnen_n_at_radius(r_inf, kind='EMRI')) + (self.compact_object.total_mass['star'] * self.dehnen_n_at_radius(r_inf, kind='TDE'))  # (N,)
+            rho = (self.compact_object.total_mass['sBH'] * self.dehnen_at_radius(r_inf, kind='EMRI')) + (self.compact_object.total_mass['star'] * self.dehnen_at_radius(r_inf, kind='TDE'))  # (N,)
         else:
             raise NotImplementedError("Random mass sampling for COs is not implemented yet. Please use 'same_mass' for now.")
 
