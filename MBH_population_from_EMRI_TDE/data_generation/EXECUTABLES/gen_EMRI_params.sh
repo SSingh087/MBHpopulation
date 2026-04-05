@@ -9,17 +9,10 @@
 
 . EXECUTABLES/config.sh
 
-T_SIGNAL_MIN=$OBSERVING_WINDOW
-T_SIGNAL_MAX=6.0
-
-echo "==============================================================="
-echo "Generating EMRI and TDE events for $GALAXIES galaxies"
-echo "==============================================================="
-
-# python gen_events.py --galaxies $GALAXIES
+T_SIGNAL_MIN=0.5
+T_SIGNAL_MAX=$OBSERVING_WINDOW_EMRI
 
 python gen_EMRI_params_ex_p0.py \
-    --a 0.1 0.7 \
     --e0 0.1 0.7 \
     --Y0 0.1 0.7 \
     --T_SIGNAL $T_SIGNAL_MIN $T_SIGNAL_MAX \
@@ -28,4 +21,4 @@ python gen_EMRI_params_ex_p0.py \
 # echo "=============="
 # echo "Calculating p0"
 # echo "=============="
-# python eval_p0.py --events $EVENTS --MAX_SIGNAL_DURATION $T_SIGNAL_MAX --OBSERVING_WINDOW $OBSERVING_WINDOW\ 
+# python eval_p0.py --MAX_SIGNAL_DURATION $T_SIGNAL_MAX --OBSERVING_WINDOW $OBSERVING_WINDOW_EMRI\ 
