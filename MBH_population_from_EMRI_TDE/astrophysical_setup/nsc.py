@@ -117,3 +117,18 @@ class CompactObject:
     #         return {type_CO: np.full_like(y, self.masses[type_CO]) for type_CO in self.types_CO}
     #     else:
     #         raise NotImplementedError("Random mass sampling for COs is not implemented yet. Please use 'same_mass' for now.")
+
+
+class MBH_properties:
+    def __init__(self, nsc, A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53):
+        self.nsc = nsc
+        self.lgMBH_mass = self.nsc.lgMBH
+        self.MBHspin = self.MBHspin(beta=12.0, lambda_alpha=0.5)
+
+    @property
+    def MBH_mass(self):
+        return 10 ** self.nsc.lgMBH
+
+    def MBHspin(self, beta=12.0, lambda_alpha=0.5):
+        alpha = beta + lambda_alpha * (self.lgMBH_mass - 6)
+        return np.random.beta(alpha, beta)
