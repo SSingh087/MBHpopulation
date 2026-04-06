@@ -27,7 +27,7 @@ cosmo_model = CosmologyModel()
 
 N_objs = args.GALAXIES
 T_obs = args.OBSERVING_WINDOW
-z_grid = np.random.uniform(0.01, 8.0, N_objs) 
+z_grid = np.random.uniform(1E-5, 8.0, N_objs) 
 
 GSMF = GalaxyStellarMassFunction()
 lgMgal_samples = GSMF.sample_gsmf(z_gal=z_grid, size=N_objs)
@@ -56,11 +56,20 @@ print(np.sum(observed_EMRIs), observed_EMRIs.max(), np.sum(observed_TDEs), obser
 
 hf = h5py.File('./DATA/data_cusp_evolution.h5', 'w')
 hf.create_dataset('lgMgal', data=lgMgal_samples[nucleation_indices])
-hf.create_dataset('z_gal', data=z_grid[nucleation_indices])
 hf.create_dataset('nucleation_occurs', data=nucleation_indices)
+hf.create_dataset('sigma_km_s', data=gal_obj.sigma_km_s)
+
+hf.create_dataset('z_gal', data=z_grid[nucleation_indices])
+ra, dec = zip(*[gal_obj.sky_location() for _ in range(len(gal_obj.lgMBH_mass))])
+hf.create_dataset('ra_deg', data=np.array(ra))
+hf.create_dataset('dec_deg', data=np.array(dec))
+
 hf.create_dataset('lgMBH', data=gal_obj.lgMBH_mass)
 hf.create_dataset('MBHspin', data=MBH_obj.MBHspin)
-hf.create_dataset('sigma_km_s', data=gal_obj.sigma_km_s)
+
+hf.create_dataset('sBH_masses', data=CO_objs.masses['sBH'])
+hf.create_dataset('star_masses', data=CO_objs.masses['star'])
+
 hf.create_dataset('observed_EMRIs', data=observed_EMRIs)
 hf.create_dataset('observed_TDEs', data=observed_TDEs)
 hf.close()
