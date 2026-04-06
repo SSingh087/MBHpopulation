@@ -110,5 +110,6 @@ class CuspEvolution:
             return Gamma_hat * UniversalRate.TDE_rate(tau) * (T_obs / (1 + self.nsc.gal.z_gal))
 
     def number_of_objects_in_time(self, T_obs, kvir: float = 1.0, unit: str = 'Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
-        N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, unit=unit, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, n_grid=n_grid, kind=kind) * 1E7 # scale up to get more realistic numbers for Poisson sampling
+        N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, unit=unit, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, n_grid=n_grid, kind=kind) * [1E7 if kind.upper() == 'EMRI' else 1E5]
+        # scale up to get more realistic numbers for Poisson sampling
         return np.random.poisson(N_expected)

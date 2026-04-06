@@ -146,6 +146,14 @@ class Galaxy:
         # donot apply scatter here since this is used for the grid calculation in cosmology.py and we want a deterministic grid. Scatter can be applied later when sampling from the interpolator.
         return A + B * np.log10(sigma / sigma_0)
 
+    def sky_location(self):
+        """
+        Random sky location in RA (0 to 360 degrees) and Dec (-90 to 90 degrees).
+        """
+        ra = self.rng.uniform(0.0, 360.0)
+        dec = self.rng.uniform(-90.0, 90.0)
+        return ra, dec
+
     # @staticmethod
     # def lgMgal_from_lgMBH(lgMBH, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0):
     #     """
@@ -165,32 +173,3 @@ class Galaxy:
     #     lgMgal = (log_sigma - const_sigma)/beta
 
     #     return lgMgal
-
-
-
-    # def __init__(self, lgMgal: np.ndarray, z_gal: np.ndarray, sigma: np.ndarray=None, rng: Optional[np.random.Generator] = None, nucleation_occurs: bool = True):
-    #     """
-    #     Parameters
-    #     ----------
-    #     lgMgal : float
-    #         log10(Mstar/Msun)
-    #     nucleation_occurs : bool
-    #         Whether nucleation occurs for this galaxy (flag decided externally).
-    #     """
-    #     self.lgMgal = np.array(lgMgal)
-    #     self.z_gal = np.array(z_gal)
-    #     # print(f"Number of galaxies: {self.lgMgal.shape[0]} with nucleation_occurs={nucleation_occurs}")
-
-    #     # vectorized nucleation flags
-    #     if nucleation_occurs is None:
-    #         self.nucleation_occurs = np.ones(self.lgMgal.shape[0], dtype=bool)
-    #     else:
-    #         self.nucleation_occurs = np.asarray(nucleation_occurs, dtype=bool)
-        
-    #     # this ensures we use the same properties all the time and not apply scatter differently across different method calls. The scatter is applied once here in the constructor and then stored as an attribute for consistency.
-
-    #     # we also here care for galaxies which are nucleated.
-    #     self.sigma_pc_yr = self.sigma(unit='pc/year')[self.nucleation_occurs]
-    #     self.lgMBH_mass = self.lgMBH(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)[self.nucleation_occurs]
-        
-    #     self.rng = rng if rng is not None else np.random.default_rng()

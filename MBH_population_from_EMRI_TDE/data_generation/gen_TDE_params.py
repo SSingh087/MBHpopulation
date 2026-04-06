@@ -23,15 +23,19 @@ parser.add_argument("--file_name", type=str, required=True, help="Output file na
 args = parser.parse_args()
 
 hf = h5py.File('./DATA/data_cusp_evolution.h5', 'r')
-lgMgal_samples = hf['lgMgal'][:]
-z_gal = hf['z_gal'][:]
-lgMBH_mass = hf['lgMBH'][:]
-MBHspin = hf['MBHspin'][:]
-observed_TDEs = hf['observed_TDEs'][:]
+
+z_gal = np.array(hf['z_gal'][:])
+ra = np.rad2deg(np.array(hf['ra_deg'][:]))
+dec = np.rad2deg(np.array(hf['dec_deg'][:]))
+
+lgMBH_mass = np.array(hf['lgMBH'][:])
+MBHspin = np.array(hf['MBHspin'][:])
+
+star_masses = np.array(hf['star_masses'])
+
+observed_TDEs = np.array(hf['observed_TDEs'][:])
 
 hf.close()
-
-distances = cosmo_model.luminosity_distance(z_gal).to('Gpc').value
 
 eta_min, eta_max = args.eta
 alpha_min, alpha_max = args.alpha
@@ -54,8 +58,11 @@ with h5py.File("./DATA/all_galaxies_TDE_events.h5", "w") as f:
 
         # Fixed galaxy properties
         group["lgMBH_mass"] = lgMBH_mass[i]
-        group["distance_Gpc"] = distances[i]
+        group["z_gal"] = z_gal[i]
         group["MBHspin"] = MBHspin[i]
+        group["ra"] = ra[i]
+        group["dec"] = dec[i]
+        group["star_mass"] = star_masses
         params = np.random.uniform(param_mins, param_maxs, size=(N, len(param_mins)))
 
         for i, name in enumerate(param_names):

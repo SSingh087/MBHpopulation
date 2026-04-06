@@ -22,11 +22,18 @@ parser.add_argument("--file_name", type=str, required=True, help="Output file na
 args = parser.parse_args()
 
 hf = h5py.File('./DATA/data_cusp_evolution.h5', 'r')
-lgMgal_samples = hf['lgMgal'][:]
-z_gal = hf['z_gal'][:]
-lgMBH_mass = hf['lgMBH'][:]
-MBHspin = hf['MBHspin'][:]
-observed_EMRIs = hf['observed_EMRIs'][:]
+
+z_gal = np.array(hf['z_gal'][:])
+qS = np.pi/2 - np.deg2rad(np.array(hf['ra_deg'][:])) # Sky location polar angle in ecliptic coordinates.
+phiS = np.deg2rad(np.array(hf['dec_deg'][:])) # Sky location azimuthal angle in ecliptic coordinates.
+
+lgMBH_mass = np.array(hf['lgMBH'][:])
+MBHspin = np.array(hf['MBHspin'][:])
+
+sBH_masses = np.array(hf['sBH_masses'])
+
+observed_EMRIs = np.array(hf['observed_EMRIs'][:])
+
 
 hf.close()
 
@@ -37,8 +44,7 @@ Y0_min, Y0_max = args.Y0
 T_SIGNAL_min, T_SIGNAL_max = args.T_SIGNAL
 
 
-qS_min, qS_max = 0.1, np.pi * 0.99
-phiS_min, phiS_max = 0.1, 2 * np.pi * 0.99   
+
 qK_min, qK_max = 0.1, np.pi * 0.99
 phiK_min, phiK_max = 0.1, 2 * np.pi * 0.99
 Phi_phi0_min, Phi_phi0_max = 0.1, 2 * np.pi * 0.99
@@ -47,21 +53,20 @@ Phi_r0_min, Phi_r0_max = 0.1, 2 * np.pi * 0.99
 
 param_mins = np.array([
     e0_min, Y0_min,
-    qS_min, phiS_min, qK_min, phiK_min,
+    qK_min, phiK_min,
     Phi_phi0_min, Phi_theta0_min, Phi_r0_min,
     T_SIGNAL_min
 ])
 
 param_maxs = np.array([
     e0_max, Y0_max,
-    qS_max, phiS_max, qK_max, phiK_max,
+    qK_max, phiK_max,
     Phi_phi0_max, Phi_theta0_max, Phi_r0_max,
     T_SIGNAL_max
 ])
 
 param_names = [
     "e0", "Y0",
-    "qS", "phiS",
     "qK", "phiK",
     "Phi_phi0", "Phi_theta0", "Phi_r0",
     "T_SIGNAL_duration_years"
@@ -82,6 +87,9 @@ with h5py.File("./DATA/all_galaxies_EMRI_events.h5", "w") as f:
         group["lgMBH_mass"] = lgMBH_mass[i]
         group["distance_Gpc"] = distances[i]
         group["MBHspin"] = MBHspin[i]
+        group["qS"] = qS[i]
+        group["phiS"] = phiS[i]
+        group["sBH_mass"] = sBH_masses
         params = np.random.uniform(param_mins, param_maxs, size=(N, len(param_mins)))
 
         for i, name in enumerate(param_names):
