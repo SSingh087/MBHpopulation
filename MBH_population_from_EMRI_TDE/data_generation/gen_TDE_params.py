@@ -16,7 +16,6 @@ parser = argparse.ArgumentParser(description="Generate data for training.")
 parser.add_argument("--eta", type=float, nargs=2, required=True, help="eta")
 parser.add_argument("--alpha", type=float, nargs=2, required=True, help="alpha")
 parser.add_argument("--beta", type=float, nargs=2, required=True, help="beta")
-parser.add_argument("--OBSERVING_WINDOW", type=float, required=True, help="Observing window in days.")
 
 parser.add_argument("--file_name", type=str, required=True, help="Output file name.")
 
