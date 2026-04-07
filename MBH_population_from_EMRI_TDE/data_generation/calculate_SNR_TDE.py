@@ -5,36 +5,51 @@ logging.getLogger('redback').disabled = True
 
 import argparse
 import numpy as np
-import pandas as pd
 import h5py
 from multiprocessing import Pool
-import redback
 from redback.simulate_transients import SimulateOpticalTransient
 
 parser = argparse.ArgumentParser(description="Calculate SNR for TDE events.")
 parser.add_argument("--OBSERVING_WINDOW", type=float, required=True)
 parser.add_argument("--MIN_DETECTIONS", type=int, required=True)
+parser.add_argument("--BANDS", nargs="+", default=["ztfg", "ztfr", "ztfi"], help="Bands to check for detections (e.g., 'ztfg ztfr ztfi' for ZTF)")
+parser.add_argument("--SURVEY", type=str, default="ztf", help="Survey to simulate (e.g., 'ztf' or 'lsst')")
+
 args = parser.parse_args()
 
 OBSERVING_WINDOW = args.OBSERVING_WINDOW
 MIN_DETECTIONS = args.MIN_DETECTIONS
 
+SURVEY = args.SURVEY
+BANDS = args.BANDS
+
+if SURVEY == "ZTF":
+    SIMULATE_FN = SimulateOpticalTransient.simulate_transient_in_ztf
+    SURVEY = "ztf"
+    t0_mjd_transient = 58288 # MJD for ZTF (can be adjusted)
+elif SURVEY == "LSST":
+    SIMULATE_FN = SimulateOpticalTransient.simulate_transient_in_rubin
+    SURVEY = "Rubin_10yr_baseline"
+    t0_mjd_transient = 60000 # MJD for Rubin (can be adjusted)
+else:
+    raise ValueError(f"Unsupported survey: {SURVEY}")
+
 MODEL_NAME = "cooling_envelope"
-BANDS = ("ztfg", "ztfr", "ztfi")
 
 def run_telescope_simulator(theta):
-    """Wrapper for ZTF transient simulation."""
-    sim = SimulateOpticalTransient.simulate_transient_in_ztf(
+
+    sim = SIMULATE_FN(
         model=MODEL_NAME,
-        survey="ztf",
+        survey=SURVEY,
         parameters=theta,
         model_kwargs={},
         end_transient_time=OBSERVING_WINDOW,
-        snr_threshold=5,
+        snr_threshold=0.01,
         add_source_noise=False
     )
-
+    
     cols = ['time (days)', 'magnitude', 'e_magnitude', 'band', 'detected']
+    # print(sim.observations[cols].head())
     return sim.observations[cols]
 
 
@@ -84,8 +99,8 @@ def process_one_galaxy(gal, dat):
         "eta": 0.1, #float(eta[i]),
         "alpha": 0.1, #float(alpha[i]),
         "beta": 0.9, #float(beta[i]),
-        "t0_mjd_transient": 58288,
-        "t0": 58288,
+        "t0_mjd_transient": t0_mjd_transient,
+        "t0": t0_mjd_transient,
         "ra": ra,
         "dec": dec,
     } for i in range(len(alpha))]
@@ -119,24 +134,28 @@ if __name__ == "__main__":
     hf.close()
 
     all_results = {}
+    count = 0
+    print(f"[IMPORTANT SURVEY INFO] Checking detectability with {SURVEY.upper()}")
+    with h5py.File(f'./DATA/all_galaxies_TDE_SNR_results_{SURVEY.upper()}.h5', 'w') as hf_out:
 
-    with h5py.File('./DATA/all_galaxies_TDE_SNR_results.h5', 'w') as hf_out:
         for gal, dat in data.items():
-            all_results[gal] = process_one_galaxy(gal, dat)
-            results = all_results[gal]
-            if any(r['detected_bands'] for r in results):
-                group = hf_out.create_group(gal)
-                for r in results:
-                    event_index = r["event_index"]
-                    detected_bands = r["detected_bands"]
-                    times_by_band = r["times_by_band"]
+            if data[gal]['z_gal'] > 2.0:
+                print(f"[WARNING] Skipping {gal} due to high redshift (z={data[gal]['z_gal']})")
+                continue
 
-                    event_group = group.create_group(f"event_{event_index}")
-                    event_group.attrs["detected_bands"] = detected_bands
-                    for band in detected_bands:
-                        event_group.create_dataset(f"{band}_times", data=times_by_band[band])
-                print(f"[{gal}] Detected {len([r for r in results if r['detected_bands']])} events in bands: {', '.join(set(b for r in results for b in r['detected_bands']))}")
-            else:
-                print(f"[{gal}] No detections in any band.")
+            print(f"\n[INFO] Starting processing for {gal} with z={dat['z_gal']}")
+            results = process_one_galaxy(gal, dat)
+            detected_events = [r["event_index"] for r in results if r["detected_bands"]]
+            count += len(detected_events)
+
+            if len(detected_events) == 0:
+                print(f"[{gal}] No detections in any event.\n")
+                continue
+            
+            gal_group = hf_out.create_group(gal)
+            gal_group.create_dataset("event_index", data=np.array(detected_events, dtype=int))
+
+            print(f"[{gal}] Saved detected event indices: {detected_events}")
 
     print("\n[DONE] All galaxies processed.")
+    print(f"[SUMMARY] Total detected events for {SURVEY.upper()}: {count}")
