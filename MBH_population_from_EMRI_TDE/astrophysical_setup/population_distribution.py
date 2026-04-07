@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 
 from cosmology import CosmologyModel, GalaxyStellarMassFunction, MBHMassFunction, LastMajorMerger, CO_mass_function
 from galaxy import Galaxy
-from nsc import NSC
+from nsc import NSC, CompactObject
 from density import DehnenProfile
 from relaxation import RelaxationModel
-from rate import RateModel
+from rate import RateModel, UniversalRate
 from evolution import CuspEvolution
 
 from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
@@ -75,12 +75,6 @@ class PopulationDistribution:
         # each other, and we can use them to construct the 2D mesh after checking
         # if max and min of MBH grid are within the limits provided by the user
 
-        self.Ntot_EMRI = 1E5 * torch.ones_like(self.z_grid) # this is the total number of COs in the NSC, can be scaled with galaxy properties in the future
-        self.component_masses_sBH = torch.full_like(self.z_grid, 10.0) # this is the mass of the sBHs in the NSC, can be scaled with galaxy properties in the future
-
-        self.Ntot_EMRI = self.Ntot_EMRI[sorted_indices]
-        self.component_masses_sBH = self.component_masses_sBH[sorted_indices]
-
         if limits_MBH[-1] < max(self.lgMBH_sorted) and limits_MBH[0] > min(self.lgMBH_sorted):
             print("MBH grid is consistent with limits_MBH.")
         else:
@@ -105,9 +99,6 @@ class PopulationDistribution:
 
             # nucleation check is already applied before, so we can set nucleation_occurs=True for all of them.
             self.galaxies_on_grid = Galaxy(lgMgal=self.lgMgal_sorted, lgMBH=self.lgMBH_sorted, z_gal=self.z_grid_sorted, nucleation_occurs=True)
-
-            self.Ntot_EMRI = self.Ntot_EMRI[mask]
-            self.component_masses_sBH = self.component_masses_sBH[mask]
 
             print(f"Number of galaxies after applying MBH limits: {len(self.z_grid_sorted)}")
 
@@ -145,7 +136,7 @@ class dN_dlgMBH_dz(PopulationDistribution):
         super().__init__(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device, dtype)
 
     @torch.no_grad()
-    def pdf(self, X, **hypers) -> torch.Tensor:
+    def pdf(self, X, kind='EMRI', **hypers) -> torch.Tensor:
         
         z_gal, mbhmass = X
         
@@ -172,20 +163,22 @@ class dN_dlgMBH_dz(PopulationDistribution):
         lgMgal_derived = self.lgMgal_sorted[idx]
         sigma_pc_yr_derived = self.sigma_pc_yr_grid_sorted[idx]
 
-        # NSC and EMRI parameters corresponding to the input theta (lgMBH) after checking for nucleation and sorting
-        Ntot_EMRI = self.Ntot_EMRI[idx]
-        component_masses_sBH = self.component_masses_sBH[idx]
-
         __galaxies__ = Galaxy(lgMgal=lgMgal_derived, lgMBH=mbhmass, sigma_pc_yr=sigma_pc_yr_derived, z_gal=z_gal, nucleation_occurs=True)
 
         nscs = NSC(__galaxies__, mbhmass)
-        profiles = DehnenProfile(nscs, gamma)
-        relax_models = RelaxationModel(nscs, profiles)
-        rates = RateModel(nscs)
-        evol = CuspEvolution(nscs, relax_models, rates, LastMajorMerger(self.cosmo))
-        tau, T_c, t_EMRI, Gamma_hat_EMRI = evol.evaluate_tau(Ntot=Ntot_EMRI, component_masses=component_masses_sBH, kvir=1.0, kind='EMRI', mbar=10., unit='Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)
+        compact_objects = CompactObject(nsc=nscs, masses={'sBH': 10.0, 'star': 1.0}, total_mass={'sBH': 20.0, 'star': 100.0}, types_CO=['sBH', 'star'], types_masses='same_mass', type_CO_limits=None)
+        profiles = DehnenProfile(nsc=nscs, compact_object=compact_objects, gamma=gamma)
+        relax_models = RelaxationModel(nsc=nscs, compact_object=compact_objects, profile=profiles)
+        rates = RateModel(nsc=nscs)
+        evol = CuspEvolution(nsc=nscs, compact_object=compact_objects, relaxation=relax_models, rate_model=rates, LastMajorMerger=LastMajorMerger(self.cosmo))
 
-        Gamma = torch.tensor(Gamma_hat_EMRI * rates.universal_EMRI_rate(tau))
+        tau = evol.evaluate_tau(kvir=1.0, unit='Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)
+        
+        Gamma_hat = evol.Gamma_hat(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, kind=kind)
+
+        Rate = UniversalRate.EMRI_rate(tau) if kind.upper() == 'EMRI' else UniversalRate.TDE_rate(tau)
+
+        Gamma = torch.tensor(Gamma_hat * Rate)
 
         T_obs = self.T_obs_det / (1 + z_gal)  
 
@@ -206,119 +199,119 @@ class dN_dlgMBH_dz(PopulationDistribution):
         return pdf
 
 
-class dN_da_dz(PopulationDistribution):
+# class dN_da_dz(PopulationDistribution):
 
-    def __init__(self, limits_z, limits_theta, limits_MBH, npoints=200, grid_spacing='linear', device="cpu"):
-        super().__init__(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device)
-        self._dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device)
+#     def __init__(self, limits_z, limits_theta, limits_MBH, npoints=200, grid_spacing='linear', device="cpu"):
+#         super().__init__(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device)
+#         self._dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device)
 
-    @torch.no_grad()
-    def pdf(self, X, **hypers) -> torch.Tensor:
+#     @torch.no_grad()
+#     def pdf(self, X, **hypers) -> torch.Tensor:
 
-        z_gal, mbhspin, mbhmass = X
+#         z_gal, mbhspin, mbhmass = X
 
-        z_gal = torch.as_tensor(z_gal, device=self.device, dtype=self.dtype)
-        mbhspin = torch.as_tensor(mbhspin, device=self.device, dtype=self.dtype)
-        mbhmass = torch.as_tensor(mbhmass, device=self.device, dtype=self.dtype)
+#         z_gal = torch.as_tensor(z_gal, device=self.device, dtype=self.dtype)
+#         mbhspin = torch.as_tensor(mbhspin, device=self.device, dtype=self.dtype)
+#         mbhmass = torch.as_tensor(mbhmass, device=self.device, dtype=self.dtype)
 
-        hypers = self._sanitise_inputs(**hypers)
-        beta = hypers["beta"]
-        if "alpha" not in hypers:
-            lambda_alpha = hypers["lambda_alpha"]
-            alpha_M = ( beta + lambda_alpha * (mbhmass - 6) )
-            # alpha = 10**lgalpha_M
-        else:
-            alpha_M = hypers["alpha"] * torch.ones_like(mbhmass)
+#         hypers = self._sanitise_inputs(**hypers)
+#         beta = hypers["beta"]
+#         if "alpha" not in hypers:
+#             lambda_alpha = hypers["lambda_alpha"]
+#             alpha_M = ( beta + lambda_alpha * (mbhmass - 6) )
+#             # alpha = 10**lgalpha_M
+#         else:
+#             alpha_M = hypers["alpha"] * torch.ones_like(mbhmass)
 
-        gamma = hypers["gamma"]
+#         gamma = hypers["gamma"]
 
-        B = torch.exp(torch.lgamma(alpha_M) + torch.lgamma(beta) - torch.lgamma(alpha_M + beta))
-        beta_matrix = (mbhspin[:, None] ** (alpha_M[None, :] - 1)) * ((1 - mbhspin[:, None]) ** (beta - 1)) / B[None, :]
+#         B = torch.exp(torch.lgamma(alpha_M) + torch.lgamma(beta) - torch.lgamma(alpha_M + beta))
+#         beta_matrix = (mbhspin[:, None] ** (alpha_M[None, :] - 1)) * ((1 - mbhspin[:, None]) ** (beta - 1)) / B[None, :]
 
-        pdf_dN_dlgMBH_dz = self._dN_dlgMBH_dz.pdf(X=(z_gal, mbhmass), gamma=gamma)
+#         pdf_dN_dlgMBH_dz = self._dN_dlgMBH_dz.pdf(X=(z_gal, mbhmass), gamma=gamma)
 
-        dlogM = torch.diff(mbhmass, prepend=mbhmass[:1].clone())
+#         dlogM = torch.diff(mbhmass, prepend=mbhmass[:1].clone())
 
-        # Final contraction over mass dimension
-        pdf = torch.sum(pdf_dN_dlgMBH_dz[None, :] * beta_matrix * dlogM[None, :], dim=1)
-        pdf/=torch.sum(pdf)
+#         # Final contraction over mass dimension
+#         pdf = torch.sum(pdf_dN_dlgMBH_dz[None, :] * beta_matrix * dlogM[None, :], dim=1)
+#         pdf/=torch.sum(pdf)
 
-        return pdf
+#         return pdf
 
 
-class dN_dCO_dz(PopulationDistribution):
+# class dN_dCO_dz(PopulationDistribution):
 
-    def __init__(self, limits_z, limits_theta, limits_MBH, npoints=200, grid_spacing='linear', device="cpu"):
-        super().__init__(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device)
-        self._dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device)
-        self.CO_mass_function = CO_mass_function()
+#     def __init__(self, limits_z, limits_theta, limits_MBH, npoints=200, grid_spacing='linear', device="cpu"):
+#         super().__init__(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device)
+#         self._dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z, limits_theta, limits_MBH, npoints, grid_spacing, device)
+#         self.CO_mass_function = CO_mass_function()
         
-    @torch.no_grad()
-    def pdf(self, X, **hypers) -> torch.Tensor:
+#     @torch.no_grad()
+#     def pdf(self, X, **hypers) -> torch.Tensor:
 
-        z_gal, co_mass, mbhmass = X
+#         z_gal, co_mass, mbhmass = X
 
-        z_gal = torch.as_tensor(z_gal, device=self.device, dtype=self.dtype)
-        co_mass = torch.as_tensor(co_mass, device=self.device, dtype=self.dtype)
-        mbhmass = torch.as_tensor(mbhmass, device=self.device, dtype=self.dtype)
+#         z_gal = torch.as_tensor(z_gal, device=self.device, dtype=self.dtype)
+#         co_mass = torch.as_tensor(co_mass, device=self.device, dtype=self.dtype)
+#         mbhmass = torch.as_tensor(mbhmass, device=self.device, dtype=self.dtype)
 
-        hypers = self._sanitise_inputs(**hypers)
-        gamma = hypers["gamma"]
+#         hypers = self._sanitise_inputs(**hypers)
+#         gamma = hypers["gamma"]
         
-        pdf_dN_dlgMBH_dz = self._dN_dlgMBH_dz.pdf(X=(z_gal, mbhmass), gamma=gamma)
+#         pdf_dN_dlgMBH_dz = self._dN_dlgMBH_dz.pdf(X=(z_gal, mbhmass), gamma=gamma)
 
-        idx = torch.searchsorted(self.lgMBH_sorted, mbhmass)
-        idx = torch.clamp(idx, 1, len(self.lgMBH_sorted) - 1)
+#         idx = torch.searchsorted(self.lgMBH_sorted, mbhmass)
+#         idx = torch.clamp(idx, 1, len(self.lgMBH_sorted) - 1)
         
-        left = self.lgMBH_sorted[idx - 1]
-        right = self.lgMBH_sorted[idx]
+#         left = self.lgMBH_sorted[idx - 1]
+#         right = self.lgMBH_sorted[idx]
         
-        choose_left = (torch.abs(mbhmass - left) <= torch.abs(mbhmass - right))
-        idx = idx - choose_left.long()
+#         choose_left = (torch.abs(mbhmass - left) <= torch.abs(mbhmass - right))
+#         idx = idx - choose_left.long()
 
-        # galactic parmeters corresponding to the input theta (lgMBH) after checking for nucleation and sorting
+#         # galactic parmeters corresponding to the input theta (lgMBH) after checking for nucleation and sorting
         
-        lgMgal_derived = self.lgMgal_sorted[idx]
-        sigma_pc_yr_derived = self.sigma_pc_yr_grid_sorted[idx]
+#         lgMgal_derived = self.lgMgal_sorted[idx]
+#         sigma_pc_yr_derived = self.sigma_pc_yr_grid_sorted[idx]
 
-        # NSC and EMRI parameters corresponding to the input theta (lgMBH) after checking for nucleation and sorting
-        Ntot_EMRI = self.Ntot_EMRI[idx]
-        component_masses_sBH = self.component_masses_sBH[idx]
+#         # NSC and EMRI parameters corresponding to the input theta (lgMBH) after checking for nucleation and sorting
+#         Ntot_EMRI = self.Ntot_EMRI[idx]
+#         component_masses_sBH = self.component_masses_sBH[idx]
 
-        __galaxies__ = Galaxy(lgMgal=lgMgal_derived, lgMBH=mbhmass, sigma_pc_yr=sigma_pc_yr_derived, z_gal=z_gal, nucleation_occurs=True)
+#         __galaxies__ = Galaxy(lgMgal=lgMgal_derived, lgMBH=mbhmass, sigma_pc_yr=sigma_pc_yr_derived, z_gal=z_gal, nucleation_occurs=True)
 
-        nscs = NSC(__galaxies__, mbhmass)
+#         nscs = NSC(__galaxies__, mbhmass)
 
-        r_maxs = nscs.r_influence(unit='pc')
-        r_mins = nscs.r_capture(unit='pc')
+#         r_maxs = nscs.r_influence(unit='pc')
+#         r_mins = nscs.r_capture(unit='pc')
 
-        profiles = DehnenProfile(nscs, gamma)
+#         profiles = DehnenProfile(nscs, gamma)
 
-        I_rs = profiles.number_of_CO_within_shell(r_min=r_mins, r_max=r_maxs, Ntot=Ntot_EMRI, kind='EMRI', npts=2000)
+#         I_rs = profiles.number_of_CO_within_shell(r_min=r_mins, r_max=r_maxs, Ntot=Ntot_EMRI, kind='EMRI', npts=2000)
         
-        if torch.all(torch.diff(co_mass) == 0):
-            co_mf = torch.ones_like(co_mass, device=self.device, dtype=self.dtype)
-            pdf_mu = co_mf / co_mf.sum()     # trivial delta
-        else:
-            # Continuous mass grid
-            psi_np = self.CO_mass_function.mass_distribution(
-                m=co_mass.cpu().numpy(),
-                kind="kroupa"
-            )
-            psi = torch.tensor(psi_np, device=self.device, dtype=self.dtype)
+#         if torch.all(torch.diff(co_mass) == 0):
+#             co_mf = torch.ones_like(co_mass, device=self.device, dtype=self.dtype)
+#             pdf_mu = co_mf / co_mf.sum()     # trivial delta
+#         else:
+#             # Continuous mass grid
+#             psi_np = self.CO_mass_function.mass_distribution(
+#                 m=co_mass.cpu().numpy(),
+#                 kind="kroupa"
+#             )
+#             psi = torch.tensor(psi_np, device=self.device, dtype=self.dtype)
 
-            psi_I = psi[None, :] * I_rs[:, None]
-            norm = torch.trapz(psi_I, co_mass[None, :], dim=1)
-            pdf_mu = psi_I / norm[:, None]
+#             psi_I = psi[None, :] * I_rs[:, None]
+#             norm = torch.trapz(psi_I, co_mass[None, :], dim=1)
+#             pdf_mu = psi_I / norm[:, None]
 
 
-        pdf_dN_dlgMBH_dz = self._dN_dlgMBH_dz.pdf(X=(z_gal, mbhmass), gamma=gamma)
-        dlogM = torch.diff(mbhmass, prepend=mbhmass[:1].clone())
+#         pdf_dN_dlgMBH_dz = self._dN_dlgMBH_dz.pdf(X=(z_gal, mbhmass), gamma=gamma)
+#         dlogM = torch.diff(mbhmass, prepend=mbhmass[:1].clone())
 
-        # Final contraction over mass dimension
-        pdf = torch.sum(pdf_dN_dlgMBH_dz[None, :] * pdf_mu[:, None] * dlogM[None, :], dim=1)
-        pdf/=torch.sum(pdf)
-        return pdf
+#         # Final contraction over mass dimension
+#         pdf = torch.sum(pdf_dN_dlgMBH_dz[None, :] * pdf_mu[:, None] * dlogM[None, :], dim=1)
+#         pdf/=torch.sum(pdf)
+#         return pdf
 
 
 N_objs = 50
@@ -345,32 +338,37 @@ print(f"passing {nucleation_indices.sum()} nucleated galaxies")
 # so z_Gal and lgMBH should be gaussian around the mean for testing purposes
 
 dist_dN_dlgMBH_dz = dN_dlgMBH_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), limits_MBH=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), npoints=500, grid_spacing='linear', device="cpu")
-pdf_dN_dlgMBH_dz = dist_dN_dlgMBH_dz.pdf(X=(z_gal, lgMBH_mass_from_galaxies), gamma=1.5)
 
-MBHspins = torch.tensor(np.random.uniform(0, 1, size=N_objs)[nucleation_indices])
-dist_dN_da_dz = dN_da_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(MBHspins.min(), MBHspins.max()), limits_MBH=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), npoints=100, grid_spacing='linear', device="cpu")
-pdf_dN_da_dz = dist_dN_da_dz.pdf(X=(z_gal, MBHspins, lgMBH_mass_from_galaxies), gamma=1.5, lambda_alpha=0.5, beta=12.0)
+pdf_dN_dlgMBH_dz_EMRI = dist_dN_dlgMBH_dz.pdf(X=(z_gal, lgMBH_mass_from_galaxies), kind='EMRI', gamma=1.5)
 
-CO_masses = torch.tensor(np.full_like(z_gal, 10))
-dist_dN_dCO_dz = dN_dCO_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(CO_masses.min(), CO_masses.max()), limits_MBH=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), npoints=100, grid_spacing='linear', device="cpu")
-pdf_dN_dCO_dz = dist_dN_dCO_dz.pdf(X=(z_gal, CO_masses, lgMBH_mass_from_galaxies), gamma=1.5)
+pdf_dN_dlgMBH_dz_TDE = dist_dN_dlgMBH_dz.pdf(X=(z_gal, lgMBH_mass_from_galaxies), kind='TDE', gamma=1.5)
 
 
-Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz, theta_label=r"\log_{10}(M_{\rm BH}/M_\odot)", smooth=True, cmap="magma")
+# MBHspins = torch.tensor(np.random.uniform(0, 1, size=N_objs)[nucleation_indices])
+# dist_dN_da_dz = dN_da_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(MBHspins.min(), MBHspins.max()), limits_MBH=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), npoints=100, grid_spacing='linear', device="cpu")
+# pdf_dN_da_dz = dist_dN_da_dz.pdf(X=(z_gal, MBHspins, lgMBH_mass_from_galaxies), gamma=1.5, lambda_alpha=0.5, beta=12.0)
+
+# CO_masses = torch.tensor(np.full_like(z_gal, 10))
+# dist_dN_dCO_dz = dN_dCO_dz(limits_z=(z_gal[0], z_gal[-1]), limits_theta=(CO_masses.min(), CO_masses.max()), limits_MBH=(lgMBH_mass_from_galaxies.min(), lgMBH_mass_from_galaxies.max()), npoints=100, grid_spacing='linear', device="cpu")
+# pdf_dN_dCO_dz = dist_dN_dCO_dz.pdf(X=(z_gal, CO_masses, lgMBH_mass_from_galaxies), gamma=1.5)
+
+
+Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz_EMRI, theta_label=r"\log_{10}(M_{\rm BH}/M_\odot)", smooth=True, cmap="magma")
+Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz_TDE, theta_label=r"\log_{10}(M_{\rm BH}/M_\odot)", smooth=True, cmap="magma")
 plt.tight_layout()
 plt.savefig("dN_dlgMBH_dz.pdf", dpi=300)
 plt.show()
 
 
-Plotting.plot_joint_with_marginals(z_gal, MBHspins, pdf_dN_da_dz, theta_label=r"a", smooth=True, cmap="magma")
-plt.tight_layout()
-plt.savefig("dN_da_dz.pdf", dpi=300)
-plt.show()
+# Plotting.plot_joint_with_marginals(z_gal, MBHspins, pdf_dN_da_dz, theta_label=r"a", smooth=True, cmap="magma")
+# plt.tight_layout()
+# plt.savefig("dN_da_dz.pdf", dpi=300)
+# plt.show()
 
-Plotting.plot_joint_with_marginals(z_gal, CO_masses, pdf_dN_dCO_dz, theta_label=r"\mu", smooth=True, cmap="magma")
-plt.tight_layout()
-plt.savefig("dN_dCO_dz.pdf", dpi=300)
-plt.show()
+# Plotting.plot_joint_with_marginals(z_gal, CO_masses, pdf_dN_dCO_dz, theta_label=r"\mu", smooth=True, cmap="magma")
+# plt.tight_layout()
+# plt.savefig("dN_dCO_dz.pdf", dpi=300)
+# plt.show()
 
 # Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz, smooth=True, cmap="magma")
 # plt.tight_layout()
