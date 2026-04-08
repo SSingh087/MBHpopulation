@@ -44,12 +44,11 @@ def run_telescope_simulator(theta):
         parameters=theta,
         model_kwargs={},
         end_transient_time=OBSERVING_WINDOW,
-        snr_threshold=0.01,
+        snr_threshold=10.0,
         add_source_noise=False
     )
     
     cols = ['time (days)', 'magnitude', 'e_magnitude', 'band', 'detected']
-    # print(sim.observations[cols].head())
     return sim.observations[cols]
 
 
@@ -135,8 +134,8 @@ if __name__ == "__main__":
 
     all_results = {}
     count = 0
-    print(f"[IMPORTANT SURVEY INFO] Checking detectability with {SURVEY.upper()}")
-    with h5py.File(f'./DATA/all_galaxies_TDE_SNR_results_{SURVEY.upper()}.h5', 'w') as hf_out:
+    print(f"[IMPORTANT SURVEY INFO] Checking detectability with {args.SURVEY.upper()} for {len(data)} galaxies...")
+    with h5py.File(f'./DATA/all_galaxies_TDE_SNR_results_{args.SURVEY.upper()}.h5', 'w') as hf_out:
 
         for gal, dat in data.items():
             if data[gal]['z_gal'] > 2.0:

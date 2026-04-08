@@ -55,30 +55,47 @@ observed_TDEs = cusp_evolution_object.number_of_objects_in_time(T_obs=T_obs, kvi
 print(np.sum(observed_EMRIs), observed_EMRIs.max(), np.sum(observed_TDEs), observed_TDEs.max())
 
 hf = h5py.File('./DATA/data_cusp_evolution.h5', 'w')
-hf.create_dataset('lgMgal', data=lgMgal_samples[nucleation_indices])
-hf.create_dataset('nucleation_occurs', data=nucleation_indices)
-hf.create_dataset('sigma_km_s', data=gal_obj.sigma_km_s)
 
-hf.create_dataset('z_gal', data=z_grid[nucleation_indices])
-ra, dec = zip(*[gal_obj.sky_location() for _ in range(len(gal_obj.lgMBH_mass))])
+# apart from nucleation fraction check we also need to apply check on the S/MBH mass 
+# since we are dealing with S/MBHs, the masses should be greater than 10^4
+
+# Filter galaxies based on MBH mass
+# these massive black holes are source frame
+mbh_mask = (gal_obj.lgMBH_mass >= 4)
+
+hf.create_dataset('lgMgal', data=lgMgal_samples[nucleation_indices][mbh_mask]) # apply both nucleation and MBH mass filters
+hf.create_dataset('sigma_km_s', data=gal_obj.sigma_km_s[mbh_mask]) # nucleation_index filter already applied
+
+# we don't need to save nucleation indices since we are already filtering based on the MBH mass
+
+hf.create_dataset('z_gal', data=z_grid[nucleation_indices][mbh_mask]) 
+sky_locs = gal_obj.sky_location()[nucleation_indices][mbh_mask]
+ra, dec = sky_locs[:, 0], sky_locs[:, 1]
+
 hf.create_dataset('ra_deg', data=np.array(ra))
 hf.create_dataset('dec_deg', data=np.array(dec))
 
-hf.create_dataset('lgMBH', data=gal_obj.lgMBH_mass)
-hf.create_dataset('MBHspin', data=MBH_obj.MBHspin)
+hf.create_dataset('lgMBH', data=gal_obj.lgMBH_mass[mbh_mask]) # nucleation_index filter already applied
+hf.create_dataset('MBHspin', data=MBH_obj.MBHspin[mbh_mask]) # nucleation_index filter already applied
 
+# since this is the same mass case so we just save the scalar values hence no masking is required
 hf.create_dataset('sBH_masses', data=CO_objs.masses['sBH'])
 hf.create_dataset('star_masses', data=CO_objs.masses['star'])
 
-hf.create_dataset('observed_EMRIs', data=observed_EMRIs)
-hf.create_dataset('observed_TDEs', data=observed_TDEs)
+hf.create_dataset('observed_EMRIs', data=observed_EMRIs[mbh_mask]) # nucleation_index filter already applied
+hf.create_dataset('observed_TDEs', data=observed_TDEs[mbh_mask]) # nucleation_index filter already applied
 hf.close()
 
-plt.scatter(gal_obj.lgMBH_mass, observed_EMRIs, marker='o', alpha=0.5)
-plt.scatter(gal_obj.lgMBH_mass, observed_TDEs, marker='o', alpha=0.5)
+print("After MBH mass filter")
+print(np.sum(observed_EMRIs[mbh_mask]), observed_EMRIs[mbh_mask].max(), np.sum(observed_TDEs[mbh_mask]), observed_TDEs[mbh_mask].max())
+
+
+plt.scatter(gal_obj.lgMBH_mass[mbh_mask], observed_EMRIs[mbh_mask], c=z_grid[nucleation_indices][mbh_mask], marker='o', alpha=0.9)
+plt.scatter(gal_obj.lgMBH_mass[mbh_mask], observed_TDEs[mbh_mask], c=z_grid[nucleation_indices][mbh_mask], marker='d', alpha=0.9)
+plt.colorbar(label='Redshift')
 plt.yscale('log')
-plt.xlabel('$\log_{10}(M_{\mathrm{BH}} / M_\odot)$')
-plt.ylabel(f'Observed Events within {T_obs} years')
+plt.xlabel('$\log_{10}(M_{\mathrm{BH}} / M_\odot)$ (source-frame)')
+plt.ylabel(f'Number of seeded events within {T_obs} years')
 plt.legend(['EMRIs', 'TDEs'])
 plt.savefig('observed_objects.pdf', dpi=300)
-# plt.show()
+plt.show()
