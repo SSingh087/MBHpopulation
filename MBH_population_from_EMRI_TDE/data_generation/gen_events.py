@@ -98,4 +98,61 @@ plt.xlabel('$\log_{10}(M_{\mathrm{BH}} / M_\odot)$ (source-frame)')
 plt.ylabel(f'Number of seeded events within {T_obs} years')
 plt.legend(['EMRIs', 'TDEs'])
 plt.savefig('observed_objects.pdf', dpi=300)
-plt.show()
+# plt.show()
+plt.close()
+
+
+# Convert spherical coordinates (RA, Dec, z) to Cartesian for true 3D shells
+# RA in radians, Dec in radians
+ra_rad = np.radians(ra)
+dec_rad = np.radians(dec)
+z_filtered = z_grid[nucleation_indices][mbh_mask]  # for color coding in polar plots
+
+# Cartesian coordinates
+x = z_filtered * np.cos(dec_rad) * np.cos(ra_rad)
+y = z_filtered * np.cos(dec_rad) * np.sin(ra_rad)
+z = z_filtered * np.sin(dec_rad)
+
+# --- Polar plot RA vs z ---
+plt.figure(figsize=(8,6), facecolor='white')
+ax = plt.subplot(projection='polar')
+ax.set_facecolor('#f9f9f9')  # light background
+ax.scatter(ra_rad, z_filtered, c='blue', marker='o', s=20, alpha=0.6)
+ax.set_rlabel_position(0)  # radial labels at top
+ax.grid(True, color='gray', linestyle='--', alpha=0.3)
+plt.title('Galaxy Distribution: RA vs Redshift', fontsize=14)
+plt.savefig('RA_vs_redshift.pdf', dpi=300)
+# plt.show()
+plt.close()
+
+# --- Polar plot Dec vs z ---
+# Since Dec is not circular, we shift it to 0-360 deg for polar visualization
+dec_shifted = dec + 90  # from [-90,90] -> [0,180]
+plt.figure(figsize=(8,6), facecolor='white')
+ax = plt.subplot(projection='polar')
+ax.set_facecolor('#f9f9f9')
+ax.scatter(np.radians(dec_shifted), z_filtered, c='blue', marker='o', s=20, alpha=0.6)
+ax.set_rlabel_position(0)
+ax.grid(True, color='gray', linestyle='--', alpha=0.3)
+plt.title('Galaxy Distribution: Dec vs Redshift', fontsize=14)
+plt.savefig('Dec_vs_redshift.pdf', dpi=300)
+# plt.show()
+plt.close()
+
+
+# 3D scatter plot with concentric shells
+fig = plt.figure(figsize=(10,8), facecolor='white')
+ax = fig.add_subplot(111, projection='3d')
+sc = ax.scatter(x, y, z, c=z_filtered, s=15, cmap='jet')
+cbar = plt.colorbar(sc, ax=ax, shrink=0.6)
+cbar.set_label('Redshift', fontsize=12)
+ax.set_xlabel('X [$z$]')
+ax.set_ylabel('Y [$z$]')
+ax.set_zlabel('Z [$z$]')
+ax.set_title('3D Galaxy Distribution (Concentric Shells)', fontsize=14)
+ax.grid(False)
+ax.set_box_aspect([1,1,1])
+
+plt.savefig('3D_galaxy_distribution.pdf', dpi=300)
+# plt.show()
+
