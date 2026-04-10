@@ -67,8 +67,6 @@ class NSC:
         Stellar tidal disruption radius:
         r_t = R_star * (M_bh / m_star)^(1/3)
         """
-        # THIS CALCULATION IS STILL WRONG SINCE THE R_STAR AND M_STAR IS INCORRECT
-        # THIS SHOULD BE DISCUSSED IN THE NEXT MEETING
         rt_pc = R_star * (self.MBH_mass / m_star)**(1.0/3.0)
         if unit == 'pc':
             return rt_pc
