@@ -150,9 +150,9 @@ class Galaxy:
         """
         Random sky location in RA (0 to 360 degrees) and Dec (-90 to 90 degrees).
         """
-        ra = self.rng.uniform(0.0, 360.0)
-        dec = self.rng.uniform(-90.0, 90.0)
-        return ra, dec
+        ra = self.rng.uniform(0.0, 360.0, size=len(self.lgMgal))
+        dec = self.rng.uniform(-90.0, 90.0, size=len(self.lgMgal))
+        return np.column_stack((ra, dec))
 
     # @staticmethod
     # def lgMgal_from_lgMBH(lgMBH, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0):
