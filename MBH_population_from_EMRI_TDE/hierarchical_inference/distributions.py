@@ -1,0 +1,304 @@
+import torch
+import matplotlib.pyplot as plt
+
+def interpolate(x: torch.Tensor, xp: torch.Tensor, fp: torch.Tensor) -> torch.Tensor:
+    m = (fp[:,1:] - fp[:,:-1]) / (xp[:,1:] - xp[:,:-1])  #slope
+    b = fp[:, :-1] - (m.mul(xp[:, :-1]) )
+
+    indicies = torch.sum(torch.ge(x[:, :, None], xp[:, None, :]), -1) - 1  #torch.ge:  x[i] >= xp[i] ? true: false
+    indicies = torch.clamp(indicies, 0, m.shape[-1] - 1)
+
+    line_idx = torch.linspace(0, indicies.shape[0], 1, device=indicies.device).to(torch.long)
+    line_idx = line_idx.expand(indicies.shape)
+    # idx = torch.cat([line_idx, indicies] , 0)
+    return m[line_idx, indicies].mul(x) + b[line_idx, indicies]
+
+
+class Distribution:
+    def __init__(self, limits, npoints=1000, grid_spacing='linear', device="cpu") -> None:
+        """Distribution base class, implementing inverse-transform sampling method for the univariate distribution case. This can be subclassed by the user
+        to specify generic distributions as required.
+
+        Parameters
+        ----------
+        limits : list
+            [Lower, Upper] limits for this distribution. Used to initialise the CDF computational grid.
+        npoints : int, optional
+            number of points in CDF computational grid, by default 1000
+        grid_spacing : str, optional
+            specifies either linear or logarithmic spacing for CDF computational grid, by default 'linear'
+        device : str, optional
+            pytorch device this distribution operates using, by default "cpu"
+        """
+        self.limits = torch.as_tensor(limits, device=device)
+        if grid_spacing == 'linear':
+            self.xvec = torch.linspace(self.limits[0], self.limits[1], npoints, device=device)
+        elif grid_spacing == 'logarithmic':
+            self.xvec = torch.logspace(torch.log10(self.limits[0]), torch.log10(self.limits[1]), npoints, device=device)
+        self.dx = torch.diff(self.xvec, prepend=torch.tensor([self.limits[0],], device=device))
+        self.device = device
+
+    def _sanitise_inputs(self, **inputs):
+        outs = {}
+        for a, b in inputs.items():
+            b_tensor = torch.as_tensor(b, device=self.device)
+            if b_tensor.ndim == 0:
+                b_tensor = b_tensor[None]
+            outs[a] = b_tensor
+        return outs
+
+    def pdf(self):
+        raise NotImplementedError
+    
+    def cdf(self, **pdf_kwargs):
+        pdf_values = self.pdf(self.xvec[None, :], **pdf_kwargs)
+        renorm = self.dx * pdf_values
+        pdf_values *= 1/renorm.sum(axis=-1)
+        # plt.plot(torch.cumsum(pdf_values * self.dx, axis=-1))
+        # plt.savefig('cdf.png')
+        # plt.close()
+        return torch.cumsum(pdf_values * self.dx, axis=-1)
+
+    def draw_samples(self,  size=1, **pdf_kwargs):
+        cdf = self.cdf(**pdf_kwargs)
+        if cdf.ndim == 1:
+            draws = interpolate(torch.rand(size, device=self.device)[None,:], cdf[None,:], self.xvec[None,:])
+        else:
+            draws = interpolate(torch.rand((cdf.shape[0],size), device=self.device), cdf, self.xvec)
+        return torch.squeeze(draws) 
+
+    def to(self, device):
+        self.xvec = self.xvec.to(device)
+        self.dx = self.dx.to(device)
+        self.device = device
+        return self
+
+class FixedLimitsPowerLaw(Distribution):
+    """A power law distribution with fixed limits (i.e. the pdf does not take the limits as arguments, they are fixed at initialisation).
+
+    Parameters
+    ----------
+    limits : list
+        [Lower, Upper] limits for this distribution. Used to initialise the CDF computational grid.
+    npoints : int, optional
+        number of points in CDF computational grid, by default 1000
+    grid_spacing : str, optional
+        specifies either linear or logarithmic spacing for CDF computational grid, by default 'linear'
+    device : str, optional
+        pytorch device this distribution operates using, by default "cpu"
+    """
+    def __init__(self, limits, npoints=1000, grid_spacing='logarithmic', device="cpu") -> None:
+        super().__init__(limits, npoints, grid_spacing, device)
+    
+    def pdf(self, x, **hypers):
+        x = torch.as_tensor(x, device=self.device)
+        hypers = self._sanitise_inputs(**hypers)
+        norm = (1+hypers['lam'])/(self.limits[1]**(1+hypers['lam']) - self.limits[0]**(1+hypers['lam']))
+
+        PDF = torch.squeeze(torch.pow(x[:,:,None], hypers['lam']) * norm)
+        # print("PL", torch.trapz(torch.squeeze(PDF), torch.squeeze(x)))
+
+        return PDF
+
+class VariableLimitsPowerLaw(Distribution):
+    """A power law distribution with variable limits (i.e. the pdf takes the limits as arguments).
+
+    Parameters
+    ----------
+    limits : list
+        [Lower, Upper] limits for this distribution. Used to initialise the CDF computational grid.
+    npoints : int, optional
+        number of points in CDF computational grid, by default 1000
+    grid_spacing : str, optional
+        specifies either linear or logarithmic spacing for CDF computational grid, by default 'linear'
+    device : str, optional
+        pytorch device this distribution operates using, by default "cpu"
+    """
+    def __init__(self, limits, npoints=1000, grid_spacing='logarithmic', device="cpu") -> None:
+        super().__init__(limits, npoints, grid_spacing, device)
+    
+    def pdf(self, x, **hypers):
+        x = torch.as_tensor(x, device=self.device)
+        hypers = self._sanitise_inputs(**hypers)
+
+        norm = (1+hypers['lam'])/(hypers['xhigh']**(1+hypers['lam']) - hypers['xlow']**(1+hypers['lam']))
+        PDF = torch.squeeze(torch.pow(x[:,:,None], hypers['lam']) * norm)
+        return PDF
+
+class FixedLimitsTruncatedGaussian(Distribution):
+    """A truncated normal distribution with fixed limits (i.e. the pdf does not take the limits as arguments, they are fixed at initialisation).
+
+    ref : http://parker.ad.siu.edu/Olive/ch4.pdf
+
+    Parameters
+    ----------
+    limits : list
+        [Lower, Upper] limits for this distribution. Used to initialise the CDF computational grid.
+    npoints : int, optional
+        number of points in CDF computational grid, by default 1000
+    grid_spacing : str, optional
+        specifies either linear or logarithmic spacing for CDF computational grid, by default 'linear'
+    device : str, optional
+        pytorch device this distribution operates using, by default "cpu"
+    """
+    def __init__(self, limits, npoints=1000, grid_spacing='linear', device="cpu") -> None:
+        super().__init__(limits, npoints, grid_spacing, device)
+    
+    def pdf(self, x, **hypers):
+        x = torch.as_tensor(x, device=self.device)
+        hypers = self._sanitise_inputs(**hypers)
+
+        norm = 2**0.5 / torch.pi**0.5 / hypers["sigma"]
+        norm /= torch.erf((self.limits[1] - hypers["mu"]) / 2**0.5 / hypers["sigma"]) + torch.erf((hypers["mu"] - self.limits[0]) / 2**0.5 / hypers["sigma"]) 
+
+        prob = torch.exp(-(x[:, :, None] - hypers["mu"])**2 / (2 * hypers["sigma"]**2)) 
+        prob *= norm 
+        return torch.squeeze(prob)
+
+class UniformDistribution(Distribution):
+    """A uniform distribution with fixed limits (i.e. the pdf does not take the limits as arguments, they are fixed at initialisation).
+
+    Parameters
+    ----------
+    limits : list
+        [Lower, Upper] limits for this distribution. Used to initialise the CDF computational grid.
+    npoints : int, optional
+        number of points in CDF computational grid, by default 1000
+    grid_spacing : str, optional
+        specifies either linear or logarithmic spacing for CDF computational grid, by default 'linear'
+    device : str, optional
+        pytorch device this distribution operates using, by default "cpu"
+    """
+    def __init__(self, limits, npoints=1000, grid_spacing='linear', device="cpu") -> None:
+        super().__init__(limits, npoints, grid_spacing, device)
+
+    def pdf(self, x):
+        return 1 / (self.limits[1] - self.limits[0])
+
+class BetaDistribution(Distribution):
+
+    def __init__(self, limits, npoints=1000, grid_spacing='linear', device="cpu") -> None:
+        super().__init__(limits, npoints, grid_spacing, device)
+
+    def pdf(self, x, **hypers):
+
+        x = torch.as_tensor(x, device=self.device)
+        hypers = self._sanitise_inputs(**hypers)
+
+        prob = torch.distributions.Beta(hypers['alpha'], hypers['beta'])
+        PDF = torch.exp(prob.log_prob(x[:, :, None]))
+        return torch.squeeze(PDF)
+
+
+class FixedLimitTruncatedBetaDistribution(Distribution):
+
+    def __init__(self, limits, npoints=1000, grid_spacing='linear', device="cpu") -> None:
+        super().__init__(limits, npoints, grid_spacing, device)
+
+    def pdf(self, x, **hypers):
+
+        x = torch.as_tensor(x, device=self.device)
+        hypers = self._sanitise_inputs(**hypers)
+
+        alpha = torch.tensor(hypers['alpha'])
+        beta = torch.tensor(hypers['beta'])
+        B_alpha_beta = torch.exp(torch.lgamma(torch.tensor(alpha)) + torch.lgamma(beta) - torch.lgamma(alpha + beta))  # Beta function
+
+        beta_PDF = (x[:, :, None] ** (alpha - 1)) * ((1 - x[:, :, None]) ** (beta - 1)) / B_alpha_beta
+        
+        from scipy.stats import beta as sp_beta
+        
+        cdf_a = sp_beta.cdf(self.limits[0], alpha, beta)
+        cdf_b = sp_beta.cdf(self.limits[1], alpha, beta)
+        
+        norm_factor = cdf_b - cdf_a
+        
+        # Compute the Beta PDF at the points x
+        pdf = beta_PDF / norm_factor
+        return torch.squeeze(pdf)
+
+
+class FixedLimits_PowerLawTruncatedGaussian(Distribution):
+    def __init__(self, limits, npoints=1000, grid_spacing='linear', device="cpu") -> None:
+        super().__init__(limits, npoints, grid_spacing, device)
+
+    def pdf(self, x, **hypers):
+
+        x = torch.as_tensor(x, device=self.device)
+        
+        hypers = self._sanitise_inputs(**hypers)
+        
+        
+        pwerlaw_norm = (1+hypers['lam'])/(self.limits[1]**(1+hypers['lam']) - self.limits[0]**(1+hypers['lam']))
+
+        powerlaw_pdf = torch.squeeze(torch.pow(x[:,:,None], hypers['lam']) * pwerlaw_norm)
+
+        
+        Tgaussian_norm = 2**0.5 / torch.pi**0.5 / hypers["sigma"]
+        Tgaussian_norm /= torch.erf((self.limits[1] - hypers["mu"]) / 2**0.5 / hypers["sigma"]) + torch.erf((hypers["mu"] - self.limits[0]) / 2**0.5 / hypers["sigma"]) 
+
+        Tgaussian_prob = torch.exp(-(x[:, :, None] - hypers["mu"])**2 / (2 * hypers["sigma"]**2)) 
+        Tgaussian_prob *= Tgaussian_norm 
+        Tgaussian_pdf = torch.squeeze(Tgaussian_prob)
+
+        PDF = 0.5 * powerlaw_pdf + 0.5 * Tgaussian_pdf
+        return PDF
+
+class FixedLimitSchechterFunction(Distribution):
+    # https://articles.adsabs.harvard.edu/pdf/1976ApJ...203..297S
+    # https://www.astro.umd.edu/~richard/ASTRO620/LumFunction-pp.pdf
+
+    def __init__(self, limits, npoints=1000, grid_spacing='linear', device="cpu") -> None:
+        super().__init__(limits, npoints, grid_spacing, device)
+
+    def pdf(self, x, **hypers):
+
+        x = torch.as_tensor(x, device=self.device)
+
+        hypers = self._sanitise_inputs(**hypers)
+
+        xc = hypers['xc']
+
+        lam = 7
+
+        ratio = lam * x[:, :, None] / hypers['xc']
+        unnorm_prob = (lam / hypers['xc']) * ratio**lam * torch.exp(-ratio)
+
+        grid = torch.linspace(self.limits[0], self.limits[1], 1000)
+
+        ratio_grid = lam * grid / hypers['xc'][:, None]
+        prob_grid = (lam / hypers['xc'][:, None]) * ratio_grid**lam * torch.exp(-ratio_grid)
+
+        norm = torch.trapz(prob_grid, grid)
+
+        return torch.squeeze(unnorm_prob / norm)
+
+
+class FixedLimitsTruncatedSkewNormal(Distribution):
+    
+    def __init__(self, limits, npoints=1000, grid_spacing='linear', device="cpu") -> None:
+        super().__init__(limits, npoints, grid_spacing, device)
+
+    def pdf(self, x, **hypers):
+
+        x = torch.as_tensor(x, device=self.device)
+
+        hypers = self._sanitise_inputs(**hypers)
+        
+        from torch.distributions.normal import Normal
+
+        dist = Normal(hypers['mu'], hypers['sigma'])
+        torch_pdf = torch.exp(dist.log_prob(torch.tensor(x[:, :, None])))
+        torch_skew_pdf = 2 * torch_pdf * torch.distributions.Normal(0, 1).cdf(hypers['alpha'] * (torch.tensor(x[:, :, None]) - hypers['mu']) / hypers['sigma'])
+        
+        grid = torch.linspace(self.limits[0], self.limits[1], 1000)
+        torch_pdf_grid = torch.exp(dist.log_prob(torch.tensor(grid)))
+        torch_skew_pdf_grid = 2 * torch_pdf_grid * torch.distributions.Normal(0, 1).cdf(hypers['alpha'][:, None] * (torch.tensor(grid - hypers['mu'][:, None]) / hypers['sigma'][:, None]))
+
+        integral = torch.trapz(torch_skew_pdf_grid, grid)
+
+        torch_skew_pdf_normalized = torch.squeeze(torch_skew_pdf / integral)
+
+        # print(torch.trapz(torch.squeeze(torch_skew_pdf_normalized), torch.squeeze(x)))
+
+        return torch.squeeze(torch_skew_pdf_normalized)

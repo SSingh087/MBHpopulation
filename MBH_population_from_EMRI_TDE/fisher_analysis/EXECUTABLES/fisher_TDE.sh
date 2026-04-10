@@ -16,6 +16,7 @@ python eval_TDE_fisher.py \
   --OBSERVING_WINDOW "$OBSERVING_WINDOW" \
   --SURVEY "$SURVEY" \
   --BANDS $BANDS \
+  --NPROC 10 \
   --PLOT_CORNER False \
   --PLOT_FISHER False \
   --PLOT_COVARIANCE False \
