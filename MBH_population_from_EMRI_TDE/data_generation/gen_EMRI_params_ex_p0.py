@@ -43,8 +43,6 @@ e0_min, e0_max = args.e0
 Y0_min, Y0_max = args.Y0
 T_SIGNAL_min, T_SIGNAL_max = args.T_SIGNAL
 
-
-
 qK_min, qK_max = 0.1, np.pi * 0.99
 phiK_min, phiK_max = 0.1, 2 * np.pi * 0.99
 Phi_phi0_min, Phi_phi0_max = 0.1, 2 * np.pi * 0.99
