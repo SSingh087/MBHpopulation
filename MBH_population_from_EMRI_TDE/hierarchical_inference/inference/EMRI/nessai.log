@@ -1,0 +1,67 @@
+04-14 09:19 nessai INFO    : Running Nessai version 0.15.2
+04-14 09:19 nessai INFO    : pool and n_pool are none, no multiprocessing pool
+04-14 09:19 nessai INFO    : Initialising nested sampler
+04-14 09:20 nessai INFO    : Running Nessai version 0.15.2
+04-14 09:20 nessai INFO    : pool and n_pool are none, no multiprocessing pool
+04-14 09:20 nessai INFO    : Initialising nested sampler
+04-14 09:20 nessai WARNING : Multiprocessing pool has already been configured.
+04-14 09:20 nessai INFO    : Passing kwargs to FlowProposal: {'poolsize': 1000}
+04-14 09:20 nessai INFO    : No reparameterisations provided, using default reparameterisations included in FlowProposal
+04-14 09:20 nessai INFO    : Adding reparameterisations from: {}
+04-14 09:20 nessai INFO    : Assuming fallback reparameterisation (ScaleAndShift) for ['lambda_M', 'mu_a', 'sigma_a'] with kwargs: {'estimate_scale': True, 'estimate_shift': True, 'prior_bounds': {'lambda_M': array([-3.  , -1.01]), 'mu_a': array([0.1, 0.7]), 'sigma_a': array([0.001, 0.05 ])}}.
+04-14 09:20 nessai INFO    : x space parameters: ['lambda_M', 'mu_a', 'sigma_a']
+04-14 09:20 nessai INFO    : x prime space parameters: ['lambda_M_prime', 'mu_a_prime', 'sigma_a_prime']
+04-14 09:20 nessai INFO    : Overwriting fuzz factor with expansion fraction
+04-14 09:20 nessai INFO    : New fuzz factor: 1.7099759466766968
+04-14 09:20 nessai INFO    : Verifying rescaling functions
+04-14 09:20 nessai INFO    : Rescaling functions are invertible
+04-14 09:20 nessai INFO    : Populating initial live points
+04-14 09:20 nessai INFO    : Populated 100 / 1000 live points
+04-14 09:20 nessai INFO    : Populated 200 / 1000 live points
+04-14 09:20 nessai INFO    : Populated 300 / 1000 live points
+04-14 09:20 nessai INFO    : Populated 400 / 1000 live points
+04-14 09:20 nessai INFO    : Populated 500 / 1000 live points
+04-14 09:20 nessai INFO    : Populated 600 / 1000 live points
+04-14 09:20 nessai INFO    : Populated 700 / 1000 live points
+04-14 09:20 nessai INFO    : Populated 800 / 1000 live points
+04-14 09:20 nessai INFO    : Populated 900 / 1000 live points
+04-14 09:20 nessai INFO    : Populated 1000 / 1000 live points
+04-14 09:20 nessai INFO    : Starting nested sampling loop
+04-14 09:20 nessai INFO    : it:  1000: Rolling KS test: D=0.015, p-value=0.6313
+04-14 09:20 nessai INFO    : it:  1000: n eval: 4000 H: 4.94 dlogZ: 125.633 logZ: -133.206 +/- 0.070 logLmax: -6.57
+04-14 09:20 nessai INFO    : it:  2000: Rolling KS test: D=0.01, p-value=0.8133
+04-14 09:20 nessai INFO    : it:  2000: n eval: 9000 H: 4.47 dlogZ: 37.166 logZ: -45.739 +/- 0.067 logLmax: -6.57
+04-14 09:20 nessai INFO    : Switching to FlowProposal
+04-14 09:20 nessai INFO    : it:  3000: Rolling KS test: D=0.018, p-value=0.5169
+04-14 09:20 nessai INFO    : it:  3000: n eval: 13151 H: 4.45 dlogZ: 16.127 logZ: -25.688 +/- 0.067 logLmax: -6.56
+04-14 09:20 nessai INFO    : it:  4000: Rolling KS test: D=0.014, p-value=0.6695
+04-14 09:20 nessai INFO    : it:  4000: n eval: 14663 H: 4.36 dlogZ: 8.404 logZ: -18.964 +/- 0.066 logLmax: -6.56
+04-14 09:20 nessai INFO    : it:  5000: Rolling KS test: D=0.016, p-value=0.593
+04-14 09:20 nessai INFO    : it:  5000: n eval: 15986 H: 4.51 dlogZ: 4.688 logZ: -16.240 +/- 0.067 logLmax: -6.56
+04-14 09:20 nessai INFO    : it:  6000: Rolling KS test: D=0.005, p-value=0.9481
+04-14 09:20 nessai INFO    : it:  6000: n eval: 17311 H: 4.68 dlogZ: 2.515 logZ: -14.941 +/- 0.068 logLmax: -6.51
+04-14 09:20 nessai INFO    : it:  7000: Rolling KS test: D=0.007, p-value=0.9024
+04-14 09:20 nessai INFO    : it:  7000: n eval: 19948 H: 4.85 dlogZ: 1.206 logZ: -14.298 +/- 0.070 logLmax: -6.45
+04-14 09:20 nessai INFO    : it:  8000: Rolling KS test: D=0.009, p-value=0.8454
+04-14 09:20 nessai INFO    : it:  8000: n eval: 21248 H: 4.98 dlogZ: 0.522 logZ: -13.980 +/- 0.071 logLmax: -6.36
+04-14 09:20 nessai INFO    : it:  9000: Rolling KS test: D=0.029, p-value=0.1825
+04-14 09:20 nessai INFO    : it:  9000: n eval: 22567 H: 5.07 dlogZ: 0.196 logZ: -13.826 +/- 0.071 logLmax: -6.36
+04-14 09:20 nessai INFO    : Stopping with difference_log_evidence=0.100
+04-14 09:20 nessai INFO    : Finalising
+04-14 09:20 nessai INFO    : Final ln-evidence: -13.702 +/- 0.072
+04-14 09:20 nessai INFO    : Information: 5.17
+04-14 09:20 nessai INFO    : Final KS test: D=0.001726, p-value=0.9429
+04-14 09:20 nessai INFO    : Checkpointing nested sampling
+04-14 09:20 nessai INFO    : Total sampling time: 0:00:22.590535
+04-14 09:20 nessai INFO    : Total training time: 0:00:07.775790
+04-14 09:20 nessai INFO    : Total population time: 0:00:02.348217
+04-14 09:20 nessai INFO    : Total likelihood evaluations: 23842
+04-14 09:20 nessai INFO    : Time spent evaluating likelihood: 0:00:05.238632
+04-14 09:20 nessai INFO    : Total sampling time: 0:00:22.590535
+04-14 09:20 nessai INFO    : Total likelihood evaluations: 23842
+04-14 09:20 nessai INFO    : Starting post processing
+04-14 09:20 nessai INFO    : Computing posterior samples
+04-14 09:20 nessai INFO    : Effective sample size: 5307.7
+04-14 09:20 nessai INFO    : Producing posterior samples using rejection sampling
+04-14 09:20 nessai INFO    : Expect 3680.571679448495 samples from rejection sampling
+04-14 09:20 nessai INFO    : Returned 3645 posterior samples

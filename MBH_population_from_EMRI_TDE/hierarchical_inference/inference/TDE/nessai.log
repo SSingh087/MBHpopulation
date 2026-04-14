@@ -1,0 +1,71 @@
+04-13 19:07 nessai INFO    : Running Nessai version 0.15.2
+04-13 19:08 nessai INFO    : Running Nessai version 0.15.2
+04-13 19:08 nessai INFO    : Running Nessai version 0.15.2
+04-13 19:08 nessai INFO    : pool and n_pool are none, no multiprocessing pool
+04-13 19:08 nessai INFO    : Initialising nested sampler
+04-13 19:08 nessai INFO    : Running Nessai version 0.15.2
+04-13 19:08 nessai INFO    : pool and n_pool are none, no multiprocessing pool
+04-13 19:08 nessai INFO    : Initialising nested sampler
+04-13 19:25 nessai INFO    : Running Nessai version 0.15.2
+04-13 19:25 nessai INFO    : pool and n_pool are none, no multiprocessing pool
+04-13 19:25 nessai INFO    : Initialising nested sampler
+04-13 19:56 nessai INFO    : Running Nessai version 0.15.2
+04-13 19:56 nessai INFO    : pool and n_pool are none, no multiprocessing pool
+04-13 19:56 nessai INFO    : Initialising nested sampler
+04-14 09:15 nessai INFO    : Running Nessai version 0.15.2
+04-14 09:18 nessai INFO    : Running Nessai version 0.15.2
+04-14 09:18 nessai INFO    : pool and n_pool are none, no multiprocessing pool
+04-14 09:18 nessai INFO    : Initialising nested sampler
+04-14 09:18 nessai INFO    : Running Nessai version 0.15.2
+04-14 09:18 nessai INFO    : pool and n_pool are none, no multiprocessing pool
+04-14 09:18 nessai INFO    : Initialising nested sampler
+04-14 09:18 nessai INFO    : Running Nessai version 0.15.2
+04-14 09:18 nessai INFO    : pool and n_pool are none, no multiprocessing pool
+04-14 09:18 nessai INFO    : Initialising nested sampler
+04-14 09:18 nessai WARNING : Multiprocessing pool has already been configured.
+04-14 09:18 nessai INFO    : Passing kwargs to FlowProposal: {'poolsize': 1000}
+04-14 09:18 nessai INFO    : No reparameterisations provided, using default reparameterisations included in FlowProposal
+04-14 09:18 nessai INFO    : Adding reparameterisations from: {}
+04-14 09:18 nessai INFO    : Assuming fallback reparameterisation (ScaleAndShift) for ['lambda_M', 'mu_a', 'sigma_a'] with kwargs: {'estimate_scale': True, 'estimate_shift': True, 'prior_bounds': {'lambda_M': array([-3.  , -1.01]), 'mu_a': array([0.1, 0.7]), 'sigma_a': array([0.001, 0.05 ])}}.
+04-14 09:18 nessai INFO    : x space parameters: ['lambda_M', 'mu_a', 'sigma_a']
+04-14 09:18 nessai INFO    : x prime space parameters: ['lambda_M_prime', 'mu_a_prime', 'sigma_a_prime']
+04-14 09:18 nessai INFO    : Overwriting fuzz factor with expansion fraction
+04-14 09:18 nessai INFO    : New fuzz factor: 1.7099759466766968
+04-14 09:18 nessai INFO    : Verifying rescaling functions
+04-14 09:18 nessai INFO    : Rescaling functions are invertible
+04-14 09:18 nessai INFO    : Populating initial live points
+04-14 09:18 nessai INFO    : Populated 100 / 1000 live points
+04-14 09:18 nessai INFO    : Populated 200 / 1000 live points
+04-14 09:18 nessai INFO    : Populated 300 / 1000 live points
+04-14 09:18 nessai INFO    : Populated 400 / 1000 live points
+04-14 09:18 nessai INFO    : Populated 500 / 1000 live points
+04-14 09:18 nessai INFO    : Populated 600 / 1000 live points
+04-14 09:18 nessai INFO    : Populated 700 / 1000 live points
+04-14 09:18 nessai INFO    : Populated 800 / 1000 live points
+04-14 09:18 nessai INFO    : Populated 900 / 1000 live points
+04-14 09:18 nessai INFO    : Populated 1000 / 1000 live points
+04-14 09:18 nessai INFO    : Starting nested sampling loop
+04-14 09:18 nessai INFO    : it:  1000: Rolling KS test: D=0.022, p-value=0.3744
+04-14 09:18 nessai INFO    : it:  1000: n eval: 3000 H: 0.46 dlogZ: 0.669 logZ: -9.184 +/- 0.022 logLmax: -8.23
+04-14 09:18 nessai INFO    : it:  2000: Rolling KS test: D=0.021, p-value=0.4082
+04-14 09:18 nessai INFO    : it:  2000: n eval: 8000 H: 0.16 dlogZ: 0.208 logZ: -8.768 +/- 0.013 logLmax: -8.23
+04-14 09:18 nessai INFO    : Switching to FlowProposal
+04-14 09:18 nessai INFO    : Stopping with difference_log_evidence=0.100
+04-14 09:18 nessai INFO    : Finalising
+04-14 09:18 nessai INFO    : Final ln-evidence: -8.567 +/- 0.005
+04-14 09:18 nessai INFO    : Information: 0.02
+04-14 09:18 nessai INFO    : Final KS test: D=0.01128, p-value=0.5011
+04-14 09:18 nessai INFO    : Checkpointing nested sampling
+04-14 09:18 nessai INFO    : Total sampling time: 0:00:05.428071
+04-14 09:18 nessai INFO    : Total training time: 0:00:00.857259
+04-14 09:18 nessai INFO    : Total population time: 0:00:01.506612
+04-14 09:18 nessai INFO    : Total likelihood evaluations: 10297
+04-14 09:18 nessai INFO    : Time spent evaluating likelihood: 0:00:01.848092
+04-14 09:18 nessai INFO    : Total sampling time: 0:00:05.428071
+04-14 09:18 nessai INFO    : Total likelihood evaluations: 10297
+04-14 09:18 nessai INFO    : Starting post processing
+04-14 09:18 nessai INFO    : Computing posterior samples
+04-14 09:18 nessai INFO    : Effective sample size: 2511.5
+04-14 09:18 nessai INFO    : Producing posterior samples using rejection sampling
+04-14 09:18 nessai INFO    : Expect 1616.72848958782 samples from rejection sampling
+04-14 09:18 nessai INFO    : Returned 1636 posterior samples
