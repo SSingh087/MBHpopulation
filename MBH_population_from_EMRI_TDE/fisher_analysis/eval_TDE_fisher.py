@@ -4,12 +4,9 @@ import numpy as np
 from multiprocessing import Pool, set_start_method
 from fish_TDE import *
 from utils_fisher import *
-import os
 
-# ----------------------------
-# Arguments
-# ----------------------------
 parser = argparse.ArgumentParser()
+parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galaxies")
 parser.add_argument("--OBSERVING_WINDOW", type=float, required=True)
 parser.add_argument("--BANDS", nargs="+", default=["ztfg", "ztfr", "ztfi"])
 parser.add_argument("--SURVEY", type=str, default="ztf")
@@ -19,6 +16,10 @@ parser.add_argument("--PLOT_CORNER", type=bool, default=False)
 parser.add_argument("--PLOT_COVARIANCE", type=bool, default=False)
 parser.add_argument("--PLOT_HISTOGRAMS", type=bool, default=False)
 args = parser.parse_args()
+
+loc = f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/fisher_data/{args.GALAXIES}'
+if not os.path.exists(loc):
+    os.makedirs(loc)
 
 OBSERVING_WINDOW = args.OBSERVING_WINDOW
 BANDS = args.BANDS
@@ -34,10 +35,10 @@ def plotting_enabled():
 SIM_FN, SURVEY_STR, t0_mjd = choose_simulator(args.SURVEY)
 PARAMS = list(PARAM_INFO.keys())
 
-with h5py.File('../data_generation/DATA/all_galaxies_TDE_events.h5', 'r') as hf:
+with h5py.File(f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_events.h5', 'r') as hf:
     all_galaxies = {g: {k: hf[g][k][()] for k in hf[g]} for g in hf}
 
-with h5py.File(f'../data_generation/DATA/all_galaxies_TDE_SNR_results_{args.SURVEY.upper()}.h5', 'r') as hf:
+with h5py.File(f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_SNR_results_{args.SURVEY.upper()}.h5', 'r') as hf:
     galaxy_to_events = {g: hf[g]["event_index"][:] for g in hf}
 
 EVENT_TASKS = []
@@ -88,9 +89,9 @@ if __name__ == "__main__":
 
     set_start_method("spawn", force=True)
 
-    hf_fisher = h5py.File(f'./fisher_results_TDE_{args.SURVEY.upper()}.h5', 'w')
-    hf_true   = h5py.File(f'./true_data_TDE_{args.SURVEY.upper()}.h5', 'w')
-    hf_noisy  = h5py.File(f'./noisy_data_TDE_{args.SURVEY.upper()}.h5', 'w')
+    hf_fisher = h5py.File(f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/fisher_data/{args.GALAXIES}/fisher_results_TDE_{args.SURVEY.upper()}.h5', 'w')
+    hf_true   = h5py.File(f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/fisher_data/{args.GALAXIES}/true_data_TDE_{args.SURVEY.upper()}.h5', 'w')
+    hf_noisy  = h5py.File(f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/fisher_data/{args.GALAXIES}/noisy_data_TDE_{args.SURVEY.upper()}.h5', 'w')
 
     true_data = {p: [] for p in PARAMS}
     noisy_data = {p: [] for p in PARAMS}
@@ -107,6 +108,11 @@ if __name__ == "__main__":
 
             if gal not in hf_fisher:
                 gal_group = hf_fisher.create_group(gal)
+
+                gal_group.attrs["z_gal"] = float(all_galaxies[gal]["z_gal"])
+                gal_group.attrs["stellar_mass"] = float(all_galaxies[gal]["star_mass"])
+                gal_group.attrs["ra"] = float(all_galaxies[gal]["ra"])
+                gal_group.attrs["dec"] = float(all_galaxies[gal]["dec"])
             else:
                 gal_group = hf_fisher[gal]
 

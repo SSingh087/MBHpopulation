@@ -5,23 +5,21 @@ import argparse
 import os, sys
 import h5py
 
-sys.path.insert(0, os.path.abspath('../astrophysical_setup'))
+sys.path.insert(0, os.path.abspath('./astrophysical_setup'))
 from cosmology import CosmologyModel
 
 cosmo_model = CosmologyModel()
 
 # Argument parsing
 parser = argparse.ArgumentParser(description="Generate data for training.")
-
+parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galaxies")
 parser.add_argument("--eta", type=float, nargs=2, required=True, help="eta")
 parser.add_argument("--alpha", type=float, nargs=2, required=True, help="alpha")
 parser.add_argument("--beta", type=float, nargs=2, required=True, help="beta")
 
-parser.add_argument("--file_name", type=str, required=True, help="Output file name.")
-
 args = parser.parse_args()
 
-hf = h5py.File('./DATA/data_cusp_evolution.h5', 'r')
+hf = h5py.File(f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/{args.GALAXIES}/data_cusp_evolution.h5', 'r')
 
 z_gal = np.array(hf['z_gal'][:])
 ra = np.rad2deg(np.array(hf['ra_deg'][:]))
@@ -44,7 +42,7 @@ param_mins = np.array([eta_min, alpha_min, beta_min])
 param_maxs = np.array([eta_max, alpha_max, beta_max])
 param_names = ["eta", "alpha", "beta"]
 
-with h5py.File("./DATA/all_galaxies_TDE_events.h5", "w") as f:
+with h5py.File(f"/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_events.h5", "w") as f:
 
     idx = np.where(observed_TDEs > 0)[0]
 

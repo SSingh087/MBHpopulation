@@ -5,14 +5,14 @@ import argparse
 import os, sys
 import h5py
 
-sys.path.insert(0, os.path.abspath('../astrophysical_setup'))
+sys.path.insert(0, os.path.abspath('./astrophysical_setup'))
 from cosmology import CosmologyModel
 
 cosmo_model = CosmologyModel()
 
 # Argument parsing
 parser = argparse.ArgumentParser(description="Generate data for training.")
-
+parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galaxies")
 parser.add_argument("--e0", type=float, nargs=2, required=True, help="e0")
 parser.add_argument("--Y0", type=float, nargs=2, required=True, help="Y0")
 parser.add_argument("--T_SIGNAL", type=float, nargs=2, required=True, help="time in years")
@@ -21,7 +21,7 @@ parser.add_argument("--file_name", type=str, required=True, help="Output file na
 
 args = parser.parse_args()
 
-hf = h5py.File('./DATA/data_cusp_evolution.h5', 'r')
+hf = h5py.File(f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/{args.GALAXIES}/data_cusp_evolution.h5', 'r')
 
 z_gal = np.array(hf['z_gal'][:])
 qS = np.pi/2 - np.deg2rad(np.array(hf['ra_deg'][:])) # Sky location polar angle in ecliptic coordinates.
@@ -33,7 +33,6 @@ MBHspin = np.array(hf['MBHspin'][:])
 sBH_masses = np.array(hf['sBH_masses'])
 
 observed_EMRIs = np.array(hf['observed_EMRIs'][:])
-
 
 hf.close()
 
@@ -70,10 +69,10 @@ param_names = [
     "T_SIGNAL_duration_years"
 ]
 
-with h5py.File("./DATA/all_galaxies_EMRI_events.h5", "w") as f:
+with h5py.File(f"/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/{args.GALAXIES}/all_galaxies_EMRI_events.h5", "w") as f:
 
     idx = np.where(observed_EMRIs > 0)[0]
-    # breakpoint()
+
     for i in idx:
         N = observed_EMRIs[i]
         print(f"Galaxy {i}: N_EMRI_events = {N}")
@@ -84,6 +83,7 @@ with h5py.File("./DATA/all_galaxies_EMRI_events.h5", "w") as f:
         # Fixed galaxy properties
         group["lgMBH_mass"] = lgMBH_mass[i]
         group["distance_Gpc"] = distances[i]
+        group["z_gal"] = z_gal[i]
         group["MBHspin"] = MBHspin[i]
         group["qS"] = qS[i]
         group["phiS"] = phiS[i]

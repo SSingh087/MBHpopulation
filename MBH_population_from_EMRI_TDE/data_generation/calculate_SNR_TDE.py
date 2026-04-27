@@ -10,6 +10,8 @@ from multiprocessing import Pool
 from redback.simulate_transients import SimulateOpticalTransient
 
 parser = argparse.ArgumentParser(description="Calculate SNR for TDE events.")
+
+parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galaxies")
 parser.add_argument("--OBSERVING_WINDOW", type=float, required=True)
 parser.add_argument("--MIN_DETECTIONS", type=int, required=True)
 parser.add_argument("--BANDS", nargs="+", default=["ztfg", "ztfr", "ztfi"], help="Bands to check for detections (e.g., 'ztfg ztfr ztfi' for ZTF)")
@@ -105,7 +107,7 @@ def process_one_galaxy(gal, dat):
     } for i in range(len(alpha))]
 
     print(f"[INFO] Running {len(thetas)} transient simulations...")
-    with Pool() as pool:
+    with Pool(processes=16) as pool:
         sims = pool.map(run_telescope_simulator, thetas)
 
     results = []
@@ -124,18 +126,16 @@ def process_one_galaxy(gal, dat):
 if __name__ == "__main__":
     
     print("[INFO] Loading HDF5 file...")
-    with h5py.File('./DATA/all_galaxies_TDE_events.h5', 'r') as hf:
+    with h5py.File(f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_events.h5', 'r') as hf:
         data = {
             gal: {k: np.array(hf[gal][k]) for k in hf[gal].keys()}
             for gal in hf.keys()
         }
 
-    hf.close()
-
     all_results = {}
     count = 0
     print(f"[IMPORTANT SURVEY INFO] Checking detectability with {args.SURVEY.upper()} for {len(data)} galaxies...")
-    with h5py.File(f'./DATA/all_galaxies_TDE_SNR_results_{args.SURVEY.upper()}.h5', 'w') as hf_out:
+    with h5py.File(f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_SNR_results_{args.SURVEY.upper()}.h5', 'w') as hf_out:
 
         for gal, dat in data.items():
             if data[gal]['z_gal'] > 2.0:

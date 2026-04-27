@@ -1,11 +1,9 @@
 import numpy as np
 from dataclasses import dataclass
-from typing import Optional, Callable, Tuple, Dict, Any
 from astropy.cosmology import FlatLambdaCDM
 import astropy.units as u
 from scipy.interpolate import RegularGridInterpolator
 from galaxy import Galaxy
-from config import (MBH_A, MBH_B, MBH_sigma0)
 
 class HaloMassFunction:
     pass
