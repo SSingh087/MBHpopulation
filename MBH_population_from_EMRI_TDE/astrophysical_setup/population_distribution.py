@@ -1,3 +1,5 @@
+# import os, sys
+# sys.path.insert(0, os.path.abspath('../'))
 import torch
 import numpy as np
 import warnings
@@ -13,9 +15,7 @@ from evolution import CuspEvolution
 
 from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
 
-from utils import Plotting
-
-
+# from utils import Plotting
 
 class PopulationDistribution:
     """
@@ -356,8 +356,8 @@ pdf_dN_dlgMBH_dz_TDE = dist_dN_dlgMBH_dz.pdf(X=(z_gal, lgMBH_mass_from_galaxies)
 Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz_EMRI, theta_label=r"\log_{10}(M_{\rm BH}/M_\odot)", smooth=True, cmap="magma")
 Plotting.plot_joint_with_marginals(z_gal, lgMBH_mass_from_galaxies, pdf_dN_dlgMBH_dz_TDE, theta_label=r"\log_{10}(M_{\rm BH}/M_\odot)", smooth=True, cmap="magma")
 plt.tight_layout()
-plt.savefig("dN_dlgMBH_dz.pdf", dpi=300)
-plt.show()
+plt.savefig("dN_dlgMBH_dz.png", dpi=300)
+# plt.show()
 
 
 # Plotting.plot_joint_with_marginals(z_gal, MBHspins, pdf_dN_da_dz, theta_label=r"a", smooth=True, cmap="magma")
