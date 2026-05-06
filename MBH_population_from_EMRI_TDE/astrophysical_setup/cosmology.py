@@ -53,7 +53,13 @@ class GalaxyStellarMassFunction:
         self.interp = RegularGridInterpolator((self.z_vals, self.lgMgal_data), self.gsmf_grid, bounds_error=False, fill_value=np.nan)
     
     def clean(self, arr):
-        return np.array([np.nan if x is None else x for x in arr], dtype=float)
+        """Convert None values to NaN using vectorized operations."""
+        arr_np = np.asarray(arr, dtype=object)
+        result = np.empty(len(arr), dtype=float)
+        mask = np.array([x is None for x in arr])
+        result[mask] = np.nan
+        result[~mask] = np.asarray(arr_np[~mask], dtype=float)
+        return result
 
     def build_mass_grid(self, n_points_mass=1000):
         self.lgMgal_grid = np.linspace(self.lgMgal_data.min(), self.lgMgal_data.max(), n_points_mass)
@@ -84,8 +90,55 @@ class GalaxyStellarMassFunction:
         return lgMgal, f_mass
 
     def sample_gsmf(self, z_gal, size=1000):
-        lgMgal, phi = self.get_gsmf(z_gal, n_points_mass=size)
-        return lgMgal
+        """
+        Sample stellar masses from GSMF at given redshifts.
+        Optimized for the case where each redshift gets one sample.
+        
+        input: z_gal - array of redshifts (N_z,)
+               size - number of mass points for the interpolation grid (default 1000)
+        output: lgMgal_samples - sampled masses (N_z,)
+        """
+        z_gal = np.atleast_1d(z_gal)
+        N_z = len(z_gal)
+        
+        # Build mass grid once
+        lgMgal = self.build_mass_grid(n_points_mass=size)  # (N_M,)
+        
+        # Evaluate GSMF at each z and mass grid point
+        # Create points for interpolation: (N_z * N_M, 2) array of (z, lgMgal) pairs
+        Z_rep = np.repeat(z_gal, len(lgMgal))  # (N_z * N_M,)
+        M_rep = np.tile(lgMgal, N_z)  # (N_z * N_M,)
+        pts = np.column_stack([Z_rep, M_rep])
+        
+        # Interpolate GSMF values at all (z, M) pairs
+        log10phi_vals = self.interp(pts)  # (N_z * N_M,)
+        phi_vals = 10**log10phi_vals  # Convert to linear scale
+        phi_grid = phi_vals.reshape(N_z, len(lgMgal))  # (N_z, N_M)
+        
+        # Handle NaN values (set to 0)
+        phi_grid = np.nan_to_num(phi_grid, nan=0.0)
+        
+        # Normalize each redshift slice to create a probability distribution
+        phi_sum = np.sum(phi_grid, axis=1, keepdims=True)  # (N_z, 1)
+        phi_norm = phi_grid / (phi_sum + 1e-300)  # (N_z, N_M)
+        
+        # Sample one mass per redshift using cumulative distribution
+        cumsum = np.cumsum(phi_norm, axis=1)  # (N_z, N_M)
+        
+        # Generate random numbers for sampling
+        u = np.random.random(N_z)  # (N_z,)
+        
+        # Find indices where cumsum exceeds u for each redshift
+        indices = np.zeros(N_z, dtype=int)
+        for i in range(N_z):
+            indices[i] = np.searchsorted(cumsum[i], u[i])
+        
+        indices = np.clip(indices, 0, len(lgMgal) - 1)  # (N_z,)
+        
+        # Extract sampled masses
+        lgMgal_samples = lgMgal[indices]
+        
+        return lgMgal_samples
 
 class MBHMassFunction:
 

@@ -159,24 +159,3 @@ class Galaxy:
         ra = self.rng.uniform(0.0, 360.0, size=len(self.lgMgal))
         dec = self.rng.uniform(-90.0, 90.0, size=len(self.lgMgal))
         return np.column_stack((ra, dec))
-
-
-    # @staticmethod
-    # def lgMgal_from_lgMBH(lgMBH, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0):
-    #     """
-    #     Analytic inversion of the M-sigma relation used in lgMBH_from_Mgal.
-    #     Returns log10(Mgal/Msun).
-    #     """
-
-    #     # reproduce sigma(lgMgal) = C * 10^(beta * lgMgal)
-    #     # using same coefficients as R_eff and M_enc relations
-    #     beta = 0.5 - 0.12   # = 0.38
-    #     const_sigma = -0.41 + 1.284  # constants from Re and M_enc pieces
-
-    #     # from MBH = A + B*(log10(sigma) − log10(sigma0)):
-    #     log_sigma = (lgMBH - A)/B + np.log10(sigma_0)
-
-    #     # invert log_sigma = const_sigma + beta * lgMgal
-    #     lgMgal = (log_sigma - const_sigma)/beta
-
-    #     return lgMgal
