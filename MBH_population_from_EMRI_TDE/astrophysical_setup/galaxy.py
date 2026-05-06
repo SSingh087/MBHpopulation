@@ -12,7 +12,7 @@ class Galaxy:
     Galaxy with simple size-mass, virial sigma, and M-sigma MBH.
     """
 
-    def __init__(self, z_gal: np.ndarray, rng: Optional[np.random.Generator] = None, lgMgal: Optional[np.ndarray] = None, lgMBH: Optional[np.ndarray] = None, sigma_pc_yr: Optional[np.ndarray] = None, nucleation_occurs: bool = True):
+    def __init__(self, z_gal: np.ndarray, ra: np.ndarray=None, dec: np.ndarray=None, rng: Optional[np.random.Generator] = None, lgMgal: Optional[np.ndarray] = None, lgMBH: Optional[np.ndarray] = None, sigma_pc_yr: Optional[np.ndarray] = None, nucleation_occurs: bool = True):
         """
         Parameters
         ----------
@@ -56,6 +56,12 @@ class Galaxy:
             self.sigma_km_s = self.sigma_pc_yr * pc_to_cm / sec_per_year / 1e5  # convert to km/s
             self.lgMBH_mass = self.lgMBH(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)[self.nucleation_occurs]
             self.z_gal = self.z_gal[self.nucleation_occurs]
+
+        if ra is None and dec is None:
+            self.ra, self.dec = self.sky_location().T
+        else:
+            self.ra = np.asarray(ra)
+            self.dec = np.asarray(dec)
         
             # print(f"Number of galaxies: {self.lgMgal.shape[0]} with nucleation_occurs={self.nucleation_occurs.sum()} out of {self.lgMgal.shape[0]} total.")
 
@@ -85,7 +91,7 @@ class Galaxy:
         log10(Re/kpc) = B * (lgMgal - 10.7) + lg_A + N(0, Re_scatter)
         """
         lgreff = B * (self.lgMgal - 10.7) + lg_A
-        lgreff += np.random.normal(0.0, Re_scatter)
+        lgreff += np.random.normal(0.0, Re_scatter, size=self.lgMgal.shape)
         Re_kpc = 10.0**lgreff
 
         if unit == 'kpc':
@@ -153,6 +159,7 @@ class Galaxy:
         ra = self.rng.uniform(0.0, 360.0, size=len(self.lgMgal))
         dec = self.rng.uniform(-90.0, 90.0, size=len(self.lgMgal))
         return np.column_stack((ra, dec))
+
 
     # @staticmethod
     # def lgMgal_from_lgMBH(lgMBH, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0):

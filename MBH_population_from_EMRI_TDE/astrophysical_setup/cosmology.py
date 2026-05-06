@@ -1,6 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
-from astropy.cosmology import FlatLambdaCDM
+from astropy.cosmology import FlatLambdaCDM, z_at_value
 import astropy.units as u
 from scipy.interpolate import RegularGridInterpolator
 from galaxy import Galaxy
@@ -261,9 +261,21 @@ class CosmologyModel:
         dVc_dz_dOmega = self.cosmo.differential_comoving_volume(z).to(u.Mpc**3 / u.sr).value
         return 4 * np.pi * dVc_dz_dOmega  # Mpc^3 per unit z assuming whole sky
 
+    def comoving_distance(self, z):
+        """Comoving distance D_C(z) in Mpc."""
+        return self.cosmo.comoving_distance(z).to(u.Mpc).value
+    
+    def z_from_comoving_distance(self, D_C):
+        """Inverse of comoving distance: z(D_C)"""
+        D_C = np.atleast_1d(D_C) * u.Mpc
+
+        z = np.array([z_at_value(self.cosmo.comoving_distance, d) for d in D_C])
+
+        return z if len(z) > 1 else z[0]
+
     def luminosity_distance(self, z):
         """Luminosity distance D_L(z) in Mpc."""
-        return self.cosmo.luminosity_distance(z).to(u.Mpc)
+        return self.cosmo.luminosity_distance(z).to(u.Mpc).value
 
 class LastMajorMerger:
 
