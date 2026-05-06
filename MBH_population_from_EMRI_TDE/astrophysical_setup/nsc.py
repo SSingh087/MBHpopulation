@@ -86,13 +86,14 @@ class CompactObject:
         self.masses = masses  # dict of masses for each CO type, e.g. {'sBH': 10.0, 'star': 1.0}
         self.total_mass = total_mass  # dict of total mass for each CO type, e.g. {'sBH': 20.0, 'star': 100.0}
 
+
         # other CO types can be added in the future,
         # but for now we only have sBHs and stars,
         # so we can initialize the total_number dict with these two keys.
         if self.types_masses == 'same_mass':
             for type_CO in self.types_CO:
                 self.total_number[type_CO] = self.total_mass[type_CO] * self.nsc.MBH_mass / self.masses[type_CO]
-        
+
         elif self.types_masses == 'random_mass':
             raise NotImplementedError("Random mass sampling for COs is not implemented yet. Please use 'same_mass' for now.")
             # the issue here is that it will need number of COs for 
@@ -100,12 +101,27 @@ class CompactObject:
             # first place, so we will need to do some iterative sampling 
             # from the CO mass function until we reach the total/close
             # to the mass we want, and then count the number of COs.
+        
         else:
             raise ValueError("types_masses must be 'same_mass' or 'random_mass'")
+        
+        # self.orbit_sense = self.orbit_sense() 
 
     @property
     def total_number_CO(self):
         return self.total_number
+
+    def orbit_sense(self):
+        # ----------------------------------------------------------------
+        # this is required for generating the MBHspin evolution.
+        # this can be added in the nsc.py but it will take loads of memory to 
+        # store the spin evolution for all the galaxies and all the events.
+        # Hence we generate it on the fly for each EMRI event only when we need it, and we can also use it for TDEs if needed.
+        # ----------------------------------------------------------------
+        # this is only possible when the environemt is dry for prograde and retrograde.
+        # for wet environments, p>0.5 since most of the COs will align with the disc.
+        # we can also have a mixed case we will need to work on this.
+        return np.random.binomial(n=1, p=0.5, size=self.total_number)
 
     # @property
     # def component_masses(self):
@@ -121,12 +137,21 @@ class MBH_properties:
     def __init__(self, nsc, A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53):
         self.nsc = nsc
         self.lgMBH_mass = self.nsc.lgMBH
-        self.MBHspin = self.MBHspin(beta=12.0, lambda_alpha=0.5)
+        self.initial_MBHspin= self.initial_MBHspin(beta=12.0, lambda_alpha=0.5)
 
     @property
     def MBH_mass(self):
         return 10 ** self.nsc.lgMBH
 
-    def MBHspin(self, beta=12.0, lambda_alpha=0.5):
+    def initial_MBHspin(self, beta=12.0, lambda_alpha=0.5):
         alpha = beta + lambda_alpha * (self.lgMBH_mass - 6)
         return np.random.beta(alpha, beta)
+    
+    @staticmethod
+    def MBHspin_evolution_at_time(initial_spin):
+        # this needs a bit of discussion 
+        # since a) the mass of e MBH can change 
+        # and b) the spin evolution depends on the environment which can change with time, and also on the orbit sense which can change with time as well.
+        # this should then feedback into the waveform which we dont have 
+        # also I think for the span of observations we can assume that the mass of the MBH is constant, and also the environment is constant, and the orbit sense is constant as well, since we are only looking at a short time span compared to the evolution timescales of these properties.
+        return initial_spin

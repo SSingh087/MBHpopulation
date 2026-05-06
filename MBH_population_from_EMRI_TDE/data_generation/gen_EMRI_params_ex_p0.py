@@ -28,7 +28,7 @@ qS = np.pi/2 - np.deg2rad(np.array(hf['ra_deg'][:])) # Sky location polar angle 
 phiS = np.deg2rad(np.array(hf['dec_deg'][:])) # Sky location azimuthal angle in ecliptic coordinates.
 
 lgMBH_mass = np.array(hf['lgMBH'][:])
-MBHspin = np.array(hf['MBHspin'][:])
+initial_MBHspin = np.array(hf['initial_MBHspin'][:])
 
 sBH_masses = np.array(hf['sBH_masses'])
 
@@ -69,6 +69,7 @@ param_names = [
     "T_SIGNAL_duration_years"
 ]
 
+
 with h5py.File(f"/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/{args.GALAXIES}/all_galaxies_EMRI_events.h5", "w") as f:
 
     idx = np.where(observed_EMRIs > 0)[0]
@@ -84,7 +85,7 @@ with h5py.File(f"/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/
         group["lgMBH_mass"] = lgMBH_mass[i]
         group["distance_Gpc"] = distances[i]
         group["z_gal"] = z_gal[i]
-        group["MBHspin"] = MBHspin[i]
+        group["MBHspin"] = initial_MBHspin[i]
         group["qS"] = qS[i]
         group["phiS"] = phiS[i]
         group["sBH_mass"] = sBH_masses
