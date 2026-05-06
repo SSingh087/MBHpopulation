@@ -1,8 +1,9 @@
-# python -m cProfile -o output.prof test_galaxies.py
-# snakeviz output.prof
+# python -m cProfile -o output_no_clustering.prof test_galaxies.py
+# snakeviz output_no_clustering.prof
 
 import os, sys, argparse
 sys.path.insert(0, os.path.abspath('./astrophysical_setup'))
+sys.path.insert(0, os.path.abspath('./'))
 import argparse
 
 import numpy as np
@@ -13,13 +14,9 @@ from relaxation import RelaxationModel
 from rate import RateModel
 from evolution import CuspEvolution
 from cosmology import LastMajorMerger, CosmologyModel, GalaxyStellarMassFunction
-
+from utils import Plotting
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.rc('font', family='serif', serif=['Computer Modern'], size=15)
-matplotlib.rc('text', usetex=True)
-import seaborn as sns
-from matplotlib import gridspec
 import h5py
 
 rng = np.random.default_rng(seed=42)
@@ -28,13 +25,43 @@ Z_MAX = 10.0
 parser = argparse.ArgumentParser()
 parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galaxies")
 parser.add_argument("--OBSERVING_WINDOW", type=float, required=True, help="Observing window in years")
+parser.add_argument("--Z_MAX", type=float, required=False, default=10.0, help="Maximum redshift")
 args = parser.parse_args()
 
 cosmo_model = CosmologyModel()
+Z_MAX = args.Z_MAX
 
 N_objs = args.GALAXIES
 T_obs = args.OBSERVING_WINDOW
-z_grid = np.random.uniform(1E-5, Z_MAX, N_objs)  # this is N_objs redshifts 
+
+
+# Rmax = cosmo_model.comoving_distance(Z_MAX)
+# Rmin = cosmo_model.comoving_distance(1e-56)
+# u = rng.random(N_objs)
+# r = (Rmin**3 + (Rmax**3 - Rmin**3) * u)**(1/3)
+
+# # Ensure monotonic inversion behaves well
+# r.sort()
+
+# z_grid = cosmo_model.z_from_comoving_distance(r)
+
+from scipy.optimize import brentq
+
+Rmin = cosmo_model.comoving_distance(1e-5)
+Rmax = cosmo_model.comoving_distance(Z_MAX)
+
+rng = np.random.default_rng()
+u = rng.random(N_objs)
+r_samples = (Rmin**3 + (Rmax**3 - Rmin**3) * u)**(1/3)
+
+# Function to invert comoving distance
+def z_from_r(r):
+    return brentq(lambda z: cosmo_model.comoving_distance(z) - r, 1e-5, Z_MAX)
+
+# Vectorized inversion
+z_grid = np.array([z_from_r(r) for r in r_samples])
+
+# z_grid = np.random.uniform(1E-5, Z_MAX, N_objs)  # this is N_objs redshifts 
 
 GSMF = GalaxyStellarMassFunction()
 lgMgal_samples = GSMF.sample_gsmf(z_gal=z_grid, size=N_objs)
@@ -66,7 +93,7 @@ loc = f'/data/wiay/postgrads/shashwat/EMRI_TDE_data/astrophysical_data/{args.GAL
 if not os.path.exists(loc):
     os.makedirs(loc)
 
-hf = h5py.File(f'{loc}/data_cusp_evolution.h5', 'w')
+hf = h5py.File(f'{loc}/data_cusp_evolution_no_clustering.h5', 'w')
 
 # apart from nucleation fraction check we also need to apply check on the S/MBH mass 
 # since we are dealing with S/MBHs, the masses should be greater than 10^4
@@ -101,251 +128,160 @@ hf.close()
 print("After MBH mass filter")
 print(np.sum(generated_EMRIs[mbh_mask]), generated_EMRIs[mbh_mask].max(), np.sum(generated_TDEs[mbh_mask]), generated_TDEs[mbh_mask].max())
 
+# ========================
+# PLOTTING 
+# ========================
+
+Plotting.MBHmass_vs_spin(gal_obj.lgMBH_mass[mbh_mask], MBH_obj.initial_MBHspin[mbh_mask], z_grid[nucleation_indices][mbh_mask], loc=f'{loc}/MBHmass_vs_spin_no_clustering.png', cmap='plasma')
+
+import matplotlib.colors as mcolors
+
+fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
+
+# --- Color normalization across full z range ---
+norm = mcolors.Normalize(vmin=np.min(z_grid), vmax=np.max(z_grid))
+colors = z_grid[nucleation_indices][mbh_mask]
+
+# --- Top: EMRIs ---
+sc = axes[0].scatter(gal_obj.lgMBH_mass[mbh_mask], generated_EMRIs[mbh_mask], c=colors, cmap='plasma', norm=norm,
+                    marker='o', alpha=0.9, s=20)
+
+axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs[mbh_mask])}')
+axes[0].set_yscale('log')
+axes[0].set_ylabel(f'Number of events in {T_obs} yrs')
+
+axes[1].scatter(gal_obj.lgMBH_mass[mbh_mask], generated_TDEs[mbh_mask], c=colors, cmap='plasma', norm=norm,
+                marker='d', alpha=0.9, s=20)
+
+axes[1].set_title(f'TDEs = {np.sum(generated_TDEs[mbh_mask])}')
+axes[1].set_yscale('log')
+axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
+axes[1].set_ylabel(f'Number of events in {T_obs} yrs')
+
+# --- Shared colorbar ---
+cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
+fig.colorbar(sc, cax=cbar_ax, label='Redshift')
+
+plt.tight_layout(rect=[0, 0, 0.9, 1])
+plt.savefig(f'{loc}/generated_objects_no_clustering.png', dpi=300)
+plt.close()
+
+fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
+
+mass_bins = np.linspace(np.min(gal_obj.lgMBH_mass[mbh_mask]), 
+                        np.max(gal_obj.lgMBH_mass[mbh_mask]), 100)
+z_bins = np.linspace(np.min(z_grid[nucleation_indices][mbh_mask]), 
+                     np.max(z_grid[nucleation_indices][mbh_mask]), 100)
+
+# --- Top: EMRIs ---
+H_emri, xedges, yedges = np.histogram2d(
+    gal_obj.lgMBH_mass[mbh_mask],
+    z_grid[nucleation_indices][mbh_mask],
+    bins=[mass_bins, z_bins],
+    weights=generated_EMRIs[mbh_mask],
+)
+
+# Optionally smooth
+# H_emri = gaussian_filter(H_emri, sigma=1.5)
+
+X, Y = np.meshgrid(xedges[:-1], yedges[:-1], indexing='ij')
+pcm = axes[0].pcolormesh(X, Y, H_emri, cmap='plasma', shading='auto')
+
+axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs[mbh_mask])}')
+axes[0].set_ylabel('Redshift (z)')
+
+# Colorbar for EMRIs
+cbar_emri = fig.colorbar(pcm, ax=axes[0], label='Number of EMRI events')
+
+# --- Bottom: TDEs ---
+H_tde, _, _ = np.histogram2d(
+    gal_obj.lgMBH_mass[mbh_mask],
+    z_grid[nucleation_indices][mbh_mask],
+    bins=[mass_bins, z_bins],
+    weights=generated_TDEs[mbh_mask]
+)
+# H_tde = gaussian_filter(H_tde, sigma=1.5)
+
+pcm2 = axes[1].pcolormesh(X, Y, H_tde, cmap='plasma', shading='auto')
+
+axes[1].set_title(f'TDEs = {np.sum(generated_TDEs[mbh_mask])}')
+axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
+axes[1].set_ylabel('Redshift (z)')
+
+# Colorbar for TDEs
+cbar_tde = fig.colorbar(pcm2, ax=axes[1], label='Number of TDE events')
+
+plt.tight_layout()
+plt.savefig(f'{loc}/generated_objects_no_clustering_smooth.png', dpi=300)
+plt.close()
+
+# Convert spherical coordinates (RA, Dec, z) to Cartesian for true 3D shells
+# RA in radians, Dec in radians
+ra_rad = np.radians(ra)
+dec_rad = np.radians(dec)
+z_filtered = z_grid[nucleation_indices][mbh_mask]  # for color coding in polar plots
+
+# Cartesian coordinates
+x = z_filtered * np.cos(dec_rad) * np.cos(ra_rad)
+y = z_filtered * np.cos(dec_rad) * np.sin(ra_rad)
+z = z_filtered * np.sin(dec_rad)
+
+# --- Polar plot RA vs z ---
+plt.figure(figsize=(8,6), facecolor='white')
+ax = plt.subplot(projection='polar')
+ax.set_facecolor('#f9f9f9')  # light background
+ax.scatter(ra_rad, z_filtered, c=colors, cmap='plasma', marker='o', s=20, alpha=0.6)
+ax.set_rlabel_position(240)  # radial labels at bottom
+ax.grid(True, color='gray', linestyle='--', alpha=0.3)
+plt.title('Galaxy Distribution: RA vs Redshift', fontsize=14)
+plt.savefig(f'{loc}/RA_vs_redshift_no_clustering.png', dpi=300)
+# plt.show()
+plt.close()
+
+# --- Polar plot Dec vs z ---
+# Since Dec is not circular, we shift it to 0-360 deg for polar visualization
+dec_shifted = dec + 90  # from [-90,90] -> [0,180]
+plt.figure(figsize=(8,6), facecolor='white')
+ax = plt.subplot(projection='polar')
+ax.set_facecolor('#f9f9f9')
+ax.scatter(np.radians(dec_shifted), z_filtered, c=colors, cmap='plasma', marker='o', s=20, alpha=0.6)
+ax.set_rlabel_position(240)  # radial labels at bottom
+ax.grid(True, color='gray', linestyle='--', alpha=0.3)
+plt.title('Galaxy Distribution: Dec vs Redshift', fontsize=14)
+plt.savefig(f'{loc}/Dec_vs_redshift_no_clustering.png', dpi=300)
+# plt.show()
+plt.close()
 
 
-# with h5py.File(f'{loc}/data_cusp_evolution.h5', 'r') as hf:
-#     mbh = np.array(hf['lgMBH'])
-#     spin = np.array(hf['initial_MBHspin'])
-#     z = np.array(hf['z_gal'])
+# 3D scatter plot with concentric shells
+fig = plt.figure(figsize=(10,8), facecolor='white')
+ax = fig.add_subplot(111, projection='3d')
+sc = ax.scatter(x, y, z, c=z_filtered, s=15, cmap='plasma')
+cbar = plt.colorbar(sc, ax=ax, shrink=0.6)
+cbar.set_label('Redshift', fontsize=12)
+ax.set_xlabel('X [$z$]')
+ax.set_ylabel('Y [$z$]')
+ax.set_zlabel('Z [$z$]')
+ax.set_title('3D Galaxy Distribution (Concentric Shells)', fontsize=14)
+ax.grid(False)
+ax.set_box_aspect([1,1,1])
+
+plt.savefig(f'{loc}/3D_galaxy_distribution_no_clustering.png', dpi=300)
+# plt.show()
 
 
+# zmin, zmax_slice = 0.8, 2.0  # THIN slice
+# mask = (z_grid[nucleation_indices][mbh_mask] > zmin) & (z_grid[nucleation_indices][mbh_mask] < zmax_slice)
 
-# # PLOTTING 
-# import matplotlib.pyplot as plt
-# import matplotlib.gridspec as gridspec
-# import seaborn as sns
+# ra_rad  = np.deg2rad(ra)
+# dec_rad = np.deg2rad(dec)
+# ra_wrap = (ra_rad + np.pi) % (2*np.pi) - np.pi
 
-# # # --------------------------------------------------
-# # FIGURE & GRID (matches geometry)
-# # --------------------------------------------------
-# fig = plt.figure(figsize=(9, 9))
-# gs = gridspec.GridSpec(
-#     4, 4,
-#     figure=fig,
-#     wspace=0.0,
-#     hspace=0.0
-# )
-
-# ax_main  = fig.add_subplot(gs[1:4, 0:3])
-# ax_top   = fig.add_subplot(gs[0, 0:3], sharex=ax_main)
-# ax_right = fig.add_subplot(gs[1:4, 3], sharey=ax_main)
-
-# # --------------------------------------------------
-# # MAIN PANEL: SCATTER
-# # --------------------------------------------------
-# sc = ax_main.scatter(
-#     mbh,
-#     spin,
-#     c=z,
-#     cmap="viridis",
-#     s=18,
-#     alpha=0.8,
-#     linewidths=0,
-#     zorder=2
-# )
-
-# # KDE LINE CONTOURS ONLY (NO FILL)
-# sns.kdeplot(
-#     x=mbh,
-#     y=spin,
-#     ax=ax_main,
-#     levels=5,
-#     color="magma",
-#     linewidths=1.1,
-#     fill=True,
-#     zorder=3
-# )
-
-# ax_main.set_xlabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
-# ax_main.set_ylabel(r'$a_{\rm BH}$')
-
-# # --------------------------------------------------
-# # TOP MARGINAL KDE (FILLED, BOXED)
-# # --------------------------------------------------
-# sns.kdeplot(
-#     x=mbh,
-#     ax=ax_top,
-#     fill=True,
-#     color="#8fb1ff",
-#     linewidth=1.0,
-#     alpha=0.85
-# )
-
-# # --------------------------------------------------
-# # RIGHT MARGINAL KDE (FILLED, BOXED)
-# # --------------------------------------------------
-# sns.kdeplot(
-#     y=spin,
-#     ax=ax_right,
-#     fill=True,
-#     color="#ffb199",
-#     linewidth=1.0,
-#     alpha=0.85
-# )
-
-# # --------------------------------------------------
-# # MARGINAL AXES: NO TICKS, KEEP BOXES
-# # --------------------------------------------------
-# for ax in [ax_top, ax_right]:
-#     ax.tick_params(
-#         left=False, bottom=False,
-#         labelleft=False, labelbottom=False
-#     )
-#     for spine in ax.spines.values():
-#         spine.set_visible(True)
-#         spine.set_linewidth(0.9)
-
-# # --------------------------------------------------
-# # COLORBAR (TOP)
-# # --------------------------------------------------
-# cax = fig.add_axes([0.16, 0.935, 0.68, 0.022])
-# cbar = fig.colorbar(sc, cax=cax, orientation="horizontal")
-# cbar.set_label("")
-# cbar.ax.tick_params(labelsize=9)
-
-# # --------------------------------------------------
-# # DETECTABILITY MARKERS
-# # --------------------------------------------------
-# z_ZTF  = 2.0
-# z_LSST = 4.0
-# z_LISA = 6.0
-
-# for z_val, label, colour in [
-#     (z_ZTF,  "ZTF",  "blue"),
-#     (z_LSST, "LSST", "orange"),
-#     (z_LISA, "LISA", "red")
-# ]:
-#     cbar.ax.axvline(
-#         z_val,
-#         color=colour,
-#         linestyle="--",
-#         linewidth=2
-#     )
-#     cbar.ax.text(
-#         z_val,
-#         1.4,
-#         label,
-#         ha="center",
-#         va="bottom",
-#         fontsize=10,
-#         color=colour
-#     )
-
-# # --------------------------------------------------
-# # FINAL ADJUSTMENTS
-# # --------------------------------------------------
-# sns.despine(ax=ax_main)
-# plt.subplots_adjust(top=0.92)
-
-# plt.savefig(f"{loc}/MBH_spin_redshift.png", dpi=300)
+# fig = plt.figure(figsize=(8,4.5))
+# ax = fig.add_subplot(111, projection="mollweide")
+# ax.scatter(-ra_wrap, dec_rad, s=5, alpha=0.4, rasterized=True)  # minus flips RA like sky maps
+# ax.grid(True, alpha=0.3)
+# ax.set_title(f"${zmin} \leq z \leq {zmax_slice}$")
+# plt.tight_layout()
+# plt.savefig(f'{loc}/mollweide_sky_map_{zmin}_{zmax_slice}_no_clustering.png', dpi=300)
 # plt.close()
-
-# # import matplotlib.colors as mcolors
-
-# # fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
-
-# # # --- Color normalization across full z range ---
-# # norm = mcolors.Normalize(vmin=np.min(z_grid), vmax=np.max(z_grid))
-# # colors = z_grid[nucleation_indices][mbh_mask]
-
-# # # --- Top: EMRIs ---
-# # sc = axes[0].scatter(gal_obj.lgMBH_mass[mbh_mask], generated_EMRIs[mbh_mask], c=colors, cmap='plasma', norm=norm,
-# #                     marker='o', alpha=0.9, s=20)
-
-# # axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs[mbh_mask])}')
-# # axes[0].set_yscale('log')
-# # axes[0].set_ylabel(f'Number of events in {T_obs} yrs')
-
-# # axes[1].scatter(gal_obj.lgMBH_mass[mbh_mask], generated_TDEs[mbh_mask], c=colors, cmap='plasma', norm=norm,
-# #                 marker='d', alpha=0.9, s=20)
-
-# # axes[1].set_title(f'TDEs = {np.sum(generated_TDEs[mbh_mask])}')
-# # axes[1].set_yscale('log')
-# # axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
-# # axes[1].set_ylabel(f'Number of events in {T_obs} yrs')
-
-# # # --- Shared colorbar ---
-# # cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
-# # fig.colorbar(sc, cax=cbar_ax, label='Redshift')
-
-# # plt.tight_layout(rect=[0, 0, 0.9, 1])
-# # plt.savefig(f'{loc}/generated_objects.png', dpi=300)
-# # plt.close()
-
-
-# # # Convert spherical coordinates (RA, Dec, z) to Cartesian for true 3D shells
-# # # RA in radians, Dec in radians
-# # ra_rad = np.radians(ra)
-# # dec_rad = np.radians(dec)
-# # z_filtered = z_grid[nucleation_indices][mbh_mask]  # for color coding in polar plots
-
-# # # Cartesian coordinates
-# # x = z_filtered * np.cos(dec_rad) * np.cos(ra_rad)
-# # y = z_filtered * np.cos(dec_rad) * np.sin(ra_rad)
-# # z = z_filtered * np.sin(dec_rad)
-
-# # # --- Polar plot RA vs z ---
-# # plt.figure(figsize=(8,6), facecolor='white')
-# # ax = plt.subplot(projection='polar')
-# # ax.set_facecolor('#f9f9f9')  # light background
-# # ax.scatter(ra_rad, z_filtered, c=colors, cmap='plasma', marker='o', s=20, alpha=0.6)
-# # ax.set_rlabel_position(240)  # radial labels at bottom
-# # ax.grid(True, color='gray', linestyle='--', alpha=0.3)
-# # plt.title('Galaxy Distribution: RA vs Redshift', fontsize=14)
-# # plt.savefig(f'{loc}/RA_vs_redshift.png', dpi=300)
-# # # plt.show()
-# # plt.close()
-
-# # # --- Polar plot Dec vs z ---
-# # # Since Dec is not circular, we shift it to 0-360 deg for polar visualization
-# # dec_shifted = dec + 90  # from [-90,90] -> [0,180]
-# # plt.figure(figsize=(8,6), facecolor='white')
-# # ax = plt.subplot(projection='polar')
-# # ax.set_facecolor('#f9f9f9')
-# # ax.scatter(np.radians(dec_shifted), z_filtered, c=colors, cmap='plasma', marker='o', s=20, alpha=0.6)
-# # ax.set_rlabel_position(240)  # radial labels at bottom
-# # ax.grid(True, color='gray', linestyle='--', alpha=0.3)
-# # plt.title('Galaxy Distribution: Dec vs Redshift', fontsize=14)
-# # plt.savefig(f'{loc}/Dec_vs_redshift.png', dpi=300)
-# # # plt.show()
-# # plt.close()
-
-
-# # # 3D scatter plot with concentric shells
-# # fig = plt.figure(figsize=(10,8), facecolor='white')
-# # ax = fig.add_subplot(111, projection='3d')
-# # sc = ax.scatter(x, y, z, c=z_filtered, s=15, cmap='plasma')
-# # cbar = plt.colorbar(sc, ax=ax, shrink=0.6)
-# # cbar.set_label('Redshift', fontsize=12)
-# # ax.set_xlabel('X [$z$]')
-# # ax.set_ylabel('Y [$z$]')
-# # ax.set_zlabel('Z [$z$]')
-# # ax.set_title('3D Galaxy Distribution (Concentric Shells)', fontsize=14)
-# # ax.grid(False)
-# # ax.set_box_aspect([1,1,1])
-
-# # plt.savefig(f'{loc}/3D_galaxy_distribution.png', dpi=300)
-# # # plt.show()
-
-
-# # mask = z >= 0
-# # x_half = x[mask]
-# # y_half = y[mask]
-# # z_half = z[mask]
-# # z_filtered_half = z_filtered[mask]  # assuming you color by z_filtered
-
-# # # 3D scatter plot for half-sphere
-# # fig = plt.figure(figsize=(10,8), facecolor='white')
-# # ax = fig.add_subplot(111, projection='3d')
-# # sc = ax.scatter(x_half, y_half, z_half, c=z_filtered_half, s=15, cmap='plasma')
-# # cbar = plt.colorbar(sc, ax=ax, shrink=0.6)
-# # cbar.set_label('Redshift', fontsize=12)
-# # ax.set_xlabel('X [$z$]')
-# # ax.set_ylabel('Y [$z$]')
-# # ax.set_zlabel('Z [$z$]')
-# # ax.set_title('Half 3D Galaxy Distribution', fontsize=14)
-# # ax.grid(False)
-# # ax.set_box_aspect([1,1,1])
-
-# # plt.savefig(f'{loc}/Half_3D_galaxy_distribution.png', dpi=300)
-# # # plt.show()
