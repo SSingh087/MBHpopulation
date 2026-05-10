@@ -54,17 +54,11 @@ rng = np.random.default_rng()
 u = rng.random(N_objs)
 r_samples = (Rmin**3 + (Rmax**3 - Rmin**3) * u)**(1/3)
 
-# Function to invert comoving distance
-def z_from_r(r):
-    return brentq(lambda z: cosmo_model.comoving_distance(z) - r, 1e-5, Z_MAX)
-
-# Vectorized inversion
-z_grid = np.array([z_from_r(r) for r in r_samples])
+z_grid = cosmo_model.z_from_comoving_distance_fast(r_samples)
 
 # z_grid = np.random.uniform(1E-5, Z_MAX, N_objs)  # this is N_objs redshifts 
-
 GSMF = GalaxyStellarMassFunction()
-lgMgal_samples = GSMF.sample_gsmf(z_gal=z_grid, size=N_objs)
+lgMgal_samples = GSMF.sample_gsmf(z_gal=z_grid, n_samples_per_z=1)
 
 nucleation_indices = Galaxy.check_nucleation(lgMgal_samples, z_grid)
  
@@ -108,21 +102,18 @@ hf.create_dataset('sigma_km_s', data=gal_obj.sigma_km_s[mbh_mask]) # nucleation_
 # we don't need to save nucleation indices since we are already filtering based on the MBH mass
 
 hf.create_dataset('z_gal', data=z_grid[nucleation_indices][mbh_mask]) 
-sky_locs = gal_obj.sky_location()[nucleation_indices][mbh_mask]
-ra, dec = sky_locs[:, 0], sky_locs[:, 1]
+hf.create_dataset('ra_deg', data=gal_obj.ra_deg[mbh_mask])
+hf.create_dataset('dec_deg', data=gal_obj.dec_deg[mbh_mask])
 
-hf.create_dataset('ra_deg', data=np.array(ra))
-hf.create_dataset('dec_deg', data=np.array(dec))
-
-hf.create_dataset('lgMBH', data=gal_obj.lgMBH_mass[mbh_mask]) # nucleation_index filter already applied
-hf.create_dataset('initial_MBHspin', data=MBH_obj.initial_MBHspin[mbh_mask]) # nucleation_index filter already applied
+hf.create_dataset('lgMBH', data=gal_obj.lgMBH_mass[mbh_mask])
+hf.create_dataset('initial_MBHspin', data=MBH_obj.initial_MBHspin[mbh_mask])
 
 # since this is the same mass case so we just save the scalar values hence no masking is required
 hf.create_dataset('sBH_masses', data=CO_objs.masses['sBH'])
 hf.create_dataset('star_masses', data=CO_objs.masses['star'])
 
-hf.create_dataset('generated_EMRIs', data=generated_EMRIs[mbh_mask]) # nucleation_index filter already applied
-hf.create_dataset('generated_TDEs', data=generated_TDEs[mbh_mask]) # nucleation_index filter already applied
+hf.create_dataset('generated_EMRIs', data=generated_EMRIs[mbh_mask])
+hf.create_dataset('generated_TDEs', data=generated_TDEs[mbh_mask])
 hf.close()
 
 print("After MBH mass filter")
@@ -217,8 +208,8 @@ plt.close()
 
 # Convert spherical coordinates (RA, Dec, z) to Cartesian for true 3D shells
 # RA in radians, Dec in radians
-ra_rad = np.radians(ra)
-dec_rad = np.radians(dec)
+ra_rad = np.radians(gal_obj.ra_deg[mbh_mask])
+dec_rad = np.radians(gal_obj.dec_deg[mbh_mask])
 z_filtered = z_grid[nucleation_indices][mbh_mask]  # for color coding in polar plots
 
 # Cartesian coordinates
@@ -240,7 +231,7 @@ plt.close()
 
 # --- Polar plot Dec vs z ---
 # Since Dec is not circular, we shift it to 0-360 deg for polar visualization
-dec_shifted = dec + 90  # from [-90,90] -> [0,180]
+dec_shifted = gal_obj.dec_deg[mbh_mask] + 90  # from [-90,90] -> [0,180]
 plt.figure(figsize=(8,6), facecolor='white')
 ax = plt.subplot(projection='polar')
 ax.set_facecolor('#f9f9f9')
@@ -267,21 +258,21 @@ ax.grid(False)
 ax.set_box_aspect([1,1,1])
 
 plt.savefig(f'{loc}/3D_galaxy_distribution_no_clustering.png', dpi=300)
-# plt.show()
+plt.close()
 
 
-# zmin, zmax_slice = 0.8, 2.0  # THIN slice
-# mask = (z_grid[nucleation_indices][mbh_mask] > zmin) & (z_grid[nucleation_indices][mbh_mask] < zmax_slice)
+zmin_slice, zmax_slice = 0.5, 1.0
+mask = (z_grid[nucleation_indices][mbh_mask] > zmin_slice) & (z_grid[nucleation_indices][mbh_mask] < zmax_slice)
 
-# ra_rad  = np.deg2rad(ra)
-# dec_rad = np.deg2rad(dec)
-# ra_wrap = (ra_rad + np.pi) % (2*np.pi) - np.pi
+ra_rad  = np.deg2rad(gal_obj.ra_deg[mbh_mask])
+dec_rad = np.deg2rad(gal_obj.dec_deg[mbh_mask])
+ra_wrap = (ra_rad + np.pi) % (2*np.pi) - np.pi
 
-# fig = plt.figure(figsize=(8,4.5))
-# ax = fig.add_subplot(111, projection="mollweide")
-# ax.scatter(-ra_wrap, dec_rad, s=5, alpha=0.4, rasterized=True)  # minus flips RA like sky maps
-# ax.grid(True, alpha=0.3)
-# ax.set_title(f"${zmin} \leq z \leq {zmax_slice}$")
-# plt.tight_layout()
-# plt.savefig(f'{loc}/mollweide_sky_map_{zmin}_{zmax_slice}_no_clustering.png', dpi=300)
-# plt.close()
+fig = plt.figure(figsize=(8,4.5))
+ax = fig.add_subplot(111, projection="mollweide")
+ax.scatter(-ra_wrap, dec_rad, s=5, alpha=0.8, rasterized=True)  # minus flips RA like sky maps
+ax.grid(True, alpha=0.3)
+ax.set_title(f"${zmin_slice} \leq z \leq {zmax_slice}$")
+plt.tight_layout()
+plt.savefig(f'{loc}/mollweide_sky_map_{zmin_slice}_{zmax_slice}_no_clustering.png', dpi=300)
+plt.close()
