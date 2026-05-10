@@ -1,9 +1,10 @@
 import numpy as np
 from dataclasses import dataclass
-from astropy.cosmology import FlatLambdaCDM
+from astropy.cosmology import FlatLambdaCDM, z_at_value
 import astropy.units as u
 from scipy.interpolate import RegularGridInterpolator
 from galaxy import Galaxy
+from test_galaxies_FIXED import Z_MAX
 
 class HaloMassFunction:
     pass
@@ -85,7 +86,10 @@ class GalaxyStellarMassFunction:
 
     def sample_gsmf(self, z_gal, size=1000):
         lgMgal, phi = self.get_gsmf(z_gal, n_points_mass=size)
+        breakpoint()
         return lgMgal
+
+
 
 class MBHMassFunction:
 
@@ -261,9 +265,43 @@ class CosmologyModel:
         dVc_dz_dOmega = self.cosmo.differential_comoving_volume(z).to(u.Mpc**3 / u.sr).value
         return 4 * np.pi * dVc_dz_dOmega  # Mpc^3 per unit z assuming whole sky
 
+    def comoving_distance(self, z):
+        """Comoving distance D_C(z) in Mpc."""
+        return self.cosmo.comoving_distance(z).to(u.Mpc).value
+    
+    def z_from_comoving_distance(self, D_C):
+        """Inverse of comoving distance: z(D_C)"""
+        D_C = np.atleast_1d(D_C) * u.Mpc
+
+        z = np.array([z_at_value(self.cosmo.comoving_distance, d) for d in D_C])
+
+        return z if len(z) > 1 else z[0]
+
     def luminosity_distance(self, z):
         """Luminosity distance D_L(z) in Mpc."""
-        return self.cosmo.luminosity_distance(z).to(u.Mpc)
+        return self.cosmo.luminosity_distance(z).to(u.Mpc).value
+
+Z_MAX = 10.0
+cosmo_model = CosmologyModel()
+
+N_objs = 10000
+T_obs = 4.0  # Gyr
+
+from scipy.optimize import brentq
+
+Rmin = cosmo_model.comoving_distance(1e-5)
+Rmax = cosmo_model.comoving_distance(Z_MAX)
+
+rng = np.random.default_rng()
+u_rand = rng.random(N_objs)
+r_samples = (Rmin**3 + (Rmax**3 - Rmin**3) * u_rand)**(1/3)
+
+# Fast vectorized lookup using precomputed interpolator
+z_grid = cosmo_model.z_from_comoving_distance_fast(r_samples)
+
+
+GSMF = GalaxyStellarMassFunction()
+lgMgal_samples = GSMF.sample_gsmf(z_gal=z_grid, size=N_objs)
 
 class LastMajorMerger:
 
@@ -318,7 +356,6 @@ class LastMajorMerger:
         Lambda[:, 1:] = np.cumsum(0.5 * (g[:, 1:] + g[:, :-1]) * dz, axis=1)
 
         return z_grid, Lambda
-
 
     def sample_z_LMM(self, z_obs_array, size=1):
         """

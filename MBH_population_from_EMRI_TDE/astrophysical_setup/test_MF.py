@@ -12,13 +12,13 @@ z_grid = np.linspace(0.01, 10.0, 5)
 
 
 GSMF = GalaxyStellarMassFunction()
-MBHMF = MBHMassFunction(gsmf=GSMF)
+# MBHMF = MBHMassFunction(gsmf=GSMF)
 
 lgMgal, phi_batch = GSMF.get_gsmf(z_gal=z_grid, n_points_mass=1000)
 lgMgal_samples = GSMF.sample_gsmf(z_gal=z_grid, size=1000)
 
 
-logMBH_grid, dlogMBH_dlogMgal = MBHMF.get_mbhmf(z_gal=z_grid)
+# logMBH_grid, dlogMBH_dlogMgal = MBHMF.get_mbhmf(z_gal=z_grid)
 
 
 cmap = plt.get_cmap('plasma')
