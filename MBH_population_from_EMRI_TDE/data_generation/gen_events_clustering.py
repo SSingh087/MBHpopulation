@@ -205,140 +205,140 @@ Plotting.MBHmass_vs_spin(gal_obj.lgMBH_mass[mbh_mask], MBH_obj.initial_MBHspin[m
 
 import matplotlib.colors as mcolors
 
-# fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
+fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
 
-# # --- Color normalization across full z range ---
-# norm = mcolors.Normalize(vmin=np.min(z_grid), vmax=np.max(z_grid))
-# colors = z_grid[nucleation_indices][mbh_mask]
+# --- Color normalization across full z range ---
+norm = mcolors.Normalize(vmin=np.min(z_grid), vmax=np.max(z_grid))
+colors = z_grid[nucleation_indices][mbh_mask]
 
-# # --- Top: EMRIs ---
-# sc = axes[0].scatter(gal_obj.lgMBH_mass[mbh_mask], generated_EMRIs[mbh_mask], c=colors, cmap='plasma', norm=norm,
-#                     marker='o', alpha=0.9, s=20)
+# --- Top: EMRIs ---
+sc = axes[0].scatter(gal_obj.lgMBH_mass[mbh_mask], generated_EMRIs[mbh_mask], c=colors, cmap='plasma', norm=norm,
+                    marker='o', alpha=0.9, s=20)
 
-# axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs[mbh_mask])}')
-# axes[0].set_yscale('log')
-# axes[0].set_ylabel(f'Number of events in {T_obs} yrs')
+axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs[mbh_mask])}')
+axes[0].set_yscale('log')
+axes[0].set_ylabel(f'Number of events in {T_obs} yrs')
 
-# axes[1].scatter(gal_obj.lgMBH_mass[mbh_mask], generated_TDEs[mbh_mask], c=colors, cmap='plasma', norm=norm,
-#                 marker='d', alpha=0.9, s=20)
+axes[1].scatter(gal_obj.lgMBH_mass[mbh_mask], generated_TDEs[mbh_mask], c=colors, cmap='plasma', norm=norm,
+                marker='d', alpha=0.9, s=20)
 
-# axes[1].set_title(f'TDEs = {np.sum(generated_TDEs[mbh_mask])}')
-# axes[1].set_yscale('log')
-# axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
-# axes[1].set_ylabel(f'Number of events in {T_obs} yrs')
+axes[1].set_title(f'TDEs = {np.sum(generated_TDEs[mbh_mask])}')
+axes[1].set_yscale('log')
+axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
+axes[1].set_ylabel(f'Number of events in {T_obs} yrs')
 
-# # --- Shared colorbar ---
-# cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
-# fig.colorbar(sc, cax=cbar_ax, label='Redshift')
+# --- Shared colorbar ---
+cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
+fig.colorbar(sc, cax=cbar_ax, label='Redshift')
 
-# plt.tight_layout(rect=[0, 0, 0.9, 1])
-# plt.savefig(f'{loc}/generated_objects_clustering.png', dpi=300)
-# plt.close()
-
-
-# fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
-
-# mass_bins = np.linspace(np.min(gal_obj.lgMBH_mass[mbh_mask]), 
-#                         np.max(gal_obj.lgMBH_mass[mbh_mask]), 100)
-# z_bins = np.linspace(np.min(z_grid[nucleation_indices][mbh_mask]), 
-#                      np.max(z_grid[nucleation_indices][mbh_mask]), 100)
-
-# # --- Top: EMRIs ---
-# H_emri, xedges, yedges = np.histogram2d(
-#     gal_obj.lgMBH_mass[mbh_mask],
-#     z_grid[nucleation_indices][mbh_mask],
-#     bins=[mass_bins, z_bins],
-#     weights=generated_EMRIs[mbh_mask],
-# )
-
-# # Optionally smooth
-# # H_emri = gaussian_filter(H_emri, sigma=1.5)
-
-# X, Y = np.meshgrid(xedges[:-1], yedges[:-1], indexing='ij')
-# pcm = axes[0].pcolormesh(X, Y, H_emri, cmap='plasma', shading='auto')
-
-# axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs[mbh_mask])}')
-# axes[0].set_ylabel('Redshift (z)')
-
-# # Colorbar for EMRIs
-# cbar_emri = fig.colorbar(pcm, ax=axes[0], label='Number of EMRI events')
-
-# # --- Bottom: TDEs ---
-# H_tde, _, _ = np.histogram2d(
-#     gal_obj.lgMBH_mass[mbh_mask],
-#     z_grid[nucleation_indices][mbh_mask],
-#     bins=[mass_bins, z_bins],
-#     weights=generated_TDEs[mbh_mask]
-# )
-# # H_tde = gaussian_filter(H_tde, sigma=1.5)
-
-# pcm2 = axes[1].pcolormesh(X, Y, H_tde, cmap='plasma', shading='auto')
-
-# axes[1].set_title(f'TDEs = {np.sum(generated_TDEs[mbh_mask])}')
-# axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
-# axes[1].set_ylabel('Redshift (z)')
-
-# # Colorbar for TDEs
-# cbar_tde = fig.colorbar(pcm2, ax=axes[1], label='Number of TDE events')
-
-# plt.tight_layout()
-# plt.savefig(f'{loc}/generated_objects_clustering_smooth.png', dpi=300)
-# plt.close()
+plt.tight_layout(rect=[0, 0, 0.9, 1])
+plt.savefig(f'{loc}/generated_objects_clustering.png', dpi=300)
+plt.close()
 
 
-# # Convert spherical coordinates (RA, Dec, z) to Cartesian for true 3D shells
-# # RA in radians, Dec in radians
-# ra_rad = np.radians(ra)
-# dec_rad = np.radians(dec)
-# z_filtered = z_grid[nucleation_indices][mbh_mask]  # for color coding in polar plots
+fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
 
-# # Cartesian coordinates
-# x = z_filtered * np.cos(dec_rad) * np.cos(ra_rad)
-# y = z_filtered * np.cos(dec_rad) * np.sin(ra_rad)
-# z = z_filtered * np.sin(dec_rad)
+mass_bins = np.linspace(np.min(gal_obj.lgMBH_mass[mbh_mask]), 
+                        np.max(gal_obj.lgMBH_mass[mbh_mask]), 100)
+z_bins = np.linspace(np.min(z_grid[nucleation_indices][mbh_mask]), 
+                     np.max(z_grid[nucleation_indices][mbh_mask]), 100)
 
-# # --- Polar plot RA vs z ---
-# plt.figure(figsize=(8,6), facecolor='white')
-# ax = plt.subplot(projection='polar')
-# ax.set_facecolor('#f9f9f9')  # light background
-# ax.scatter(ra_rad, z_filtered, c=colors, cmap='plasma', marker='o', s=20, alpha=0.6)
-# ax.set_rlabel_position(240)  # radial labels at bottom
-# ax.grid(True, color='gray', linestyle='--', alpha=0.3)
-# plt.title('Galaxy Distribution: RA vs Redshift', fontsize=14)
-# plt.savefig(f'{loc}/RA_vs_redshift_clustering.png', dpi=300)
-# # plt.show()
-# plt.close()
+# --- Top: EMRIs ---
+H_emri, xedges, yedges = np.histogram2d(
+    gal_obj.lgMBH_mass[mbh_mask],
+    z_grid[nucleation_indices][mbh_mask],
+    bins=[mass_bins, z_bins],
+    weights=generated_EMRIs[mbh_mask],
+)
 
-# # --- Polar plot Dec vs z ---
-# # Since Dec is not circular, we shift it to 0-360 deg for polar visualization
-# dec_shifted = dec + 90  # from [-90,90] -> [0,180]
-# plt.figure(figsize=(8,6), facecolor='white')
-# ax = plt.subplot(projection='polar')
-# ax.set_facecolor('#f9f9f9')
-# ax.scatter(np.radians(dec_shifted), z_filtered, c=colors, cmap='plasma', marker='o', s=20, alpha=0.6)
-# ax.set_rlabel_position(240)  # radial labels at bottom
-# ax.grid(True, color='gray', linestyle='--', alpha=0.3)
-# plt.title('Galaxy Distribution: Dec vs Redshift', fontsize=14)
-# plt.savefig(f'{loc}/Dec_vs_redshift_clustering.png', dpi=300)
-# # plt.show()
-# plt.close()
+# Optionally smooth
+# H_emri = gaussian_filter(H_emri, sigma=1.5)
+
+X, Y = np.meshgrid(xedges[:-1], yedges[:-1], indexing='ij')
+pcm = axes[0].pcolormesh(X, Y, H_emri, cmap='plasma', shading='auto')
+
+axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs[mbh_mask])}')
+axes[0].set_ylabel('Redshift (z)')
+
+# Colorbar for EMRIs
+cbar_emri = fig.colorbar(pcm, ax=axes[0], label='Number of EMRI events')
+
+# --- Bottom: TDEs ---
+H_tde, _, _ = np.histogram2d(
+    gal_obj.lgMBH_mass[mbh_mask],
+    z_grid[nucleation_indices][mbh_mask],
+    bins=[mass_bins, z_bins],
+    weights=generated_TDEs[mbh_mask]
+)
+# H_tde = gaussian_filter(H_tde, sigma=1.5)
+
+pcm2 = axes[1].pcolormesh(X, Y, H_tde, cmap='plasma', shading='auto')
+
+axes[1].set_title(f'TDEs = {np.sum(generated_TDEs[mbh_mask])}')
+axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
+axes[1].set_ylabel('Redshift (z)')
+
+# Colorbar for TDEs
+cbar_tde = fig.colorbar(pcm2, ax=axes[1], label='Number of TDE events')
+
+plt.tight_layout()
+plt.savefig(f'{loc}/generated_objects_clustering_smooth.png', dpi=300)
+plt.close()
 
 
-# # 3D scatter plot with concentric shells
-# fig = plt.figure(figsize=(10,8), facecolor='white')
-# ax = fig.add_subplot(111, projection='3d')
-# sc = ax.scatter(x, y, z, c=z_filtered, s=15, cmap='plasma')
-# cbar = plt.colorbar(sc, ax=ax, shrink=0.6)
-# cbar.set_label('Redshift', fontsize=12)
-# ax.set_xlabel('X [$z$]')
-# ax.set_ylabel('Y [$z$]')
-# ax.set_zlabel('Z [$z$]')
-# ax.set_title('3D Galaxy Distribution (Concentric Shells)', fontsize=14)
-# ax.grid(False)
-# ax.set_box_aspect([1,1,1])
+# Convert spherical coordinates (RA, Dec, z) to Cartesian for true 3D shells
+# RA in radians, Dec in radians
+ra_rad = np.radians(ra)
+dec_rad = np.radians(dec)
+z_filtered = z_grid[nucleation_indices][mbh_mask]  # for color coding in polar plots
 
-# plt.savefig(f'{loc}/3D_galaxy_distribution_clustering.png', dpi=300)
-# # plt.show()
+# Cartesian coordinates
+x = z_filtered * np.cos(dec_rad) * np.cos(ra_rad)
+y = z_filtered * np.cos(dec_rad) * np.sin(ra_rad)
+z = z_filtered * np.sin(dec_rad)
+
+# --- Polar plot RA vs z ---
+plt.figure(figsize=(8,6), facecolor='white')
+ax = plt.subplot(projection='polar')
+ax.set_facecolor('#f9f9f9')  # light background
+ax.scatter(ra_rad, z_filtered, c=colors, cmap='plasma', marker='o', s=20, alpha=0.6)
+ax.set_rlabel_position(240)  # radial labels at bottom
+ax.grid(True, color='gray', linestyle='--', alpha=0.3)
+plt.title('Galaxy Distribution: RA vs Redshift', fontsize=14)
+plt.savefig(f'{loc}/RA_vs_redshift_clustering.png', dpi=300)
+# plt.show()
+plt.close()
+
+# --- Polar plot Dec vs z ---
+# Since Dec is not circular, we shift it to 0-360 deg for polar visualization
+dec_shifted = dec + 90  # from [-90,90] -> [0,180]
+plt.figure(figsize=(8,6), facecolor='white')
+ax = plt.subplot(projection='polar')
+ax.set_facecolor('#f9f9f9')
+ax.scatter(np.radians(dec_shifted), z_filtered, c=colors, cmap='plasma', marker='o', s=20, alpha=0.6)
+ax.set_rlabel_position(240)  # radial labels at bottom
+ax.grid(True, color='gray', linestyle='--', alpha=0.3)
+plt.title('Galaxy Distribution: Dec vs Redshift', fontsize=14)
+plt.savefig(f'{loc}/Dec_vs_redshift_clustering.png', dpi=300)
+# plt.show()
+plt.close()
+
+
+# 3D scatter plot with concentric shells
+fig = plt.figure(figsize=(10,8), facecolor='white')
+ax = fig.add_subplot(111, projection='3d')
+sc = ax.scatter(x, y, z, c=z_filtered, s=15, cmap='plasma')
+cbar = plt.colorbar(sc, ax=ax, shrink=0.6)
+cbar.set_label('Redshift', fontsize=12)
+ax.set_xlabel('X [$z$]')
+ax.set_ylabel('Y [$z$]')
+ax.set_zlabel('Z [$z$]')
+ax.set_title('3D Galaxy Distribution (Concentric Shells)', fontsize=14)
+ax.grid(False)
+ax.set_box_aspect([1,1,1])
+
+plt.savefig(f'{loc}/3D_galaxy_distribution_clustering.png', dpi=300)
+# plt.show()
 
 
 #  SHOW ANGULAR CLUSTERING
