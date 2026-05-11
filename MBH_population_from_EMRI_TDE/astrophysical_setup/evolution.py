@@ -1,11 +1,10 @@
-from typing import Sequence, Optional
 import numpy as np
 
 from config import (kappa_cusp)
 from nsc import NSC, CompactObject
 from relaxation import RelaxationModel
 from rate import RateModel, UniversalRate
-from cosmology import LastMajorMerger, CosmologyModel
+from cosmology import LastMajorMerger
 
 from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
 
@@ -28,14 +27,24 @@ class CuspEvolution:
         self.LastMajorMerger = LastMajorMerger
         self.cosmo = self.LastMajorMerger.cosmo_model
         self.kappa = float(kappa)
+        
+        # Cache LMM samples to avoid recomputing multiple times
+        self._cached_z_LMM = None
+        self._cached_t_LMM = None
+        self._cached_t_obs = None
 
     def cusp_turn_on_time(self, kvir: float = 1.0, unit: str = 'Gyr'):
         """
         t_on = t_LMM + kappa * t_relax_at_rinf
+        
+        Caches LMM times to avoid resampling on every call.
         """
-
-        # Sample LMM redshift and times (returns a 3-tuple)
-        z_LMM, t_LMM, t_obs = self.LastMajorMerger.sample_LMM_times(z_obs_array=self.nsc.gal.z_gal, size=1)
+        # Use cached LMM times if available, otherwise compute once
+        if self._cached_t_LMM is None:
+            self._cached_z_LMM, self._cached_t_LMM, self._cached_t_obs = \
+                self.LastMajorMerger.sample_LMM_times(z_obs_array=self.nsc.gal.z_gal, size=1)
+        
+        t_LMM = self._cached_t_LMM
 
         # Relaxation time at r_infl
         t_relax_rinf = self.relaxation.t_relax_at_rinfl(kvir=kvir, unit=unit)
@@ -46,9 +55,18 @@ class CuspEvolution:
     def cusp_age(self, kvir: float = 1.0, unit: str = 'Gyr'):
         """
         cusp_age = max(0, cosmology.age_Gyr(z) - cusp_turn_on_time)
+        
+        Uses cached t_obs from sample_LMM_times to avoid redundant age_Gyr calls.
         """
         t_on = self.cusp_turn_on_time(kvir=kvir, unit=unit)
-        t_obs = self.cosmo.age_Gyr(self.nsc.gal.z_gal)
+        
+        # Use cached t_obs from LMM sampling to avoid expensive age_Gyr call
+        if self._cached_t_obs is None:
+            # Fallback if LMM hasn't been cached yet (shouldn't happen in normal flow)
+            t_obs = self.cosmo.age_Gyr(self.nsc.gal.z_gal)
+        else:
+            t_obs = self._cached_t_obs
+            
         return np.maximum(0.0, t_obs - t_on)
 
     def t_EMRI(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
@@ -113,3 +131,4 @@ class CuspEvolution:
         N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, unit=unit, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, n_grid=n_grid, kind=kind) * [1E7 if kind.upper() == 'EMRI' else 1E5]
         # scale up to get more realistic numbers for Poisson sampling
         return np.random.poisson(N_expected)
+

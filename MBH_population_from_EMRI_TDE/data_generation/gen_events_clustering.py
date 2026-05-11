@@ -20,8 +20,6 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.rc('font', family='serif', serif=['Computer Modern'], size=15)
 matplotlib.rc('text', usetex=True)
-import seaborn as sns
-from matplotlib import gridspec
 
 import h5py
 
@@ -91,24 +89,28 @@ def sample_spherical_lognormal(delta_ln, dx, Rmax, nbar, rng):
     lam = np.where(inside, np.maximum(lam, 0.0), 0.0)
 
     counts = rng.poisson(lam)
+    flat = counts.ravel()
+    tot = flat.sum()
+    if tot == 0:
+        return np.empty((0,3), dtype=np.float32)
 
-    pts = []
-    idx = np.argwhere(counts>0)
-    for i,j,k in idx:
-        for _ in range(counts[i,j,k]):
-            pts.append([
-                coords[i] + rng.uniform(-0.5*dx, 0.5*dx),
-                coords[j] + rng.uniform(-0.5*dx, 0.5*dx),
-                coords[k] + rng.uniform(-0.5*dx, 0.5*dx)
-            ])
-    return np.array(pts)
+    cell_ids = np.repeat(np.arange(flat.size, dtype=np.int64), flat)
+    i, j, k = np.unravel_index(cell_ids, counts.shape)
+
+    # jitter inside cell
+    x = coords[i] #+ rng.uniform(-0.5*dx, 0.5*dx, size=tot)
+    y = coords[j] #+ rng.uniform(-0.5*dx, 0.5*dx, size=tot)
+    z = coords[k] #+ rng.uniform(-0.5*dx, 0.5*dx, size=tot)
+
+    return np.column_stack((x,y,z)).astype(np.float32)
 
 def evaluate_z_ra_dec(xyz):
     x, y, z = xyz.T
     r = np.sqrt(x*x + y*y + z*z)
     ra = np.degrees(np.arctan2(y,x)) % 360
     dec = np.degrees(np.arcsin(z/r))
-    z_gal = cosmo_model.z_from_comoving_distance(r)
+    # z_gal = cosmo_model.z_from_comoving_distance(r)
+    z_gal = cosmo_model.z_from_comoving_distance_fast(r)    
     return z_gal, ra, dec
 
 Rmax = cosmo_model.comoving_distance(Z_MAX)
@@ -132,13 +134,13 @@ xyz = xyz[mask]
 
 print(f"Generated {len(xyz):,} galaxies")
 
-z_grid, ra, dec = evaluate_z_ra_dec(xyz)
+z_grid, ra_deg, dec_deg = evaluate_z_ra_dec(xyz)
 
 GSMF = GalaxyStellarMassFunction()
-lgMgal_samples = GSMF.sample_gsmf(z_gal=z_grid, size=len(z_grid))
+lgMgal_samples = GSMF.sample_gsmf(z_gal=z_grid, n_samples_per_z=1)
 nucleation_indices = Galaxy.check_nucleation(lgMgal_samples, z_grid)
 
-gal_obj = Galaxy(lgMgal=lgMgal_samples, z_gal=z_grid, ra=ra, dec=dec, nucleation_occurs=nucleation_indices)
+gal_obj = Galaxy(lgMgal=lgMgal_samples, z_gal=z_grid, ra_deg=ra_deg, dec_deg=dec_deg, nucleation_occurs=nucleation_indices)
 
 NSC_obj = NSC(gal_obj)
 
@@ -173,32 +175,27 @@ hf = h5py.File(f'{loc}/data_cusp_evolution_clustering.h5', 'w')
 mbh_mask = (gal_obj.lgMBH_mass >= 4)
 
 hf.create_dataset('lgMgal', data=lgMgal_samples[nucleation_indices][mbh_mask]) # apply both nucleation and MBH mass filters
-hf.create_dataset('sigma_km_s', data=gal_obj.sigma_km_s[mbh_mask]) # nucleation_index filter already applied
+hf.create_dataset('sigma_km_s', data=gal_obj.sigma_km_s[mbh_mask])
 
 # we don't need to save nucleation indices since we are already filtering based on the MBH mass
 
 hf.create_dataset('z_gal', data=z_grid[nucleation_indices][mbh_mask]) 
-sky_locs = gal_obj.sky_location()[nucleation_indices][mbh_mask]
-ra, dec = sky_locs[:, 0], sky_locs[:, 1]
+hf.create_dataset('ra_deg', data=gal_obj.ra_deg[mbh_mask])
+hf.create_dataset('dec_deg', data=gal_obj.dec_deg[mbh_mask])
 
-hf.create_dataset('ra_deg', data=np.array(ra))
-hf.create_dataset('dec_deg', data=np.array(dec))
-
-hf.create_dataset('lgMBH', data=gal_obj.lgMBH_mass[mbh_mask]) # nucleation_index filter already applied
-hf.create_dataset('initial_MBHspin', data=MBH_obj.initial_MBHspin[mbh_mask]) # nucleation_index filter already applied
+hf.create_dataset('lgMBH', data=gal_obj.lgMBH_mass[mbh_mask])
+hf.create_dataset('initial_MBHspin', data=MBH_obj.initial_MBHspin[mbh_mask])
 
 # since this is the same mass case so we just save the scalar values hence no masking is required
 hf.create_dataset('sBH_masses', data=CO_objs.masses['sBH'])
 hf.create_dataset('star_masses', data=CO_objs.masses['star'])
 
-hf.create_dataset('generated_EMRIs', data=generated_EMRIs[mbh_mask]) # nucleation_index filter already applied
-hf.create_dataset('generated_TDEs', data=generated_TDEs[mbh_mask]) # nucleation_index filter already applied
+hf.create_dataset('generated_EMRIs', data=generated_EMRIs[mbh_mask])
+hf.create_dataset('generated_TDEs', data=generated_TDEs[mbh_mask])
 hf.close()
 
 print("After MBH mass filter")
 print(np.sum(generated_EMRIs[mbh_mask]), generated_EMRIs[mbh_mask].max(), np.sum(generated_TDEs[mbh_mask]), generated_TDEs[mbh_mask].max())
-
-
 
 # PLOTTING 
 Plotting.MBHmass_vs_spin(gal_obj.lgMBH_mass[mbh_mask], MBH_obj.initial_MBHspin[mbh_mask], z_grid[nucleation_indices][mbh_mask], loc=f'{loc}/MBHmass_vs_spin_clustering.png', cmap='plasma')
@@ -288,8 +285,8 @@ plt.close()
 
 # Convert spherical coordinates (RA, Dec, z) to Cartesian for true 3D shells
 # RA in radians, Dec in radians
-ra_rad = np.radians(ra)
-dec_rad = np.radians(dec)
+ra_rad = np.radians(gal_obj.ra_deg[mbh_mask])
+dec_rad = np.radians(gal_obj.dec_deg[mbh_mask])
 z_filtered = z_grid[nucleation_indices][mbh_mask]  # for color coding in polar plots
 
 # Cartesian coordinates
@@ -311,7 +308,7 @@ plt.close()
 
 # --- Polar plot Dec vs z ---
 # Since Dec is not circular, we shift it to 0-360 deg for polar visualization
-dec_shifted = dec + 90  # from [-90,90] -> [0,180]
+dec_shifted = gal_obj.dec_deg[mbh_mask] + 90  # from [-90,90] -> [0,180]
 plt.figure(figsize=(8,6), facecolor='white')
 ax = plt.subplot(projection='polar')
 ax.set_facecolor('#f9f9f9')
@@ -343,12 +340,12 @@ plt.savefig(f'{loc}/3D_galaxy_distribution_clustering.png', dpi=300)
 
 #  SHOW ANGULAR CLUSTERING
 
-zmin, zmax_slice = 0.8, 1.0  # THIN slice
-mask = (z_grid[nucleation_indices][mbh_mask] > zmin) & (z_grid[nucleation_indices][mbh_mask] < zmax_slice)
+zmin_slice, zmax_slice = 0.5, 1.0
+mask = (z_grid[nucleation_indices][mbh_mask] > zmin_slice) & (z_grid[nucleation_indices][mbh_mask] < zmax_slice)
 
 from scipy.ndimage import gaussian_filter
 
-H, xedges, yedges = np.histogram2d(ra[mask], dec[mask], bins=(400,200))
+H, xedges, yedges = np.histogram2d(gal_obj.ra_deg[mbh_mask][mask], gal_obj.dec_deg[mbh_mask][mask], bins=(400,200))
 Hs = gaussian_filter(H, sigma=2.0)
 
 fig, ax = plt.subplots(figsize=(7,4))
@@ -360,6 +357,20 @@ ax.set_title("Angular density (smoothed)")
 plt.colorbar(im, ax=ax, label="Smoothed counts")
 plt.tight_layout()
 plt.savefig(f'{loc}/angular_density_slice_clustering.png', dpi=300)
+plt.close()
+
+
+ra_rad  = np.deg2rad(gal_obj.ra_deg[mbh_mask])
+dec_rad = np.deg2rad(gal_obj.dec_deg[mbh_mask])
+ra_wrap = (ra_rad + np.pi) % (2*np.pi) - np.pi
+
+fig = plt.figure(figsize=(8,4.5))
+ax = fig.add_subplot(111, projection="mollweide")
+ax.scatter(-ra_wrap, dec_rad, s=5, alpha=0.8, rasterized=True)  # minus flips RA like sky maps
+ax.grid(True, alpha=0.3)
+ax.set_title(f"${zmin_slice} \leq z \leq {zmax_slice}$")
+plt.tight_layout()
+plt.savefig(f'{loc}/mollweide_sky_map_{zmin_slice}_{zmax_slice}_clustering.png', dpi=300)
 plt.close()
 
 

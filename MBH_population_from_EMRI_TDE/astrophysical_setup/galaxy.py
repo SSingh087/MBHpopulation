@@ -12,7 +12,7 @@ class Galaxy:
     Galaxy with simple size-mass, virial sigma, and M-sigma MBH.
     """
 
-    def __init__(self, z_gal: np.ndarray, ra: np.ndarray=None, dec: np.ndarray=None, rng: Optional[np.random.Generator] = None, lgMgal: Optional[np.ndarray] = None, lgMBH: Optional[np.ndarray] = None, sigma_pc_yr: Optional[np.ndarray] = None, nucleation_occurs: bool = True):
+    def __init__(self, z_gal: np.ndarray, ra_deg: np.ndarray=None, dec_deg: np.ndarray=None, rng: Optional[np.random.Generator] = None, lgMgal: Optional[np.ndarray] = None, lgMBH: Optional[np.ndarray] = None, sigma_pc_yr: Optional[np.ndarray] = None, nucleation_occurs: bool = True):
         """
         Parameters
         ----------
@@ -57,11 +57,11 @@ class Galaxy:
             self.lgMBH_mass = self.lgMBH(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)[self.nucleation_occurs]
             self.z_gal = self.z_gal[self.nucleation_occurs]
 
-        if ra is None and dec is None:
-            self.ra, self.dec = self.sky_location().T
+        if ra_deg is None and dec_deg is None:
+            self.ra_deg, self.dec_deg = self.sky_location()[self.nucleation_occurs].T
         else:
-            self.ra = np.asarray(ra)
-            self.dec = np.asarray(dec)
+            self.ra_deg = np.asarray(ra_deg[self.nucleation_occurs])
+            self.dec_deg = np.asarray(dec_deg[self.nucleation_occurs])
         
             # print(f"Number of galaxies: {self.lgMgal.shape[0]} with nucleation_occurs={self.nucleation_occurs.sum()} out of {self.lgMgal.shape[0]} total.")
 
@@ -156,6 +156,6 @@ class Galaxy:
         """
         Random sky location in RA (0 to 360 degrees) and Dec (-90 to 90 degrees).
         """
-        ra = self.rng.uniform(0.0, 360.0, size=len(self.lgMgal))
-        dec = self.rng.uniform(-90.0, 90.0, size=len(self.lgMgal))
-        return np.column_stack((ra, dec))
+        ra_deg = self.rng.uniform(0.0, 360.0, size=len(self.lgMgal))
+        dec_deg = self.rng.uniform(-90.0, 90.0, size=len(self.lgMgal))
+        return np.column_stack((ra_deg, dec_deg))

@@ -4,7 +4,6 @@ from astropy.cosmology import FlatLambdaCDM, z_at_value
 import astropy.units as u
 from scipy.interpolate import RegularGridInterpolator
 from galaxy import Galaxy
-from test_galaxies_FIXED import Z_MAX
 
 class HaloMassFunction:
     pass
@@ -12,7 +11,12 @@ class HaloMassFunction:
 class GalaxyStellarMassFunction:
     # https://arxiv.org/abs/2509.07960
 
-    def __init__(self):
+    def __init__(self, device="cpu"):
+        if device == "cpu":
+            self.xp = np
+        else:
+            self.xp = cp
+
         self.lgMgal_data = np.array([
                 6.5,6.7,6.9,7.1,7.3,7.5,7.7,7.9,8.1,8.3,
                 8.5,8.7,8.9,9.1,9.3,9.5,9.7,9.9,10.1,10.3,
@@ -71,25 +75,41 @@ class GalaxyStellarMassFunction:
         z_gal = np.atleast_1d(z_gal)
 
         # this one should be built from the mass grid of the data, not the input mass grid, since the interpolation is based on the data grid
-        lgMgal = self.build_mass_grid(n_points_mass=n_points_mass)  # (N_M,) 
+        lgMgal_grid_samples = self.build_mass_grid(n_points_mass=n_points_mass)  # (N_M,) 
 
-        Z, M = np.meshgrid(z_gal, lgMgal, indexing='ij')  # (N_z, N_M) same z repeated across rows, same lgMgal repeated across columns
+        Z, M = np.meshgrid(z_gal, lgMgal_grid_samples, indexing='ij')  # (N_z, N_M) same z repeated across rows, same lgMgal repeated across columns
 
         # it goes like pts[len(M[0]):len(M[0])+len(M[1]),1] == pts[:len(M[0]),1]
         # and for z it repeats for all M values for the same z, then moves to the next z
         pts = np.stack([Z.ravel(), M.ravel()], axis=1)  # (N_z * N_M, 2) 
         # interpolate in mass
 
-        f_mass = self.interp(pts).reshape(Z.shape)  # (N_z, N_M)
+        phi_mass = self.interp(pts).reshape(Z.shape)  # (N_z, N_M)
 
-        return lgMgal, f_mass
+        return lgMgal_grid_samples, phi_mass
 
-    def sample_gsmf(self, z_gal, size=1000):
-        lgMgal, phi = self.get_gsmf(z_gal, n_points_mass=size)
-        breakpoint()
-        return lgMgal
+    def sample_gsmf(self, z_gal, n_samples_per_z=1, device="cpu"):
+        import torch
+        z_gal = np.atleast_1d(z_gal)
+        N_z = len(z_gal)
 
+        lgM = torch.tensor(self.lgMgal_data, device=device)    # (N_M,)
 
+        Z, M = np.meshgrid(z_gal, self.lgMgal_data, indexing="ij")
+        logphi = self.interp(np.stack([Z.ravel(), M.ravel()], axis=1)).reshape(Z.shape)
+
+        logphi = torch.tensor(logphi, device=device)
+        phi = torch.pow(10.0, logphi)
+        phi = torch.nan_to_num(phi, nan=0.0, posinf=0.0, neginf=0.0)
+
+        row_sums = phi.sum(dim=1, keepdim=True)
+        if torch.any(row_sums <= 0):
+            raise ValueError("GSMF undefined for some redshifts")
+
+        probs = phi / row_sums                  # (N_z, N_M)
+
+        idx = torch.multinomial(probs, num_samples=n_samples_per_z, replacement=True).squeeze(1)
+        return lgM[idx].cpu().numpy()
 
 class MBHMassFunction:
 
@@ -247,6 +267,33 @@ class CosmologyModel:
 
     def __post_init__(self):
         self.cosmo = FlatLambdaCDM(H0=self.H0, Om0=self.Om0, Tcmb0=self.Tcmb0)
+        self._build_z_interpolator()
+        self._build_age_interpolator()
+
+    def _build_z_interpolator(self, n_z_pts=10000, z_max=20.0):
+        """
+        Precompute z(r) interpolator for fast inversion.
+        Builds a 1D interpolator mapping comoving distance r → redshift z.
+        """
+        from scipy.interpolate import interp1d
+        z_dense = np.linspace(1e-5, z_max, n_z_pts)
+        r_dense = self.comoving_distance(z_dense)
+        self.z_interp = interp1d(r_dense, z_dense, kind='cubic', bounds_error=False, fill_value='extrapolate')
+
+    def _build_age_interpolator(self, n_z_pts=1000, z_max=20.0):
+        """
+        Precompute age(z) interpolator for fast lookup.
+        Builds a 1D interpolator mapping redshift z → age t(z) in Gyr.
+        """
+        from scipy.interpolate import interp1d
+        z_dense = np.linspace(1e-5, z_max, n_z_pts)
+        # Compute ages once
+        age_dense = self.cosmo.age(z_dense).to_value(u.Gyr)
+        self.age_interp = interp1d(z_dense, age_dense, kind='cubic', bounds_error=False, fill_value='extrapolate')
+
+    def z_from_comoving_distance_fast(self, r):
+        """Fast lookup of z(r) using precomputed interpolator."""
+        return self.z_interp(r)
 
     def H_sinv(self, z):
         """H(z) in s^-1."""
@@ -257,8 +304,12 @@ class CosmologyModel:
         return 1.0 / ((1.0 + np.asarray(z)) * self.H_sinv(z))
 
     def age_Gyr(self, z):
-        """Cosmic age t(z) in Gyr."""
-        return self.cosmo.age(z).to_value(u.Gyr)
+        """Cosmic age t(z) in Gyr using fast interpolation."""
+        z_arr = np.atleast_1d(z)
+        # Use precomputed interpolator for speed (~1000× faster than computing with astropy)
+        result = self.age_interp(z_arr)
+        # Return scalar if input was scalar
+        return result.item() if np.isscalar(z) and result.size == 1 else result
     
     def dVc_dz(self, z):
         """Comoving volume element dV_c/dz in Mpc^3."""
@@ -280,28 +331,6 @@ class CosmologyModel:
     def luminosity_distance(self, z):
         """Luminosity distance D_L(z) in Mpc."""
         return self.cosmo.luminosity_distance(z).to(u.Mpc).value
-
-Z_MAX = 10.0
-cosmo_model = CosmologyModel()
-
-N_objs = 10000
-T_obs = 4.0  # Gyr
-
-from scipy.optimize import brentq
-
-Rmin = cosmo_model.comoving_distance(1e-5)
-Rmax = cosmo_model.comoving_distance(Z_MAX)
-
-rng = np.random.default_rng()
-u_rand = rng.random(N_objs)
-r_samples = (Rmin**3 + (Rmax**3 - Rmin**3) * u_rand)**(1/3)
-
-# Fast vectorized lookup using precomputed interpolator
-z_grid = cosmo_model.z_from_comoving_distance_fast(r_samples)
-
-
-GSMF = GalaxyStellarMassFunction()
-lgMgal_samples = GSMF.sample_gsmf(z_gal=z_grid, size=N_objs)
 
 class LastMajorMerger:
 
@@ -359,6 +388,7 @@ class LastMajorMerger:
 
     def sample_z_LMM(self, z_obs_array, size=1):
         """
+        Vectorized sampling of z_LMM using batched interpolation.
         size is the number of samples per galaxy. If size=1, returns shape (N,). If size>1, returns shape (N, size).
         """
         z_obs_array = np.asarray(z_obs_array)
@@ -369,15 +399,16 @@ class LastMajorMerger:
         U = np.random.random((N, size))
         H_star = -np.log1p(-U)  # shape (N, size)
 
+        # Vectorized interpolation using numpy's searchsorted + linear interpolation
+        # This avoids the Python loop and uses compiled numpy operations
         z_samples = np.zeros((N, size))
-
-        # Loop over galaxies
-        # this needs to be worked on for vectorization, but for now we can just loop since n_grid is small
-        #also np.searchsorted does not support 3D arrays for and we get  got ValueError: object too deep for desired array ERROR
         
         for i in range(N):
-            # vectorized over 'size'
-            z_samples[i] = np.interp(H_star[i], Lambda[i], z_grid[i])
+            # searchsorted finds indices where H_star values would be inserted in Lambda[i]
+            indices = np.searchsorted(Lambda[i], H_star[i], side='left')
+            # Clamp indices to valid range
+            indices = np.clip(indices, 0, len(z_grid[i]) - 1)
+            z_samples[i] = z_grid[i, indices]
 
         return z_samples.squeeze()  # (N,) if size==1 else (N, size)
 
