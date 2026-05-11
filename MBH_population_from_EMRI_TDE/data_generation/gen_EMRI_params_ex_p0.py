@@ -16,27 +16,28 @@ parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galax
 parser.add_argument("--e0", type=float, nargs=2, required=True, help="e0")
 parser.add_argument("--Y0", type=float, nargs=2, required=True, help="Y0")
 parser.add_argument("--T_SIGNAL", type=float, nargs=2, required=True, help="time in years")
+parser.add_argument("--is_clustering", type=int, required=True, help="Whether to use clustering")
 
 parser.add_argument("--file_name", type=str, required=True, help="Output file name.")
 
 args = parser.parse_args()
 
-hf = h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/data_cusp_evolution.h5', 'r')
+hf = h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/data_cusp_evolution_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r')
 
 z_gal = np.array(hf['z_gal'][:])
-qS = np.pi/2 - np.deg2rad(np.array(hf['ra_deg'][:])) # Sky location polar angle in ecliptic coordinates.
-phiS = np.deg2rad(np.array(hf['dec_deg'][:])) # Sky location azimuthal angle in ecliptic coordinates.
+qS_rad = np.pi/2 - np.deg2rad(np.array(hf['ra_deg'][:])) # Sky location polar angle in ecliptic coordinates.
+phiS_rad = np.deg2rad(np.array(hf['dec_deg'][:])) # Sky location azimuthal angle in ecliptic coordinates.
 
 lgMBH_mass = np.array(hf['lgMBH'][:])
 initial_MBHspin = np.array(hf['initial_MBHspin'][:])
 
 sBH_masses = np.array(hf['sBH_masses'])
 
-observed_EMRIs = np.array(hf['observed_EMRIs'][:])
+generated_EMRIs = np.array(hf['generated_EMRIs'][:])
 
 hf.close()
 
-distances = cosmo_model.luminosity_distance(z_gal).to('Gpc').value
+distances = cosmo_model.luminosity_distance(z_gal, unit='Gpc')
 
 e0_min, e0_max = args.e0
 Y0_min, Y0_max = args.Y0
@@ -70,12 +71,12 @@ param_names = [
 ]
 
 
-with h5py.File(f"./data/astrophysical_data/{args.GALAXIES}/all_galaxies_EMRI_events.h5", "w") as f:
+with h5py.File(f"./data/astrophysical_data/{args.GALAXIES}/all_galaxies_EMRI_events_{ 'clustering' if args.is_clustering else 'no_clustering' }.h5", "w") as f:
 
-    idx = np.where(observed_EMRIs > 0)[0]
+    idx = np.where(generated_EMRIs > 0)[0]
 
     for i in idx:
-        N = observed_EMRIs[i]
+        N = generated_EMRIs[i]
         print(f"Galaxy {i}: N_EMRI_events = {N}")
 
         # Create a group for this galaxy
@@ -86,8 +87,8 @@ with h5py.File(f"./data/astrophysical_data/{args.GALAXIES}/all_galaxies_EMRI_eve
         group["distance_Gpc"] = distances[i]
         group["z_gal"] = z_gal[i]
         group["MBHspin"] = initial_MBHspin[i]
-        group["qS"] = qS[i]
-        group["phiS"] = phiS[i]
+        group["qS"] = qS_rad[i]
+        group["phiS"] = phiS_rad[i]
         group["sBH_mass"] = sBH_masses
         params = np.random.uniform(param_mins, param_maxs, size=(N, len(param_mins)))
 

@@ -66,82 +66,91 @@ with h5py.File(f'{loc}/data_cusp_evolution_clustering.h5', 'r') as f:
     z_clustering = z_gal_clustering * np.sin(dec_rad_clustering)
 
 
-# ====================
-# MBH MASS VS SPIN
-# ====================
+# # ====================
+# # MBH MASS VS SPIN
+# # ====================
 
-Plotting.MBHmass_vs_spin(lgMBH_no_clustering, initial_MBHspin_no_clustering, z_gal_no_clustering, loc=f'{loc}/MBHmass_vs_spin_no_clustering.png', cmap='plasma')
+# Plotting.MBHmass_vs_spin(lgMBH_no_clustering, initial_MBHspin_no_clustering, z_gal_no_clustering, loc=f'{loc}/MBHmass_vs_spin_no_clustering.png', cmap='plasma')
 
-Plotting.MBHmass_vs_spin(lgMBH_clustering, initial_MBHspin_clustering, z_gal_clustering, loc=f'{loc}/MBHmass_vs_spin_clustering.png', cmap='plasma')
+# Plotting.MBHmass_vs_spin(lgMBH_clustering, initial_MBHspin_clustering, z_gal_clustering, loc=f'{loc}/MBHmass_vs_spin_clustering.png', cmap='plasma')
 
-# ====================
-# EVENT RATES
-# ====================
+# # ====================
+# # EVENT RATES
+# # ====================
 
+# Plotting.plot_event_rates(z_gal_no_clustering, lgMBH_no_clustering, generated_EMRIs_no_clustering, generated_TDEs_no_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/event_rates_no_clustering.png')
 
-Plotting.plot_event_rates(z_gal_no_clustering, lgMBH_no_clustering, generated_EMRIs_no_clustering, generated_TDEs_no_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/event_rates_no_clustering.png')
+# Plotting.plot_event_rates(z_gal_clustering, lgMBH_clustering, generated_EMRIs_clustering, generated_TDEs_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/event_rates_clustering.png')
 
-Plotting.plot_event_rates(z_gal_clustering, lgMBH_clustering, generated_EMRIs_clustering, generated_TDEs_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/event_rates_clustering.png')
-
-# ====================
-# EVENT RATES HIST 2D
-# ====================
-
-
-Plotting.plot_event_rates_hist_2d(lgMBH_no_clustering, z_gal_no_clustering, generated_EMRIs_no_clustering, generated_TDEs_no_clustering, filename=f'{loc}/event_rates_hist_2d_no_clustering.png')
-
-Plotting.plot_event_rates_hist_2d(lgMBH_clustering, z_gal_clustering, generated_EMRIs_clustering, generated_TDEs_clustering, filename=f'{loc}/event_rates_hist_2d_clustering.png')
+# # ====================
+# # EVENT RATES HIST 2D
+# # ====================
 
 
-# ====================
-# POLAR RA vs DEC
-# ====================
+# Plotting.plot_event_rates_hist_2d(lgMBH_no_clustering, z_gal_no_clustering, generated_EMRIs_no_clustering, generated_TDEs_no_clustering, filename=f'{loc}/event_rates_hist_2d_no_clustering.png')
 
-Plotting.plot_polar_ra_dec(ra_deg_no_clustering, dec_deg_no_clustering, z_gal_no_clustering, title="RA vs Dec (No Clustering)", filename=f'{loc}/polar_ra_dec_no_clustering.png', cmap='plasma')
-
-Plotting.plot_polar_ra_dec(ra_deg_clustering, dec_deg_clustering, z_gal_clustering, title="RA vs Dec (Clustering)", filename=f'{loc}/polar_ra_dec_clustering.png', cmap='plasma')
+# Plotting.plot_event_rates_hist_2d(lgMBH_clustering, z_gal_clustering, generated_EMRIs_clustering, generated_TDEs_clustering, filename=f'{loc}/event_rates_hist_2d_clustering.png')
 
 
-# ====================
-# 3D GALAXY DISTRIBUTION
-# ====================
+# # ====================
+# # POLAR RA vs DEC
+# # ====================
 
-Plotting.plot_3D_galaxy_distribution(x_no_clustering, y_no_clustering, z_no_clustering, z_gal_no_clustering, filename=f'{loc}/3D_galaxy_distribution_no_clustering.png')
+# Plotting.plot_polar_ra_dec(ra_deg_no_clustering, dec_deg_no_clustering, z_gal_no_clustering, title="RA vs Dec (No Clustering)", filename=f'{loc}/polar_ra_dec_no_clustering.png', cmap='plasma')
 
-Plotting.plot_3D_galaxy_distribution(x_clustering, y_clustering, z_clustering, z_gal_clustering, filename=f'{loc}/3D_galaxy_distribution_clustering.png')
-
-
-zmin_slice = 0.5
-zmax_slice = 1.0
-
-# ====================
-# MOLLWEIDE PROJECTION
-# ====================
-
-Plotting.mollweide_sky_map(ra_deg_no_clustering, dec_deg_no_clustering, z_gal_no_clustering, zmin_slice=zmin_slice, zmax_slice=zmax_slice, filename=f'{loc}/mollweide_sky_map_no_clustering.png')
-
-Plotting.mollweide_sky_map(ra_deg_clustering, dec_deg_clustering, z_gal_clustering, zmin_slice=zmin_slice, zmax_slice=zmax_slice, filename=f'{loc}/mollweide_sky_map_clustering.png')
-
-# ====================
-# ANGULAR DENSITY SLICE
-# ====================
-
-Plotting.angular_density_slice(zmin_slice=zmin_slice, zmax_slice=zmax_slice, ra_deg=ra_deg_clustering, dec_deg=dec_deg_clustering, z_gal=z_gal_clustering, filename=f'{loc}/angular_density_slice_clustering.png')
+# Plotting.plot_polar_ra_dec(ra_deg_clustering, dec_deg_clustering, z_gal_clustering, title="RA vs Dec (Clustering)", filename=f'{loc}/polar_ra_dec_clustering.png', cmap='plasma')
 
 
-# ==========================
-# EVENT RATES HIST 2D WATERFALL
-# ==========================
+# # ====================
+# # 3D GALAXY DISTRIBUTION
+# # ====================
 
-Plotting.plot_event_rates_hist_2d_waterfall(lgMBH_no_clustering, z_gal_no_clustering, generated_EMRIs_no_clustering, generated_TDEs_no_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/event_rates_hist_2d_waterfall_no_clustering.png')
+# Plotting.plot_3D_galaxy_distribution(x_no_clustering, y_no_clustering, z_no_clustering, z_gal_no_clustering, filename=f'{loc}/3D_galaxy_distribution_no_clustering.png')
 
-Plotting.plot_event_rates_hist_2d_waterfall(lgMBH_clustering, z_gal_clustering, generated_EMRIs_clustering, generated_TDEs_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/event_rates_hist_2d_waterfall_clustering.png')
+# Plotting.plot_3D_galaxy_distribution(x_clustering, y_clustering, z_clustering, z_gal_clustering, filename=f'{loc}/3D_galaxy_distribution_clustering.png')
 
 
-# ==========================
-# MBH VS WATERFALL
-# ==========================
+# zmin_slice = 0.5
+# zmax_slice = 1.0
 
-Plotting.plot_MBH_vs_waterfall(lgMBH_no_clustering, z_gal_no_clustering, generated_EMRIs_no_clustering, generated_TDEs_no_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/MBH_vs_waterfall_no_clustering.png')
+# # ====================
+# # MOLLWEIDE PROJECTION
+# # ====================
 
-Plotting.plot_MBH_vs_waterfall(lgMBH_clustering, z_gal_clustering, generated_EMRIs_clustering, generated_TDEs_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/MBH_vs_waterfall_clustering.png')
+# Plotting.mollweide_sky_map(ra_deg_no_clustering, dec_deg_no_clustering, z_gal_no_clustering, zmin_slice=zmin_slice, zmax_slice=zmax_slice, filename=f'{loc}/mollweide_sky_map_no_clustering.png')
+
+# Plotting.mollweide_sky_map(ra_deg_clustering, dec_deg_clustering, z_gal_clustering, zmin_slice=zmin_slice, zmax_slice=zmax_slice, filename=f'{loc}/mollweide_sky_map_clustering.png')
+
+# # ====================
+# # ANGULAR DENSITY SLICE
+# # ====================
+
+# Plotting.angular_density_slice(zmin_slice=zmin_slice, zmax_slice=zmax_slice, ra_deg=ra_deg_clustering, dec_deg=dec_deg_clustering, z_gal=z_gal_clustering, filename=f'{loc}/angular_density_slice_clustering.png')
+
+
+# # ==========================
+# # EVENT RATES HIST 2D WATERFALL
+# # ==========================
+
+# Plotting.plot_event_rates_hist_2d_waterfall(lgMBH_no_clustering, z_gal_no_clustering, generated_EMRIs_no_clustering, generated_TDEs_no_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/event_rates_hist_2d_waterfall_no_clustering.png')
+
+# Plotting.plot_event_rates_hist_2d_waterfall(lgMBH_clustering, z_gal_clustering, generated_EMRIs_clustering, generated_TDEs_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/event_rates_hist_2d_waterfall_clustering.png')
+
+
+# # ==========================
+# # MBH VS WATERFALL
+# # ==========================
+
+# Plotting.plot_MBH_vs_waterfall(lgMBH_no_clustering, z_gal_no_clustering, generated_EMRIs_no_clustering, generated_TDEs_no_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/MBH_vs_waterfall_no_clustering.png')
+
+# Plotting.plot_MBH_vs_waterfall(lgMBH_clustering, z_gal_clustering, generated_EMRIs_clustering, generated_TDEs_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/MBH_vs_waterfall_clustering.png')
+
+import matplotlib.pyplot as plt
+import numpy as np
+plt.hist(lgMBH_no_clustering, bins=30, alpha=0.5, label='No Clustering', histtype='step')
+plt.hist(lgMBH_clustering, bins=30, alpha=0.5, label='Clustering', histtype='step')
+plt.xlabel('log10(MBH Mass)')
+plt.ylabel('Number of Galaxies')
+plt.title('MBH Mass Distribution')
+plt.legend()
+plt.savefig(f'{loc}/MBH_mass_histogram.png')

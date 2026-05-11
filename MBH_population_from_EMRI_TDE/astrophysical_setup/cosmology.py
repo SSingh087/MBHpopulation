@@ -328,9 +328,9 @@ class CosmologyModel:
 
         return z if len(z) > 1 else z[0]
 
-    def luminosity_distance(self, z):
+    def luminosity_distance(self, z, unit=u.Mpc):
         """Luminosity distance D_L(z) in Mpc."""
-        return self.cosmo.luminosity_distance(z).to(u.Mpc).value
+        return self.cosmo.luminosity_distance(z).to(unit).value
 
 class LastMajorMerger:
 

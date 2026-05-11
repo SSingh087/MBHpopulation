@@ -1,0 +1,23 @@
+
+
+log = LOG_FILES/gen_inject_params_$(EXEC_TYPE).log
+error = ERROR_FILES/gen_inject_params_$(EXEC_TYPE).err
+output = OUTPUT_FILES/gen_inject_params_$(EXEC_TYPE).out
+
+# Email notifications
+
+
+# Executable and arguments here 
+# Define the executable dynamically based on EXEC_TYPE
+executable = EXECUTABLES/$(EXEC_TYPE).sh
+getenv = True
+
+# Resource requirements
+request_cpus = 1
+request_memory = 1GB
+
+# Submit jobs in parallel for different EXEC_TYPE values
+queue EXEC_TYPE from (
+    gen_inject_params_T_gt_T_obs
+    gen_inject_params_T_lt_T_obs
+)

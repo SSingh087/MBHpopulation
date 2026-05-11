@@ -10,6 +10,7 @@ parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galax
 parser.add_argument("--OBSERVING_WINDOW", type=float, required=True)
 parser.add_argument("--BANDS", nargs="+", default=["ztfg", "ztfr", "ztfi"])
 parser.add_argument("--SURVEY", type=str, default="ztf")
+parser.add_argument("--is_clustering", type=int, default=0)
 parser.add_argument("--NPROC", type=int, default=8)
 parser.add_argument("--PLOT_FISHER", type=bool, default=False)
 parser.add_argument("--PLOT_CORNER", type=bool, default=False)
@@ -35,9 +36,10 @@ def plotting_enabled():
 SIM_FN, SURVEY_STR, t0_mjd = choose_simulator(args.SURVEY)
 PARAMS = list(PARAM_INFO.keys())
 
-with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_events.h5', 'r') as hf:
+with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_events_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r') as hf:
     all_galaxies = {g: {k: hf[g][k][()] for k in hf[g]} for g in hf}
 
+# with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_SNR_results_{args.SURVEY.upper()}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r') as hf:
 with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_SNR_results_{args.SURVEY.upper()}.h5', 'r') as hf:
     galaxy_to_events = {g: hf[g]["event_index"][:] for g in hf}
 
@@ -89,9 +91,9 @@ if __name__ == "__main__":
 
     set_start_method("spawn", force=True)
 
-    hf_fisher = h5py.File(f'./data/fisher_data/{args.GALAXIES}/fisher_results_TDE_{args.SURVEY.upper()}.h5', 'w')
-    hf_true   = h5py.File(f'./data/fisher_data/{args.GALAXIES}/true_data_TDE_{args.SURVEY.upper()}.h5', 'w')
-    hf_noisy  = h5py.File(f'./data/fisher_data/{args.GALAXIES}/noisy_data_TDE_{args.SURVEY.upper()}.h5', 'w')
+    hf_fisher = h5py.File(f'./data/fisher_data/{args.GALAXIES}/fisher_results_TDE_{args.SURVEY.upper()}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w')
+    hf_true   = h5py.File(f'./data/fisher_data/{args.GALAXIES}/true_data_TDE_{args.SURVEY.upper()}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w')
+    hf_noisy  = h5py.File(f'./data/fisher_data/{args.GALAXIES}/noisy_data_TDE_{args.SURVEY.upper()}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w')
 
     true_data = {p: [] for p in PARAMS}
     noisy_data = {p: [] for p in PARAMS}
