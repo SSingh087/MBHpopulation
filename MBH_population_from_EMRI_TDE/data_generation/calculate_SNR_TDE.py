@@ -16,7 +16,6 @@ parser.add_argument("--OBSERVING_WINDOW", type=float, required=True)
 parser.add_argument("--MIN_DETECTIONS", type=int, required=True)
 parser.add_argument("--BANDS", nargs="+", default=["ztfg", "ztfr", "ztfi"], help="Bands to check for detections (e.g., 'ztfg ztfr ztfi' for ZTF)")
 parser.add_argument("--SURVEY", type=str, default="ztf", help="Survey to simulate (e.g., 'ztf' or 'lsst')")
-parser
 parser.add_argument("--is_clustering", type=int, required=True, help="Whether to use clustering")
 
 args = parser.parse_args()
@@ -35,11 +34,11 @@ BANDS = args.BANDS
 if SURVEY == "ZTF":
     SIMULATE_FN = SimulateOpticalTransient.simulate_transient_in_ztf
     SURVEY = "ztf"
-    t0_mjd_transient = 58288 # MJD for ZTF (can be adjusted)
+    # t0_mjd_transient = 58288 # MJD for ZTF (can be adjusted)
 elif SURVEY == "LSST":
     SIMULATE_FN = SimulateOpticalTransient.simulate_transient_in_rubin
     SURVEY = "Rubin_10yr_baseline"
-    t0_mjd_transient = 60000 # MJD for Rubin (can be adjusted)
+    # t0_mjd_transient = 60000 # MJD for Rubin (can be adjusted)
 else:
     raise ValueError(f"Unsupported survey: {SURVEY}")
 
@@ -99,6 +98,7 @@ def process_one_galaxy(gal, dat):
     alpha = dat["alpha"]
     beta = dat["beta"]
     eta = dat["eta"]
+    t0_mjd_transient = dat["t0_mjd_transient_" + args.SURVEY.upper()]
 
     thetas = [{
         "redshift": z_gal,
@@ -110,8 +110,8 @@ def process_one_galaxy(gal, dat):
         "eta": float(eta[i]),
         "alpha": float(alpha[i]),
         "beta": float(beta[i]),
-        "t0_mjd_transient": t0_mjd_transient,
-        "t0": t0_mjd_transient,
+        "t0_mjd_transient": t0_mjd_transient[i],
+        "t0": t0_mjd_transient[i],
         "ra": ra_rad,
         "dec": dec_rad,
     } for i in range(len(alpha))]

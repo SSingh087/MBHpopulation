@@ -23,8 +23,8 @@ args = parser.parse_args()
 hf = h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/data_cusp_evolution_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r')
 
 z_gal = np.array(hf['z_gal'][:])
-ra_rad = np.rad2deg(np.array(hf['ra_deg'][:]))
-dec_rad = np.rad2deg(np.array(hf['dec_deg'][:]))
+ra_rad = np.deg2rad(np.array(hf['ra_deg'][:]))
+dec_rad = np.deg2rad(np.array(hf['dec_deg'][:]))
 lgMBH_mass = np.array(hf['lgMBH'][:])
 initial_MBHspin = np.array(hf['initial_MBHspin'][:])
 star_masses = np.array(hf['star_masses'])
@@ -64,3 +64,5 @@ with h5py.File(f"./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_even
         group["eta"] = loguniform(np.log(eta_min), np.log(eta_max), size=N)
         group["alpha"] = loguniform(np.log(alpha_min), np.log(alpha_max), size=N)
         group["beta"] = np.random.uniform(beta_min, beta_max, size=N)
+        group["t0_mjd_transient_ZTF"] = np.random.uniform(58200, 59550, size=N) # Random t0 in MJD for ZTF era
+        group["t0_mjd_transient_LSST"] = np.random.uniform(60100, 63500, size=N) # Random t0 in MJD for LSST era
