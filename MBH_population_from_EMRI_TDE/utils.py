@@ -821,4 +821,38 @@ class Plotting:
         plt.savefig(filename)
         plt.close()
             
+    @staticmethod
+    def plot_comparison_histogram(key, loc='.', x_label=None, **kwargs_sources):
+        """
+        Plot comparison histograms for different datasets.
+
+        Parameters:
+            key (str): The key/column to plot from each dataset.
+            loc (str): Directory path to save the figure.
+            **kwargs_sources: Arbitrary keyword arguments of the form name=dataframe,
+                            where `name` is the label and `dataframe` contains the key.
+        """
+        plt.figure(figsize=(8,6))
         
+        combined_data = []
+        
+        for label, df in kwargs_sources.items():
+            if key not in df:
+                raise ValueError(f"Key '{key}' not found in dataframe '{label}'")
+            data = df[key].mean(axis=1)
+            combined_data.append(data)
+            plt.hist(data, bins=40, histtype='step', label=label)
+        
+        # Plot combined histogram
+        combined_array = np.concatenate(combined_data)
+        plt.hist(combined_array, bins=40, color='black', histtype='step', linestyle='--', linewidth=2, label='Combined')
+        
+        # Labels and styling
+        plt.xlabel(x_label, fontsize=16)
+        plt.ylabel("Counts", fontsize=16)
+        plt.legend()
+        plt.tight_layout()
+        
+        # Save figure
+        plt.savefig(f'{loc}/{key}_comparison_histogram.png')
+        plt.close()

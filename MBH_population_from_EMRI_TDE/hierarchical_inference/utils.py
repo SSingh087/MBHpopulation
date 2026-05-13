@@ -9,6 +9,22 @@ import numpy as np
 
 device = "cpu"
 
+# def plot_1D_histogram(theta, source, key_latex_map):
+#     import matplotlib.pyplot as plt
+#     for key, values in theta.items():
+#         x = values.mean(axis=1)
+
+#         plt.figure(figsize=(8,6))
+#         plt.hist(x, bins=40, color='steelblue', edgecolor='black', alpha=0.7)
+
+#         plt.xlabel(key_latex_map.get(key, key), fontsize=16)
+#         plt.ylabel("Counts", fontsize=16)
+#         plt.title(f"{source}: Distribution of {key_latex_map.get(key, key)}", fontsize=18)
+
+#         plt.tight_layout()
+#         plt.savefig(f'{loc}/{source}_1D_{key}.png')
+#         plt.close()
+
 def get_min_max(args):
 
     if args.POPULATION == "A":

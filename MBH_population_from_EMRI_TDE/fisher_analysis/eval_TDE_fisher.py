@@ -22,6 +22,7 @@ loc = f'./data/fisher_data/{args.GALAXIES}'
 if not os.path.exists(loc):
     os.makedirs(loc)
 
+N_SAMPLES_PER_THETA = 2000
 OBSERVING_WINDOW = args.OBSERVING_WINDOW
 BANDS = args.BANDS
 
@@ -122,7 +123,7 @@ def process_event(task):
         F1, C1, derivs1 = compute_fisher(theta0, times_by_band, bands)
         truths1 = [theta0[p] for p in PARAMS]
 
-        true_samples = sample_truncated_gaussian(mean=np.array(truths1), cov=C1, n_target=2000)
+        true_samples = sample_truncated_gaussian(mean=np.array(truths1), cov=C1, n_target=N_SAMPLES_PER_THETA)
 
         # Fisher 2 - with retry logic and fallback
         F2, C2, truths2, noisy_samples = None, None, None, None
@@ -142,7 +143,7 @@ def process_event(task):
                 truths2 = [theta_new[p] for p in PARAMS]
                 
                 # Sample from F2 covariance with bounds
-                noisy_samples = sample_truncated_gaussian(mean=np.array(truths2), cov=C2, n_target=2000)
+                noisy_samples = sample_truncated_gaussian(mean=np.array(truths2), cov=C2, n_target=N_SAMPLES_PER_THETA)
                 print(f"[SUCCESS] Galaxy {gal} event {eidx}: F2 computed on attempt {attempt+1}")
                 break  
                 
@@ -178,8 +179,8 @@ if __name__ == "__main__":
     hf_true   = h5py.File(f'./data/fisher_data/{args.GALAXIES}/true_data_TDE_{args.SURVEY.upper()}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w')
     hf_noisy  = h5py.File(f'./data/fisher_data/{args.GALAXIES}/noisy_data_TDE_{args.SURVEY.upper()}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w')
 
-    true_data = {p: [] for p in PARAMS}
-    noisy_data = {p: [] for p in PARAMS}
+    true_samples_list = []
+    noisy_samples_list = []
 
     event_results = []
 
@@ -212,6 +213,9 @@ if __name__ == "__main__":
                 true_samples, noisy_samples
             ) = result
 
+            true_samples_list.append(true_samples)
+            noisy_samples_list.append(noisy_samples)
+
             event_results.append(( gal, eidx, truths1, truths2, true_samples, noisy_samples))
 
             if gal not in hf_fisher:
@@ -234,17 +238,14 @@ if __name__ == "__main__":
             egrp.create_dataset("errors_new", data=np.sqrt(np.diag(C2)))
             egrp.create_dataset("truths_new", data=truths2)
 
+    
+    for i, key in enumerate(PARAMS):    
+        true_data_array = np.vstack([arr[:, i] for arr in true_samples_list])
+        noisy_data_array = np.vstack([arr[:, i] for arr in noisy_samples_list])
 
-    # Save global sample datasets
-    for p in PARAMS:
-        if true_data[p]:  # Only save if not empty
-            # breakpoint()
-            true_data_array = np.vstack(true_data[p])   # shape = (N_events, 2000)
-            noisy_data_array = np.vstack(noisy_data[p]) # shape = (N_events, 2000)
-            # breakpoint()
-
-            hf_true.create_dataset(p, data=true_data_array, compression="gzip")
-            hf_noisy.create_dataset(p, data=noisy_data_array, compression="gzip")
+        hf_true.create_dataset(key, data=true_data_array, compression="gzip")
+        hf_noisy.create_dataset(key, data=noisy_data_array, compression="gzip")
+        print(f"[SAVED] Samples for parameter '{key}' with shape {true_data_array.shape} (true) and {noisy_data_array.shape} (noisy)")
 
     hf_fisher.close()
     hf_true.close()
@@ -252,7 +253,7 @@ if __name__ == "__main__":
 
     print("\nFISHER DONE FOR {} \n".format(args.SURVEY.upper()))
     
-    # ---------- CORNER PLOTS (NEW) ----------
+    # ---------- PLOTS ----------
     if PLOT_CORNER:
         for gal, eidx, truths1, truths2, true_samples, noisy_samples in event_results:
             print(f"[PLOTTING] Generating corner plot for {gal} event {eidx}...")

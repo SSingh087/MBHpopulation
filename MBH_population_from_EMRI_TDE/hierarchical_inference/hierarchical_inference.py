@@ -88,7 +88,6 @@ class PopulationModel(Model):
         super().__init__()
         self.data = popdist
         self.population = population
-
         
         shared_pop_params, emri_specific_pop_params, tde_specific_pop_params = self.get_parameter_names()
 
