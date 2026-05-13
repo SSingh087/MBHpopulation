@@ -12,10 +12,10 @@ parser.add_argument("--BANDS", nargs="+", default=["ztfg", "ztfr", "ztfi"])
 parser.add_argument("--SURVEY", type=str, default="ztf")
 parser.add_argument("--is_clustering", type=int, default=0)
 parser.add_argument("--NPROC", type=int, default=8)
-parser.add_argument("--PLOT_FISHER", type=bool, default=False)
-parser.add_argument("--PLOT_CORNER", type=bool, default=False)
-parser.add_argument("--PLOT_COVARIANCE", type=bool, default=False)
-parser.add_argument("--PLOT_HISTOGRAMS", type=bool, default=False)
+parser.add_argument("--PLOT_FISHER", action="store_true")
+parser.add_argument("--PLOT_CORNER", action="store_true")
+parser.add_argument("--PLOT_COVARIANCE", action="store_true")
+parser.add_argument("--PLOT_HISTOGRAMS", action="store_true")
 args = parser.parse_args()
 
 loc = f'./data/fisher_data/{args.GALAXIES}'
@@ -29,6 +29,12 @@ PLOT_FISHER = args.PLOT_FISHER
 PLOT_CORNER = args.PLOT_CORNER
 PLOT_COVARIANCE = args.PLOT_COVARIANCE
 PLOT_HISTOGRAMS = args.PLOT_HISTOGRAMS
+
+print("Plotting options:    ")
+print(f"  - Fisher: {PLOT_FISHER}")
+print(f"  - Corner: {PLOT_CORNER}")
+print(f"  - Covariance: {PLOT_COVARIANCE}")
+print(f"  - Histograms: {PLOT_HISTOGRAMS}")
 
 SIM_FN, SURVEY_STR, t0_mjd = choose_simulator(args.SURVEY)
 PARAMS = list(PARAM_INFO.keys())
@@ -100,8 +106,8 @@ def process_event(task):
             "alpha": float(data_gal["alpha"][local_idx]),
             "beta": float(data_gal["beta"][local_idx]),
 
-            "t0_mjd_transient": t0_mjd,
-            "t0": t0_mjd,
+            "t0_mjd_transient": float(data_gal["t0_mjd_transient_" + args.SURVEY.upper()][local_idx]),
+            "t0": float(data_gal["t0_mjd_transient_" + args.SURVEY.upper()][local_idx]),
             "ra": float(data_gal["ra_rad"]),
             "dec": float(data_gal["dec_rad"]),
         }
