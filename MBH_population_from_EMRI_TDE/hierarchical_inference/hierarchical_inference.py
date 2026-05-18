@@ -3,6 +3,7 @@
 import argparse
 from utils import *
 import numpy as np
+import torch
 
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model
@@ -14,8 +15,15 @@ import matplotlib.pyplot as plt
 import warnings
 warnings.filterwarnings("ignore")
 
+
+# Use CPU for inference to avoid CUDA multiprocessing issues
+# GPU can be used for data loading separately if needed
+device = torch.device("cpu")
+print(f"Using device: {device}")
+
 base_parser = argparse.ArgumentParser(add_help=False)
 base_parser.add_argument('--POPULATION', type=str, required=True, choices=['A', 'B', 'MIX'])
+base_parser.add_argument('--is_clustering', type=int, default=0)
 
 args_partial, remaining_argv = base_parser.parse_known_args()
 
@@ -33,9 +41,9 @@ true_x = get_true_x(args.POPULATION)
 popdist = make_dist(args.POPULATION)
 
 if args.POPULATION == "A":
-    x_c_min, x_c_max, lam_schechter_min, lam_schechter_max, beta_min, beta_max, lambda_alpha_min, lambda_alpha_max = get_min_max(args)
+    x_c_min, x_c_max, lam_schechter_min, lam_schechter_max, beta_min, beta_max, lambda_alpha_min, lambda_alpha_max, mu_sBH_min, mu_sBH_max, mu_star_min, mu_star_max = get_min_max(args)
 elif args.POPULATION == "B":
-    lambda_M_min, lambda_M_max, mu_a_min, mu_a_max, sigma_a_min, sigma_a_max = get_min_max(args)
+    lambda_M_min, lambda_M_max, mu_MBHSpin_min, mu_MBHSpin_max, sigma_MBHSpin_min, sigma_MBHSpin_max, mu_sBH_min, mu_sBH_max, mu_star_min, mu_star_max = get_min_max(args)
 elif args.POPULATION == "MIX":
     None
 
@@ -45,30 +53,30 @@ data_EMRI = {}
 data_TDE = {}
 
 # load data
-hf_EMRI = h5py.File(f'./data/inference_data/{args.GALAXIES}/true_data_EMRI.h5', 'r')
+hf_EMRI = h5py.File(f'./data/inference_data/{args.GALAXIES}/true_data_EMRI_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r')
 
 if args.SURVEY in ['ZTF', 'LSST']:
-    hf_TDE = h5py.File(f'./data/inference_data/{args.GALAXIES}/true_data_TDE_{args.SURVEY}.h5', 'r')
+    
+    data_EMRI_torch = torch.load(f'./data/inference_data/{args.GALAXIES}/true_data_EMRI_{ "clustering" if args.is_clustering else "no_clustering" }_torch.pt', map_location='cpu')
+    data_TDE_torch = torch.load(f'./data/inference_data/{args.GALAXIES}/true_data_TDE_{args.SURVEY}_{ "clustering" if args.is_clustering else "no_clustering" }_torch.pt', map_location='cpu')
     for key in true_x:
-        data_EMRI[key] = np.array(hf_EMRI.get(key))
-        data_TDE[key] = np.array(hf_TDE.get(key))
+        data_EMRI[key] = data_EMRI_torch[key]
+        data_TDE[key] = data_TDE_torch[key]
 elif args.SURVEY == 'ALL':
-    hf_TDE_ZTF = h5py.File(f'./data/inference_data/{args.GALAXIES}/true_data_TDE_ZTF.h5', 'r')
-    hf_TDE_LSST = h5py.File(f'./data/inference_data/{args.GALAXIES}/true_data_TDE_LSST.h5', 'r')
+    
+    data_EMRI_torch = torch.load(f'./data/inference_data/{args.GALAXIES}/true_data_EMRI_{ "clustering" if args.is_clustering else "no_clustering" }_torch.pt', map_location='cpu')
+    data_TDE_ZTF_torch = torch.load(f'./data/inference_data/{args.GALAXIES}/true_data_TDE_ZTF_{ "clustering" if args.is_clustering else "no_clustering" }_torch.pt', map_location='cpu')
+    data_TDE_LSST_torch = torch.load(f'./data/inference_data/{args.GALAXIES}/true_data_TDE_LSST_{ "clustering" if args.is_clustering else "no_clustering" }_torch.pt', map_location='cpu')
     for key in true_x:
-        data_EMRI[key] = np.array(hf_EMRI.get(key))
-        data_TDE[key] = np.concatenate([np.array(hf_TDE_ZTF.get(key)), np.array(hf_TDE_LSST.get(key))], axis=0)
+        data_EMRI[key] = data_EMRI_torch[key]
+        data_TDE[key] = torch.cat([data_TDE_ZTF_torch[key], data_TDE_LSST_torch[key]], dim=0)
 else:
+    
+    data_EMRI_torch = torch.load(f'./data/inference_data/{args.GALAXIES}/true_data_EMRI_{ "clustering" if args.is_clustering else "no_clustering" }_torch.pt', map_location='cpu')
     for key in true_x:
-        data_EMRI[key] = np.array(hf_EMRI.get(key))
+        data_EMRI[key] = data_EMRI_torch[key]
 
 hf_EMRI.close()
-
-if args.SURVEY in ['ZTF', 'LSST']:
-    hf_TDE.close()
-elif args.SURVEY == 'ALL':
-    hf_TDE_ZTF.close()
-    hf_TDE_LSST.close()
 
 def get_data(source):
     if source == 'TDE':
@@ -79,6 +87,8 @@ def get_data(source):
         return {'EMRI' : data_EMRI}, 1, 0
 
 popdist.data, has_EMRI, has_TDE = get_data(args.SOURCE)
+
+THETA_PARAMETER_NAMES = ['lgMBH_mass', 'MBHspin', 'CO_mass']
 
 output = f"./data/inference_data/{args.GALAXIES}/{args.SOURCE}_pop_{args.POPULATION}"
 logger = setup_logger(output=output)
@@ -91,23 +101,40 @@ class PopulationModel(Model):
         
         shared_pop_params, emri_specific_pop_params, tde_specific_pop_params = self.get_parameter_names()
 
-        # emri_params = ["e0_mu", "e0_sigma"]
-        # tde_params = ["photosphere_mu", "photosphere_sigma"]
-
         self.bounds = self.get_bounds()
         
         self.names = shared_pop_params + emri_specific_pop_params + tde_specific_pop_params
 
+        if has_EMRI:
+            self.emri_data = self.data.data.get('EMRI', None)
+
+            self.emri_lgMBH = self.emri_data["lgMBH_mass"]
+            self.emri_spin = self.emri_data["MBHspin"]
+            self.emri_CO = self.emri_data["CO_mass"]
+
+            self.dist_lgMBH_EMRI = self.data.distributions['lgMBH_mass']
+            self.dist_MBHspin_EMRI = self.data.distributions['MBHspin']
+            self.dist_CO_EMRI = self.data.distributions['CO_mass']
+
+        if has_TDE:
+            self.tde_data = self.data.data.get('TDE', None)
+
+            self.tde_lgMBH = self.tde_data["lgMBH_mass"]
+            self.tde_CO = self.tde_data["CO_mass"]
+
+            self.dist_lgMBH_TDE = self.tde_data.distributions['lgMBH_mass']
+            self.dist_CO_TDE = self.tde_data.distributions['CO_mass']
+
     def get_parameter_names(self):
         if self.population == "A":
             shared_pop_params = ["xc", "lam_schechter"]
-            emri_specific_pop_params = ["beta", "lambda_alpha"]
-            tde_specific_pop_params = []
+            emri_specific_pop_params = ["beta", "lambda_alpha", "mu_sBH"]
+            tde_specific_pop_params = ["mu_star"]
             return shared_pop_params, emri_specific_pop_params, tde_specific_pop_params
         elif self.population == "B":
-            shared_pop_params = ["lambda_M", "mu_a", "sigma_a"]
-            emri_specific_pop_params = []
-            tde_specific_pop_params = []
+            shared_pop_params = ["lambda_M", "mu_MBHSpin", "sigma_MBHSpin"]
+            emri_specific_pop_params = ["mu_sBH"]
+            tde_specific_pop_params = ["mu_star"]
             return shared_pop_params, emri_specific_pop_params, tde_specific_pop_params
         elif self.population == "MIX":
             None
@@ -118,65 +145,21 @@ class PopulationModel(Model):
                     'xc': [x_c_min, x_c_max],
                     'lam_schechter': [lam_schechter_min, lam_schechter_max],
                     'beta': [beta_min, beta_max],
-                    'lambda_alpha': [lambda_alpha_min, lambda_alpha_max]
+                    'lambda_alpha': [lambda_alpha_min, lambda_alpha_max],
+                    'mu_sBH': [mu_sBH_min, mu_sBH_max],
+                    'mu_star': [mu_star_min, mu_star_max],
                     }
         elif self.population == "B":
             return {
                     'lambda_M': [lambda_M_min, lambda_M_max],
-                    'mu_a': [mu_a_min, mu_a_max],
-                    'sigma_a': [sigma_a_min, sigma_a_max]
+                    'mu_MBHSpin': [mu_MBHSpin_min, mu_MBHSpin_max],
+                    'sigma_MBHSpin': [sigma_MBHSpin_min, sigma_MBHSpin_max],
+                    'mu_sBH': [mu_sBH_min, mu_sBH_max],
+                    'mu_star': [mu_star_min, mu_star_max]
                     }
         elif self.population == "MIX":
             return None
-        
-    def get_trial_x(self, x):
-
-        if self.population == "A":
-            shared_params_trial_x = {
-                "lgMBH_mass":  {
-                                "xc": torch.from_numpy(np.array(x['xc'])),
-                                "lam_schechter": torch.from_numpy(np.array(x['lam_schechter']))
-                                },
-                "MBHspin":  {
-                            "beta": torch.from_numpy(np.array(x['beta'])),
-                            "lambda_alpha": torch.from_numpy(np.array(x['lambda_alpha']))
-                            },
-                    }    
-
-            emri_trial_x = {
-                    # "e0": {"mu": torch.tensor(x["e0_mu"]), "sigma": torch.tensor(x["e0_sigma"])}
-                        }
-
-
-            tde_trial_x = {
-                            # "photosphere": {"mu": torch.tensor(x["photosphere_mu"]),
-                            #         "sigma": torch.tensor(x["photosphere_sigma"])}
-                        }   
-
-            return shared_params_trial_x, emri_trial_x, tde_trial_x
-        
-        if self.population == "B":
-            shared_params_trial_x = {
-                "lgMBH_mass":  {"lam": torch.from_numpy(np.array(x['lambda_M']))},
-                "MBHspin":  {"mu": torch.from_numpy(np.array(x['mu_a'])),
-                       "sigma": torch.from_numpy(np.array(x['sigma_a']))},
-                       }
-
-            emri_trial_x = {
-                    # "e0": {"mu": torch.tensor(x["e0_mu"]), "sigma": torch.tensor(x["e0_sigma"])}
-                        }
-
-
-            tde_trial_x = {
-                            # "photosphere": {"mu": torch.tensor(x["photosphere_mu"]),
-                            #         "sigma": torch.tensor(x["photosphere_sigma"])}
-                        }   
-
-            return shared_params_trial_x, emri_trial_x, tde_trial_x
-        
-        if self.population == "MIX":
-            None
-    
+ 
     def log_prior(self, x):
         log_p = np.log(self.in_bounds(x), dtype="float")
         for n in self.names:
@@ -184,47 +167,70 @@ class PopulationModel(Model):
         return log_p
     
 
-    def EMRI_likelihood(self, shared_params_trial_x):
+    def EMRI_likelihood(self, shared_params_trial_x, emri_trial_x):
         if has_EMRI:
-            # ---- EMRI likelihood contribution ----
+            pdf_lgMBH_mass_EMRI = self.dist_lgMBH_EMRI.pdf(self.emri_data['lgMBH_mass'], **shared_params_trial_x['lgMBH_mass'])
+            pdf_MBHspin_EMRI = self.dist_MBHspin_EMRI.pdf(self.emri_data['MBHspin'], lgMBH=self.emri_data['lgMBH_mass'], **emri_trial_x['MBHspin'])
+            pdf_CO_mass_EMRI = self.dist_CO_EMRI.pdf(self.emri_data['CO_mass'], **shared_params_trial_x['CO_mass'])
 
-            pdf_M_EMRI = self.data.distributions['lgMBH_mass'].pdf(self.data.data['EMRI']['lgMBH_mass'], **shared_params_trial_x['lgMBH_mass'])
-            pdf_a_EMRI = self.data.distributions['MBHspin'].pdf(self.data.data['EMRI']['MBHspin'], lgMBH=self.data.data['EMRI']['lgMBH_mass'], **shared_params_trial_x['MBHspin'])
+            combined_pdf = pdf_lgMBH_mass_EMRI * pdf_MBHspin_EMRI * pdf_CO_mass_EMRI
+            
+            # Average over posterior samples (dim=1), then sum over objects
+            log_likelihood = torch.sum(torch.log(torch.nanmean(combined_pdf, dim=1) + 1e-10))
 
-            # breakpoint()
-            return torch.sum(torch.log(torch.nanmean(pdf_M_EMRI * pdf_a_EMRI, dim=1)))
+            return log_likelihood.item()
         
         else :
-            return 0
+            return 0.0
         
-    def TDE_likelihood(self, shared_params_trial_x):
+    def TDE_likelihood(self, shared_params_trial_x, tde_trial_x):
         if has_TDE:
-            # ---- EMRI likelihood contribution ----
-
-            pdf_M_TDE  = self.data.distributions['lgMBH_mass'].pdf(self.data.data['TDE']['lgMBH_mass'], **shared_params_trial_x['lgMBH_mass'])
-            # pdf_a_TDE  = self.data.distributions['MBHspin'].pdf(self.data.data['TDE']['MBHspin'], **shared_params_trial_x['MBHspin'])
-            # pdf_ph_TdE = self.data.distributions['photosphere'].pdf(self.data.data['TDE']['photosphere'], **shared_params_trial_x['photosphere'])
-
-            return torch.sum(torch.log(torch.nanmean(pdf_M_TDE,  dim=1)))
+            # ---- TDE likelihood contribution ----
+            pdf_lgMBH_mass_TDE  = self.dist_lgMBH_TDE.pdf(self.tde_data['lgMBH_mass'], **shared_params_trial_x['lgMBH_mass'])
+            pdf_CO_mass_TDE = self.dist_CO_TDE.pdf(self.tde_data['CO_mass'], **shared_params_trial_x['CO_mass'])
+            combined_pdf = pdf_lgMBH_mass_TDE * pdf_CO_mass_TDE
+            
+            log_likelihood = torch.sum(torch.log(torch.nanmean(combined_pdf, dim=1) + 1e-10))
+            
+            return log_likelihood.item()
         
         else :
-            return 0
+            return 0.0
 
-
+    @torch.inference_mode()
     def log_likelihood(self, x):
-        
-        shared_params_trial_x, emri_trial_x, tde_trial_x = self.get_trial_x(x)
-        
 
-        logL_EMRI = self.EMRI_likelihood(shared_params_trial_x)
-        logL_TDE = self.TDE_likelihood(shared_params_trial_x)
+        if isinstance(x, np.void):
+            x = {name: np.array(x[name], dtype=np.float32) for name in x.dtype.names}
+        elif isinstance(x, np.ndarray):
+            x = {name: np.ascontiguousarray(x[name], dtype=np.float32) for name in x.dtype.names}
+        
+        x = {
+            k: torch.from_numpy(np.ascontiguousarray(v, dtype=np.float32))
+            for k, v in x.items()
+        }
+        
+        logL_EMRI = self.EMRI_likelihood(
+            {
+                "lgMBH_mass": {"xc": x["xc"], "lam_schechter": x["lam_schechter"]},
+                "CO_mass": {"mu_sBH": x["mu_sBH"], "mu_star": x["mu_star"]},
+            },
+            {
+                "MBHspin": {"beta": x["beta"], "lambda_alpha": x["lambda_alpha"]},
+            }
+        )
 
-        # logL_EMRI -= N_E * torch.log(alpha_E(shared, emri_only))
-        # logL_TDE  -= N_T * torch.log(alpha_T(shared, tde_o
+        logL_TDE = self.TDE_likelihood(
+            {
+                "lgMBH_mass": {"xc": x["xc"], "lam_schechter": x["lam_schechter"]},
+                "CO_mass": {"mu_sBH": x["mu_sBH"], "mu_star": x["mu_star"]},
+            },
+            {}
+        )
 
         return logL_EMRI + logL_TDE
     
-fs = FlowSampler(PopulationModel(popdist=popdist, population=args.POPULATION), output=output, resume=False, seed=123123, nlive=1000)
+fs = FlowSampler(PopulationModel(popdist=popdist, population=args.POPULATION), output=output, resume=False, seed=123123, nlive=1000, n_pool=8)
 fs.run()
 
 ## plot the corner plot

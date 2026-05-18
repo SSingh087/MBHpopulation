@@ -9,22 +9,6 @@ import numpy as np
 
 device = "cpu"
 
-# def plot_1D_histogram(theta, source, key_latex_map):
-#     import matplotlib.pyplot as plt
-#     for key, values in theta.items():
-#         x = values.mean(axis=1)
-
-#         plt.figure(figsize=(8,6))
-#         plt.hist(x, bins=40, color='steelblue', edgecolor='black', alpha=0.7)
-
-#         plt.xlabel(key_latex_map.get(key, key), fontsize=16)
-#         plt.ylabel("Counts", fontsize=16)
-#         plt.title(f"{source}: Distribution of {key_latex_map.get(key, key)}", fontsize=18)
-
-#         plt.tight_layout()
-#         plt.savefig(f'{loc}/{source}_1D_{key}.png')
-#         plt.close()
-
 def get_min_max(args):
 
     if args.POPULATION == "A":
@@ -32,13 +16,17 @@ def get_min_max(args):
         lam_schechter_min, lam_schechter_max = args.lam_schechter
         beta_min, beta_max = args.beta
         lambda_alpha_min, lambda_alpha_max = args.lambda_alpha
-        return x_c_min, x_c_max, lam_schechter_min, lam_schechter_max, beta_min, beta_max, lambda_alpha_min, lambda_alpha_max
+        mu_sBH_min, mu_sBH_max = args.mu_sBH
+        mu_star_min, mu_star_max = args.mu_star
+        return x_c_min, x_c_max, lam_schechter_min, lam_schechter_max, beta_min, beta_max, lambda_alpha_min, lambda_alpha_max, mu_sBH_min, mu_sBH_max, mu_star_min, mu_star_max
 
     elif args.POPULATION == "B":
         lambda_M_min, lambda_M_max = args.lambda_M
-        mu_a_min, mu_a_max = args.mu_a
-        sigma_a_min, sigma_a_max = args.sigma_a
-        return lambda_M_min, lambda_M_max, mu_a_min, mu_a_max, sigma_a_min, sigma_a_max
+        mu_MBHSpin_min, mu_MBHSpin_max = args.mu_MBHSpin
+        sigma_MBHSpin_min, sigma_MBHSpin_max = args.sigma_MBHSpin
+        mu_sBH_min, mu_sBH_max = args.mu_sBH
+        mu_star_min, mu_star_max = args.mu_star
+        return lambda_M_min, lambda_M_max, mu_MBHSpin_min, mu_MBHSpin_max, sigma_MBHSpin_min, sigma_MBHSpin_max, mu_sBH_min, mu_sBH_max, mu_star_min, mu_star_max
 
     elif args.POPULATION == "MIX":
         None
@@ -49,12 +37,16 @@ def add_args(pop, parser):
        parser.add_argument('--lam_schechter', type=float, nargs=2, help="Lower and upper bounds for lam_schechter in population A")
        parser.add_argument('--beta', type=float, nargs=2, help="Lower and upper bounds for beta in population A")
        parser.add_argument('--lambda_alpha', type=float, nargs=2, help="Lower and upper bounds for lambda_alpha in population A")
+       parser.add_argument('--mu_sBH', type=float, nargs=2, help="Lower and upper bounds for mu_sBH in population A")
+       parser.add_argument('--mu_star', type=float, nargs=2, help="Lower and upper bounds for mu_star in population A")
     
     elif pop == "B":
         parser.add_argument('--lambda_M', type=float, nargs=2, help="Lower and upper boundars for lambda_M")
-        parser.add_argument('--mu_a', type=float, nargs=2, help="Lower and upper bounds for mu_a")
-        parser.add_argument('--sigma_a', type=float, nargs=2, help="Lower and upper bounds for sigma_a")
-    
+        parser.add_argument('--mu_MBHSpin', type=float, nargs=2, help="Lower and upper bounds for mu_MBHSpin")
+        parser.add_argument('--sigma_MBHSpin', type=float, nargs=2, help="Lower and upper bounds for sigma_MBHSpin")
+        parser.add_argument('--mu_sBH', type=float, nargs=2, help="Lower and upper bounds for mu_sBH in population B")
+        parser.add_argument('--mu_star', type=float, nargs=2, help="Lower and upper bounds for mu_star in population B")
+
     elif pop == "MIX":
         None
     
@@ -64,6 +56,7 @@ def make_dist(pop):
         DIST = {
                 "lgMBH_mass": FixedLimitSchechterFunction([4, 10], device=device),
                 "MBHspin" : FixedLimitMassDependentTruncatedBetaDistribution([0.01, 0.99], device=device),
+                "CO_mass" : DoubleGaussianDistribution([0.1, 15], device=device)
             }   
         return PopulationDistribution(distributions=DIST, data=None)
 
@@ -71,6 +64,7 @@ def make_dist(pop):
         DIST = {
                 "lgMBH_mass": FixedLimitsPowerLaw([4, 10], device=device),
                 "MBHspin" : FixedLimitsTruncatedGaussian([0.01, 0.99], device=device),
+                "CO_mass" : DoubleGaussianDistribution([0.1, 15], device=device)
             }
         return PopulationDistribution(distributions=DIST, data=None)
 
@@ -87,13 +81,15 @@ def get_true_x(pop):
     if pop == "A":
         return {
                 "lgMBH_mass": {"xc": 5.5, "lam_schechter": 10},
-                "MBHspin": {'beta': 12.0, 'lambda_alpha': 0.5}
+                "MBHspin": {'beta': 12.0, 'lambda_alpha': 0.5},
+                "CO_mass": {"mu_sBH": 10.0, "mu_star": 1.0}
             }
 
     if pop == "B":
         return{
                 "lgMBH_mass": {"lam": -2.5},
-                "MBHspin": {'mu': 0.7, 'sigma': 0.03}
+                "MBHspin": {'mu': 0.7, 'sigma': 0.03},
+                "CO_mass": {"mu_sBH": 10.0, "mu_star": 1.0}
                 }
 
     if pop == "MIX":
@@ -110,14 +106,18 @@ def get_posterior_samples(pop, hf):
                 "xc": np.array(hf.get('posterior_samples')['xc']),
                 "lam_schechter": np.array(hf.get('posterior_samples')['lam_schechter']),
                 "beta": np.array(hf.get('posterior_samples')['beta']),
-                "lambda_alpha": np.array(hf.get('posterior_samples')['lambda_alpha'])
+                "lambda_alpha": np.array(hf.get('posterior_samples')['lambda_alpha']),
+                "mu_sBH": np.array(hf.get('posterior_samples')['mu_sBH']),
+                "mu_star": np.array(hf.get('posterior_samples')['mu_star']),
             }
 
     if pop == "B":
         return{
                 "lambda_M": np.array(hf.get('posterior_samples')['lambda_M']),
-                "mu_a": np.array(hf.get('posterior_samples')['mu_a']),
-                "sigma_a": np.array(hf.get('posterior_samples')['sigma_a'])
+                "mu_MBHSpin": np.array(hf.get('posterior_samples')['mu_MBHSpin']),
+                "sigma_MBHSpin": np.array(hf.get('posterior_samples')['sigma_MBHSpin']),
+                "mu_sBH": np.array(hf.get('posterior_samples')['mu_sBH']),
+                "mu_star": np.array(hf.get('posterior_samples')['mu_star']),
                 }
 
     if pop == "MIX":
@@ -132,14 +132,18 @@ def get_latex_labels(pop):
                 "xc": "$x_c$",
                 "lam_schechter": "$\\lambda_{x_c}$",
                 "beta": "$\\beta$",
-                "lambda_alpha": "$\\lambda_{\\alpha}$"
+                "lambda_alpha": "$\\lambda_{\\alpha}$",
+                "mu_sBH": "$\\mu_{sBH}$",
+                "mu_star": "$\\mu_{\\star}$"
             }
 
     if pop == "B":
         return{
                 "lambda_M": "$\\lambda_M$",
-                "mu_a": "$\\mu_a$",
-                "sigma_a": "$\\sigma_a$"
+                "mu_MBHSpin": "$\\mu_a$",
+                "sigma_MBHSpin": "$\\sigma_a$",
+                "mu_sBH": "$\\mu_{sBH}$",
+                "mu_star": "$\\mu_{\\star}$"
                 }
 
     if pop == "MIX":
@@ -187,4 +191,3 @@ class PopulationDistribution:
                 out[key] = torch.where(choices, samples_A, samples_B)
 
         return out
-

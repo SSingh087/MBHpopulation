@@ -70,18 +70,29 @@ with h5py.File(f'{loc}/true_data_EMRI_{ "clustering" if args.is_clustering else 
             )
             for param in theta0
         }
+        
+        # Add CO_mass as a separate parameter with fixed true value of 10
+        # sampled with small scatter around that value
+        catalogue_true_all["CO_mass"] = np.random.normal(
+            loc=10.0,  # True CO mass value
+            scale=1e-3,  # Same small scatter as other parameters
+            size=(num_events, N_SAMPLES_PER_THETA)
+        )
 
         for event_idx in range(num_events):
-            catalogue_true = {param: catalogue_true_all[param][event_idx] for param in theta0}
+            catalogue_true = {param: catalogue_true_all[param][event_idx] for param in catalogue_true_all}
             true_data.append(catalogue_true)
 
-    for key in all_galaxies[gal].keys():
-        print(f"[SAVING] '{key}' to HDF5 dataset...")
+    # Save all parameters (including CO_mass which was added)
+    all_params = set()
+    for entry in true_data:
+        all_params.update(entry.keys())
+
+    breakpoint()
+    
+    for key in all_params:
         true_data_array = np.array([entry[key] for entry in true_data])
         hf_true_data.create_dataset(key, data=true_data_array, compression="gzip")
-
-
-# breakpoint()
-# plot_population_histograms(np.array([list(c.values()) for c in true_data]), PARAMS, f'./plots/true_data_histograms_EMRI.png', bins=30)
+        print(f"[SAVING] '{key}' to HDF5 dataset of size {true_data_array.shape}...")
 
 

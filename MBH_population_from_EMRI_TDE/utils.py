@@ -838,7 +838,8 @@ class Plotting:
         
         for label, df in kwargs_sources.items():
             if key not in df:
-                raise ValueError(f"Key '{key}' not found in dataframe '{label}'")
+                print(f"Key '{key}' not found in dataframe '{label}'")
+                continue
             data = df[key].mean(axis=1)
             combined_data.append(data)
             plt.hist(data, bins=40, histtype='step', label=label)
@@ -856,3 +857,11 @@ class Plotting:
         # Save figure
         plt.savefig(f'{loc}/{key}_comparison_histogram.png')
         plt.close()
+
+    @staticmethod
+    def make_waterfall_plot_EMRIs():
+        pass
+
+    @staticmethod    
+    def make_waterfall_plot_TDEs():
+        pass
