@@ -88,8 +88,6 @@ def get_data(source):
 
 popdist.data, has_EMRI, has_TDE = get_data(args.SOURCE)
 
-THETA_PARAMETER_NAMES = ['lgMBH_mass', 'MBHspin', 'CO_mass']
-
 output = f"./data/inference_data/{args.GALAXIES}/{args.SOURCE}_pop_{args.POPULATION}"
 logger = setup_logger(output=output)
 
@@ -175,7 +173,6 @@ class PopulationModel(Model):
 
             combined_pdf = pdf_lgMBH_mass_EMRI * pdf_MBHspin_EMRI * pdf_CO_mass_EMRI
             
-            # Average over posterior samples (dim=1), then sum over objects
             log_likelihood = torch.sum(torch.log(torch.nanmean(combined_pdf, dim=1) + 1e-10))
 
             return log_likelihood.item()
@@ -185,7 +182,6 @@ class PopulationModel(Model):
         
     def TDE_likelihood(self, shared_params_trial_x, tde_trial_x):
         if has_TDE:
-            # ---- TDE likelihood contribution ----
             pdf_lgMBH_mass_TDE  = self.dist_lgMBH_TDE.pdf(self.tde_data['lgMBH_mass'], **shared_params_trial_x['lgMBH_mass'])
             pdf_CO_mass_TDE = self.dist_CO_TDE.pdf(self.tde_data['CO_mass'], **shared_params_trial_x['CO_mass'])
             combined_pdf = pdf_lgMBH_mass_TDE * pdf_CO_mass_TDE
@@ -230,7 +226,7 @@ class PopulationModel(Model):
 
         return logL_EMRI + logL_TDE
     
-fs = FlowSampler(PopulationModel(popdist=popdist, population=args.POPULATION), output=output, resume=False, seed=123123, nlive=1000, n_pool=8)
+fs = FlowSampler(PopulationModel(popdist=popdist, population=args.POPULATION), output=output, resume=False, seed=123123, nlive=1000, n_pool=4)
 fs.run()
 
 ## plot the corner plot

@@ -112,17 +112,43 @@ class GalaxyStellarMassFunction:
         return lgM[idx].cpu().numpy()
 
 class MBHMassFunction:
+    """
+    MBH Mass Function: φ_MBH(z, log M_BH)
+    
+    Derives from GSMF via change-of-variables:
+        φ_MBH(log M_BH) = φ_GSMF(log M_gal) |d log M_gal / d log M_BH|
+    
+    Depends on:
+        - GSMF for the underlying galaxy stellar mass function
+        - Galaxy for the M_BH-M_gal relation
+    """
 
     def __init__(self, gsmf):
+        """
+        Initialize MBH Mass Function from a GSMF instance.
+        
+        Args:
+            gsmf: GalaxyStellarMassFunction instance
+        """
         self.gsmf = gsmf
+        self._interp_mbhmf = None
+        self._cached_n_points_mass = None
 
     @staticmethod
     def _compute_phi_MBH(lgMgal_grid, log10phi_gsmf):
         """
-        Convert GSMF φ(Mgal,z) into MBH MF φ(MBH,z).
+        Convert GSMF φ(Mgal,z) into MBH MF φ(MBH,z) via change of variables.
+        
         Shared by both get_mbhmf() and _build_mbhmf_grid().
+        
+        Args:
+            lgMgal_grid: log10(M_gal) grid
+            log10phi_gsmf: log10(φ_GSMF) on the galaxy mass grid, shape (Nz, NM)
+        
+        Returns:
+            logMBH_grid: log10(M_BH) grid
+            log10phi_MBH: log10(φ_MBH) on the MBH mass grid, shape (Nz, NM)
         """
-
         logMBH_grid = Galaxy.lgMBH_from_Mgal(lgMgal_grid)  # (NM,)
 
         dlogMBH_dlogMgal = np.gradient(logMBH_grid, lgMgal_grid)
@@ -136,10 +162,16 @@ class MBHMassFunction:
 
     def get_mbhmf(self, z_gal, n_points_mass=1000):
         """
-        Return MBH MF φ(log MBH,z) on the GSMF mass grid
-        for user-specified redshifts z_gal.
+        Return MBH MF φ(log MBH,z) for user-specified redshifts.
+        
+        Args:
+            z_gal: redshift(s), scalar or array
+            n_points_mass: number of mass grid points
+        
+        Returns:
+            logMBH_grid: log10(M_BH) grid points
+            log10phi_MBH: log10(φ_MBH) evaluated at (z_gal, logMBH_grid)
         """
-
         lgMgal_grid, log10phi_gsmf = self.gsmf.get_gsmf(z_gal, n_points_mass=n_points_mass)  # (NM,), (Nz,NM)
         logMBH_grid, log10phi_MBH = self._compute_phi_MBH(lgMgal_grid, log10phi_gsmf)
 
@@ -148,6 +180,14 @@ class MBHMassFunction:
     def _build_mbhmf_grid(self, n_points_mass=2000):
         """
         Build the full 2D MBHMF grid at all GSMF z-values.
+        
+        Args:
+            n_points_mass: number of mass grid points
+        
+        Returns:
+            z_vals: redshift values
+            logMBH_grid: log10(M_BH) grid
+            log10phi_MBH: log10(φ_MBH) on full 2D grid
         """
         z_vals = self.gsmf.z_vals  # (Nz,)
         lgMgal_grid = self.gsmf.build_mass_grid(n_points_mass=n_points_mass)
@@ -157,33 +197,97 @@ class MBHMassFunction:
 
         return z_vals, logMBH_grid, log10phi_MBH
 
+    def _build_interpolator(self, n_points_mass=2000):
+        """
+        Build and cache a 2D interpolator for the MBHMF.
+        Similar to GSMF's interpolator structure.
+        
+        Args:
+            n_points_mass: number of mass grid points
+        """
+        z_vals, logMBH_grid, log10phi_MBH = self._build_mbhmf_grid(n_points_mass=n_points_mass)
+        
+        self._interp_mbhmf = RegularGridInterpolator(
+            (z_vals, logMBH_grid),
+            log10phi_MBH,
+            bounds_error=False,
+            fill_value=-np.inf
+        )
+        self._cached_n_points_mass = n_points_mass
+
     def eval_mbhmf(self, z, logMBH, n_points_mass=2000, return_log10=False):
         """
-        Evaluate φ_MB(z, logMBH) at arbitrary coordinates.
+        Evaluate φ_MBH(z, logMBH) at arbitrary coordinates.
+        
+        Args:
+            z: redshift(s)
+            logMBH: log10(M_BH) value(s)
+            n_points_mass: resolution for interpolator grid
+            return_log10: if True, return log10(φ); if False, return φ
+        
+        Returns:
+            phi_vals: φ_MBH (or log10(φ_MBH) if return_log10=True)
         """
-
         z = np.atleast_1d(z)
         logMBH = np.atleast_1d(logMBH)
 
         if z.shape != logMBH.shape:
             raise ValueError("z and logMBH must have same shape.")
 
-        z_vals, logMBH_grid, log10phi_MBH = self._build_mbhmf_grid(n_points_mass=n_points_mass)
-
-        interp = RegularGridInterpolator(
-            (z_vals, logMBH_grid),
-            log10phi_MBH,
-            bounds_error=False,
-            fill_value=-np.inf  # make it zero outside the grid in linear space, which is -inf in log space
-        )
+        # Rebuild interpolator if n_points_mass changed
+        if self._interp_mbhmf is None or self._cached_n_points_mass != n_points_mass:
+            self._build_interpolator(n_points_mass=n_points_mass)
 
         points = np.column_stack([z, logMBH])  # (N,2)
-        log10phi_vals = interp(points)
+        log10phi_vals = self._interp_mbhmf(points)
 
         if return_log10:
             return log10phi_vals
 
         return 10**log10phi_vals
+
+    def sample_mbhmf(self, z_gal, n_samples_per_z=1, n_points_mass=1000, device="cpu"):
+        """
+        Sample MBH masses from the MBHMF at given redshifts.
+        Similar interface to GalaxyStellarMassFunction.sample_gsmf().
+        
+        Args:
+            z_gal: redshift(s) where to sample
+            n_samples_per_z: number of samples per redshift
+            n_points_mass: resolution for the mass grid
+            device: "cpu" (default)
+        
+        Returns:
+            logMBH_samples: log10(M_BH) samples, shape (N_z,) if n_samples_per_z==1 else (N_z, n_samples_per_z)
+        """
+        try:
+            import torch
+        except ImportError:
+            raise ImportError("torch is required for sampling. Install with: pip install torch")
+        
+        z_gal = np.atleast_1d(z_gal)
+        N_z = len(z_gal)
+
+        # Get the MBH mass grid for the given redshifts
+        logMBH_grid, log10phi_MBH = self.get_mbhmf(z_gal, n_points_mass=n_points_mass)  # (NM,), (Nz, NM)
+        
+        logMBH = torch.tensor(logMBH_grid, device=device)  # (NM,)
+        log10phi_MBH_torch = torch.tensor(log10phi_MBH, device=device)  # (Nz, NM)
+        
+        # Convert to linear probability
+        phi_MBH = torch.pow(10.0, log10phi_MBH_torch)
+        phi_MBH = torch.nan_to_num(phi_MBH, nan=0.0, posinf=0.0, neginf=0.0)
+        
+        # Normalize to probabilities for each redshift
+        row_sums = phi_MBH.sum(dim=1, keepdim=True)
+        if torch.any(row_sums <= 0):
+            raise ValueError("MBHMF undefined for some redshifts")
+        
+        probs = phi_MBH / row_sums  # (Nz, NM)
+        
+        # Sample from the distribution
+        idx = torch.multinomial(probs, num_samples=n_samples_per_z, replacement=True).squeeze(1)
+        return logMBH[idx].cpu().numpy()
 
 @dataclass
 class CO_mass_function:
@@ -368,6 +472,107 @@ class LastMajorMerger:
 
         lambda_z_s = lambda_z_Gyr / (3.15576e16)  # convert to s^-1
         return lambda_z_s * self.cosmo_model.dt_dz(z)   # events per redshift (dimensionless)
+
+    def build_cumulative_hazard(self, z_array):
+        """
+        Build cumulative hazard function Λ(z) over a dense redshift grid.
+        
+        Args:
+            z_array: redshift array
+        
+        Returns:
+            z_array: input redshift grid
+            Lambda: cumulative hazard Λ(z), shape (len(z_array),)
+        """
+        z_array = np.atleast_1d(np.asarray(z_array))
+        
+        # Compute hazard integrand
+        g = self.hazard_integrand(z_array)
+        
+        # Compute cumulative hazard via trapezoidal integration
+        Lambda = np.zeros_like(z_array)
+        dz = np.diff(z_array)
+        Lambda[1:] = np.cumsum(0.5 * (g[1:] + g[:-1]) * dz)
+        
+        return z_array, Lambda
+
+    def survival_function(self, z_array):
+        """
+        Compute survival function S(z) = exp(-Λ(z)).
+        Represents the probability that no merger has occurred by redshift z.
+        
+        Args:
+            z_array: redshift array
+        
+        Returns:
+            z_array: input redshift grid
+            S: survival function S(z), shape (len(z_array),)
+        """
+        z_array, Lambda = self.build_cumulative_hazard(z_array)
+        
+        # Survival function S(z) = exp(-Λ(z))
+        S = np.exp(-Lambda)
+        
+        return z_array, S
+
+    def hazard_function(self, z_array):
+        """
+        Compute hazard function h(z) = λ(z) = dΛ/dz.
+        Represents the instantaneous merger rate per unit redshift.
+        
+        Args:
+            z_array: redshift array
+        
+        Returns:
+            z_array: input redshift grid
+            h: hazard function h(z) = λ(z), shape (len(z_array),)
+        """
+        z_array = np.atleast_1d(np.asarray(z_array))
+        
+        # Hazard function is just the merger rate
+        h = self.lambda_MM(z_array)
+        
+        return z_array, h
+
+    def conditional_hazard(self, z_obs, z_future):
+        """
+        Compute conditional cumulative hazard from z_obs forward to z_future.
+        Λ(z_obs → z_future) = ∫[z_obs to z_future] λ(z) |dt/dz| dz
+        
+        Args:
+            z_obs: observation redshift (scalar or array)
+            z_future: future redshift grid to evaluate at
+        
+        Returns:
+            Lambda_cond: conditional cumulative hazard
+        """
+        z_obs = np.atleast_1d(np.asarray(z_obs))
+        z_future = np.atleast_1d(np.asarray(z_future))
+        
+        if z_obs.size == 1:
+            z_obs = z_obs[0]
+            # Single observation redshift case
+            z_grid = np.linspace(z_obs, np.max(z_future), 500)
+            g = self.hazard_integrand(z_grid)
+            Lambda = np.zeros_like(z_grid)
+            dz = np.diff(z_grid)
+            Lambda[1:] = np.cumsum(0.5 * (g[1:] + g[:-1]) * dz)
+            
+            # Interpolate to future redshifts
+            Lambda_cond = np.interp(z_future, z_grid, Lambda)
+            return Lambda_cond
+        else:
+            # Multiple observation redshifts - return array of hazards
+            Lambda_conds = []
+            for z_ob in z_obs:
+                z_grid = np.linspace(z_ob, np.max(z_future), 500)
+                g = self.hazard_integrand(z_grid)
+                Lambda = np.zeros_like(z_grid)
+                dz = np.diff(z_grid)
+                Lambda[1:] = np.cumsum(0.5 * (g[1:] + g[:-1]) * dz)
+                Lambda_cond = np.interp(z_future, z_grid, Lambda)
+                Lambda_conds.append(Lambda_cond)
+            return np.array(Lambda_conds)
 
     def build_hazard_grid(self, z_obs_array):
         z_obs_array = np.asarray(z_obs_array)

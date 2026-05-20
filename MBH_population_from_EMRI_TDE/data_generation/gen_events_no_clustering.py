@@ -17,7 +17,6 @@ from cosmology import LastMajorMerger, CosmologyModel, GalaxyStellarMassFunction
 import h5py
 
 rng = np.random.default_rng(seed=42)
-Z_MAX = 10.0
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galaxies")

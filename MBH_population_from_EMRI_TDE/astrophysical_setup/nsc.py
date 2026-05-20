@@ -137,15 +137,28 @@ class MBH_properties:
     def __init__(self, nsc, A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53):
         self.nsc = nsc
         self.lgMBH_mass = self.nsc.lgMBH
-        self.initial_MBHspin= self.initial_MBHspin(beta=12.0, lambda_alpha=0.5)
+        self.initial_MBHspin= self.initial_MBHspin()
 
     @property
     def MBH_mass(self):
         return 10 ** self.nsc.lgMBH
 
-    def initial_MBHspin(self, beta=12.0, lambda_alpha=0.5):
-        alpha = beta + lambda_alpha * (self.lgMBH_mass - 6)
-        return np.random.beta(alpha, beta)
+    
+    def initial_MBHspin(self):
+
+        alpha0_low_mass = 2.5
+        lambda_alpha_low_mass = 0.1
+        beta_low_mass = 5.0
+
+        alpha0_high_mass = 7.0
+        lambda_alpha_high_mass = 0.1
+        beta_high_mass = 5.0
+
+        spins = np.zeros(len(self.lgMBH_mass))
+        spins[self.lgMBH_mass < 6] = np.random.beta(alpha0_low_mass + lambda_alpha_low_mass * (self.lgMBH_mass[self.lgMBH_mass < 6] - 6), beta_low_mass)
+        spins[self.lgMBH_mass >= 6] = np.random.beta(alpha0_high_mass + lambda_alpha_high_mass * (self.lgMBH_mass[self.lgMBH_mass >= 6] - 6), beta_high_mass)
+
+        return spins
     
     @staticmethod
     def MBHspin_evolution_at_time(initial_spin):
