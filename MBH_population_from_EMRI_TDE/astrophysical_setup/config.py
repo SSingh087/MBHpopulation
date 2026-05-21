@@ -1,13 +1,3 @@
-"""
-config.py
-
-Central location for physical constants, unit conversions,
-and default model parameters used throughout the NSC+Galaxy+Cosmology codebase.
-
-This file preserves exactly the constants and behaviors implied
-in your original code, without changing the physics.
-"""
-
 import numpy as np
 
 
@@ -37,7 +27,7 @@ G_pc3_per_Msun_yr2 = G_cgs * (sec_per_year**2) / (pc_to_cm**3 / Msun_to_grams)
 # M–sigma relation defaults
 MBH_A = 7.87
 MBH_B = 4.55
-MBH_sigma0 = 160.0
+MBH_sigma0 = 160.0 #km/s arXiv:2205.06277 uses sigma_0 = 70 which will have consequnce of the Gamma_E and the t_EMRI. t_EMRI will go up and Gamma_E lower
 MBH_scatter = 0.53
 
 # Dehnen profile default slope

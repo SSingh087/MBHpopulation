@@ -27,47 +27,35 @@ class CuspEvolution:
         self.LastMajorMerger = LastMajorMerger
         self.cosmo = self.LastMajorMerger.cosmo_model
         self.kappa = float(kappa)
+        # self.t_obs = self.cosmo_model.age_Gyr(z_obs_array=self.nsc.gal.z_gal)
         
-        # Cache LMM samples to avoid recomputing multiple times
-        self._cached_z_LMM = None
-        self._cached_t_LMM = None
-        self._cached_t_obs = None
 
-    def cusp_turn_on_time(self, kvir: float = 1.0, unit: str = 'Gyr'):
+    def cusp_turn_on_time(self, kvir: float = 1.0):
         """
         t_on = t_LMM + kappa * t_relax_at_rinf
+            - t_LMM is the lookback time to the last major merger, sampled from cosmology (in Gyr)
+            - t_relax_at_rinf is the relaxation time at the influence radius (in Gyr)
+            - kappa is a dimensionless factor that sets how many relaxation times after the LMM the cusp is considered to be "turned on".
         
-        Caches LMM times to avoid resampling on every call.
+        Returns:
+            t_on in Gyr
         """
-        # Use cached LMM times if available, otherwise compute once
-        if self._cached_t_LMM is None:
-            self._cached_z_LMM, self._cached_t_LMM, self._cached_t_obs = \
-                self.LastMajorMerger.sample_LMM_times(z_obs_array=self.nsc.gal.z_gal, size=1)
-        
-        t_LMM = self._cached_t_LMM
+        self.z_LMM, self.t_LMM, self.t_obs_at_z_obs = self.LastMajorMerger.sample_LMM_times(z_obs_array=self.nsc.gal.z_gal, size=1)
 
-        # Relaxation time at r_infl
-        t_relax_rinf = self.relaxation.t_relax_at_rinfl(kvir=kvir, unit=unit)
+        t_relax_rinf = self.relaxation.t_relax_at_rinfl(kvir=kvir, unit='Gyr')
 
-        # Cusp turn-on time 
-        return t_LMM + self.kappa * t_relax_rinf
+        return self.t_LMM + self.kappa * t_relax_rinf
 
-    def cusp_age(self, kvir: float = 1.0, unit: str = 'Gyr'):
+    def cusp_age(self, kvir: float = 1.0):
         """
-        cusp_age = max(0, cosmology.age_Gyr(z) - cusp_turn_on_time)
+        cusp_age = max(0, t_obs - cusp_turn_on_time)
         
-        Uses cached t_obs from sample_LMM_times to avoid redundant age_Gyr calls.
+        Returns:
+            cusp_age in Gyr
         """
-        t_on = self.cusp_turn_on_time(kvir=kvir, unit=unit)
+        t_on = self.cusp_turn_on_time(kvir=kvir)
         
-        # Use cached t_obs from LMM sampling to avoid expensive age_Gyr call
-        if self._cached_t_obs is None:
-            # Fallback if LMM hasn't been cached yet (shouldn't happen in normal flow)
-            t_obs = self.cosmo.age_Gyr(self.nsc.gal.z_gal)
-        else:
-            t_obs = self._cached_t_obs
-            
-        return np.maximum(0.0, t_obs - t_on)
+        return np.maximum(0.0, self.t_obs_at_z_obs - t_on)
 
     def t_EMRI(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
         return self.rate_model.time_to_peak_EMRI_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
@@ -80,55 +68,74 @@ class CuspEvolution:
         else:
             raise ValueError(f"Unknown kind: {kind}")
 
-    def evaluate_tau(self, kvir, unit: str = 'Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
+    def evaluate_tau(self, kvir, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
         
-        T_c_array = self.cusp_age(kvir=kvir, unit=unit)
+        T_c_array = self.cusp_age(kvir=kvir)
 
         t_EMRI_array = self.t_EMRI(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
 
         return T_c_array / t_EMRI_array
     
-    def accumulated_objects_within_t_rlx_to_cusp_age(self, kvir: float = 1.0, unit: str = 'Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
+    def expected_objects_in_time(self, T_obs, kvir: float = 1.0, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
         """
-        Compute the expected number of objects (TDEs or EMRIs) accumulated within time T_c for each galaxy, by integrating the universal rate over the normalized time grid and scaling by the peak rate and time to peak.
+        Integrates the rate over the observation period from t=0 to t=T_obs.
+        
+        N_expected = (1 / (1+z)) * integral from 0 to T_obs of:
+            Gamma_hat * R(tau(t)) * dt
+        
+        where:
+        - tau(t) = T_c(t) / t_EMRI evolves as the cusp ages
+        - Gamma_hat is in units of [year^-1]
+        - T_obs is in [Gyr] = 10^9 [years]
+        - dt is in [Gyr] units, automatically converted to [years] for integration
+        
+        Uses numerical integration (trapezoidal rule) over a grid.
+        The factor of (1+z) accounts for time dilation in an expanding universe.
         """
-        tau = self.evaluate_tau(kvir=kvir, unit=unit, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+        # Create time grid from 0 to T_obs (in Gyr)
+        t_grid = np.linspace(0, T_obs, n_grid)
         
-        t_EMRI = self.t_EMRI(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+        # For each time step, compute the cusp age at that time
+        # We need to recalculate cusp_turn_on_time once (same LMM for all times)
+        t_on = self.cusp_turn_on_time(kvir=kvir)
         
-        Gamma_hat = self.Gamma_hat(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind)
-
-        tau = np.atleast_1d(tau)
-        N = tau.size
-
-        tau_norm_grid = np.linspace(1e-6, 1.0, n_grid)  # shape (n_grid,)
-        tau_grid = tau[:, None] * tau_norm_grid[None, :]  # shape (N, n_grid)
-
-        kind_upper = kind.upper()
-        if kind_upper == 'EMRI':
-            _rate_grid = UniversalRate.EMRI_rate(tau_grid)  # shape (N, n_grid)
-        elif kind_upper == 'TDE':
-            _rate_grid = UniversalRate.TDE_rate(tau_grid)   # shape (N, n_grid)
+        # Cusp age at each time in the grid
+        T_c_grid = np.maximum(0.0, t_grid[None, :] - t_on[:, None])  # Shape: (N_gal, n_grid)
+        
+        # Get t_EMRI (constant for each galaxy)
+        t_EMRI_array = self.t_EMRI(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)  # Shape: (N_gal,)
+        
+        # Compute tau(t) at each grid point
+        tau_grid = T_c_grid / t_EMRI_array[:, None]  # Shape: (N_gal, n_grid)
+        
+        # Get Gamma_hat (in units of [year^-1])
+        Gamma_hat = self.Gamma_hat(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind)  # Shape: (N_gal,)
+        
+        # Compute rate at each grid point (normalized, dimensionless)
+        if kind.upper() == 'EMRI':
+            rate_grid = UniversalRate.EMRI_rate(tau_grid)
+        elif kind.upper() == 'TDE':
+            rate_grid = UniversalRate.TDE_rate(tau_grid)
         else:
             raise ValueError(f"Unknown kind: {kind}")
-
-        cumulative_distribution = np.trapezoid(_rate_grid, tau_grid, axis=1)  # shape (N,)
-        N_objects = Gamma_hat * t_EMRI * cumulative_distribution  # scalar * scalar * (N,) = (N,)
-
-        return N_objects
-
-    def expected_objects_in_time(self, T_obs, kvir: float = 1.0, unit: str = 'Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
         
-        tau = self.evaluate_tau(kvir=kvir, unit=unit, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
-        Gamma_hat = self.Gamma_hat(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind)
+        # Integrate using trapezoidal rule
+        # integrand = Gamma_hat [yr^-1] * rate_grid [dimensionless]
+        # dt = [Gyr] = 10^9 [years]
+        # integral = [yr^-1] * [yr] = [dimensionless count]
+        integrand = Gamma_hat[:, None] * rate_grid  # Shape: (N_gal, n_grid), units: [yr^-1]
+        
+        # Trapezoidal rule integration with dt in Gyr = 10^9 years
+        dt_gyr = T_obs / (n_grid - 1)
+        dt_yr = dt_gyr * 1e9  # Convert Gyr to years
+        integral = np.trapezoid(integrand, dx=dt_yr, axis=1)  # Shape: (N_gal,), units: [dimensionless count]
+        
+        # Apply redshift factor (observation time is dilated by (1+z))
+        return integral / (1 + self.nsc.gal.z_gal)
 
-        if kind.upper() == 'EMRI':
-            return Gamma_hat * UniversalRate.EMRI_rate(tau) * (T_obs / (1 + self.nsc.gal.z_gal))
-        elif kind.upper() == 'TDE':
-            return Gamma_hat * UniversalRate.TDE_rate(tau) * (T_obs / (1 + self.nsc.gal.z_gal))
+    def number_of_objects_in_time(self, T_obs, kvir: float = 1.0, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
 
-    def number_of_objects_in_time(self, T_obs, kvir: float = 1.0, unit: str = 'Gyr', A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
-        N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, unit=unit, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, n_grid=n_grid, kind=kind) * [1E7 if kind.upper() == 'EMRI' else 1E5]
-        # scale up to get more realistic numbers for Poisson sampling
+        N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, n_grid=n_grid, kind=kind)
+        
+
         return np.random.poisson(N_expected)
-

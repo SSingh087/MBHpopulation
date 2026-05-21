@@ -438,11 +438,11 @@ class CosmologyModel:
 
 class LastMajorMerger:
 
-    def __init__(self, cosmology_model: CosmologyModel):
+    def __init__(self, cosmology_model: CosmologyModel = None):
         self.cosmo_model = cosmology_model if cosmology_model is not None else CosmologyModel()
         self.z_max: float = 12.0
         # Resolution of hazard grid
-        self.n_grid: int = 10
+        self.n_grid: int = 100
 
 
     def lambda_MM(self, z):
@@ -621,5 +621,5 @@ class LastMajorMerger:
     def sample_LMM_times(self, z_obs_array, size=1):
         z_LMM = self.sample_z_LMM(z_obs_array, size=size)
         t_LMM = self.cosmo_model.age_Gyr(z_LMM)
-        t_obs = self.cosmo_model.age_Gyr(z_obs_array)
-        return z_LMM, t_LMM, t_obs
+        t_obs_at_z_obs = self.cosmo_model.age_Gyr(z_obs_array)
+        return z_LMM, t_LMM, t_obs_at_z_obs

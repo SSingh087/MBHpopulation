@@ -19,19 +19,13 @@ class NSC:
 
         if lgMBH is None:
             # this block assumes that the galaxy instance has already computed sigma_pc_yr and lgMgal, which is true if it was initialized with lgMgal. If it was initialized with lgMBH, then this block will not be executed and we will use the provided lgMBH directly.
-            self._lgMBH = self.gal.lgMBH_mass
+            self._lgMBH_mass_ = self.gal.lgMBH_mass
         else:
-            self._lgMBH = np.asarray(lgMBH)
-
-
-    @property
-    def lgMBH(self):
-        """log10(MBH/Msun) fixed for this NSC instance."""
-        return self._lgMBH
+            self._lgMBH_mass_ = np.asarray(lgMBH)
 
     @property
     def MBH_mass(self):
-        return 10 ** self._lgMBH
+        return 10 ** self._lgMBH_mass_
 
     def r_influence(self, kvir=1.0, unit='pc'):
         """
@@ -62,12 +56,13 @@ class NSC:
         else:
             raise ValueError("unit must be 'pc' or 'cm'")
 
-    def r_tidal(self, m_star=1.0*Msun, R_star=1.0*Rsun, unit='pc'):
+    def r_tidal(self, m_star_solar, R_star_solar, unit='pc'):
         """
         Stellar tidal disruption radius:
         r_t = R_star * (M_bh / m_star)^(1/3)
         """
-        rt_pc = R_star * (self.MBH_mass / m_star)**(1.0/3.0)
+        R_star_pc = R_star_solar * Rsun / pc_to_cm  # Convert stellar radius from solar radii to parsecs, Rsun in cm, then to pc
+        rt_pc = R_star_pc * (self.MBH_mass / m_star_solar)**(1.0/3.0)
         if unit == 'pc':
             return rt_pc
         elif unit == 'cm':
@@ -77,14 +72,14 @@ class NSC:
 
 
 class CompactObject:
-    def __init__(self, nsc, masses, total_mass, types_CO, types_masses, type_CO_limits=None):
+    def __init__(self, nsc, masses, total_mass_in_MBH_mass_units, types_CO, types_masses, type_CO_limits=None):
 
         self.nsc = nsc
         self.types_CO = types_CO  # 'sBH' or 'star'
         self.total_number = {}
         self.types_masses = types_masses  # 'same_mass' or 'random_mass'
         self.masses = masses  # dict of masses for each CO type, e.g. {'sBH': 10.0, 'star': 1.0}
-        self.total_mass = total_mass  # dict of total mass for each CO type, e.g. {'sBH': 20.0, 'star': 100.0}
+        self.total_mass_in_MBH_mass_units = total_mass_in_MBH_mass_units  # dict of total mass for each CO type, e.g. {'sBH': 0.2, 'star': 20.0}
 
 
         # other CO types can be added in the future,
@@ -92,19 +87,15 @@ class CompactObject:
         # so we can initialize the total_number dict with these two keys.
         if self.types_masses == 'same_mass':
             for type_CO in self.types_CO:
-                self.total_number[type_CO] = self.total_mass[type_CO] * self.nsc.MBH_mass / self.masses[type_CO]
+                self.total_number[type_CO] = self.total_mass_in_MBH_mass_units[type_CO] * self.nsc.MBH_mass / self.masses[type_CO]
 
         elif self.types_masses == 'random_mass':
             raise NotImplementedError("Random mass sampling for COs is not implemented yet. Please use 'same_mass' for now.")
-            # the issue here is that it will need number of COs for 
-            # counting which is what we are trying to compute in the 
-            # first place, so we will need to do some iterative sampling 
-            # from the CO mass function until we reach the total/close
-            # to the mass we want, and then count the number of COs.
-        
-        else:
-            raise ValueError("types_masses must be 'same_mass' or 'random_mass'")
-        
+
+        self.CO_radius = {}
+        self.CO_radius['sBH'] = 0
+        self.CO_radius['star'] = 1  # this is in units of solar radii, and will be converted to pc in the density profile when needed.
+
         # self.orbit_sense = self.orbit_sense() 
 
     @property
@@ -136,14 +127,9 @@ class CompactObject:
 class MBH_properties:
     def __init__(self, nsc, A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53):
         self.nsc = nsc
-        self.lgMBH_mass = self.nsc.lgMBH
+        self.lgMBH_mass = self.nsc._lgMBH_mass_
         self.initial_MBHspin= self.initial_MBHspin()
-
-    @property
-    def MBH_mass(self):
-        return 10 ** self.nsc.lgMBH
-
-    
+   
     def initial_MBHspin(self):
 
         alpha0_low_mass = 2.5
