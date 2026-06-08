@@ -1,11 +1,16 @@
-import os
+import sys, os
+sys.path.insert(0, os.path.abspath('./'))
+
 import numpy as np
+import torch
 import matplotlib.pyplot as plt
 import h5py
 import argparse
+from utils import Plotting
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galaxies")
+parser.add_argument("--is_clustering", type=int, default=0)
 args = parser.parse_args()
 
 theta0_EMRI = {}
@@ -15,73 +20,95 @@ theta0_EMRI_final = {}
 theta0_TDE_final = {}
 
 
-keys_to_save_EMRI = ["MBHspin", "lgMBH_mass"]
-keys_to_save_TDE = ["mbh_6"]  # Define keys to save for TDE data
+keys_to_save_EMRI = ["MBHspin", "lgMBH_mass", "CO_mass", "z_gal"]  # Define keys to save for EMRI data
+keys_to_save_TDE = ["mbh_6", "stellar_mass", "redshift"]  # Define keys to save for TDE data
 
 loc = f'./data/inference_data/{args.GALAXIES}'
 if not os.path.exists(loc):
     os.makedirs(loc)
 
-key_latex_map = {
-    "e0": r"$e_0$",
-    "lgMBH_mass": r"$\log_{10}(M_{\mathrm{BH}}/M_\odot)$",
-    "MBHspin": r"$a$",
-    # "z_gal": r"$z$",
-}
+theta0_EMRI_final = {}
+theta0_TDE_final_ZTF = {}
+theta0_TDE_final_LSST = {}
+
+def to_numpy(x):
+    return np.asarray(x, dtype=np.float32)
+
+def to_torch(x, device="cpu"):
+    return torch.as_tensor(x, dtype=torch.float32, device=device)
 
 
-def plot_1D_histogram(theta, source):
-    for key, values in theta.items():
-        x = values.mean(axis=1)
-
-        plt.figure(figsize=(8,6))
-        plt.hist(x, bins=40, color='steelblue', edgecolor='black', alpha=0.7)
-
-        plt.xlabel(key_latex_map.get(key, key), fontsize=16)
-        plt.ylabel("Counts", fontsize=16)
-        plt.title(f"{source}: Distribution of {key_latex_map.get(key, key)}", fontsize=18)
-
-        plt.tight_layout()
-        plt.savefig(f'{loc}/{source}_1D_{key}.png')
-        plt.close()
-        
+print("=======================")
 print("Inspecting EMRI data:")
-with h5py.File(f'./data/fisher_data/{args.GALAXIES}/true_data_EMRI.h5', 'r') as hf:
+print("=======================")
+
+with h5py.File(f'./data/fisher_data/{args.GALAXIES}/true_data_EMRI_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r') as hf, h5py.File(f'{loc}/true_data_EMRI_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w') as hf_out:
     for key in hf.keys():
         print(f"Dataset '{key}' shape = {hf[key].shape}, dtype = {hf[key].dtype}")
         theta0_EMRI[key] = hf[key][()]
+        if key in keys_to_save_EMRI:
+            theta0_EMRI_final[key] = theta0_EMRI[key]  # Store in final dict for later plotting
+            print(f"[SAVING] '{key}' to EMRI dataset...")
+            hf_out.create_dataset(key, data=theta0_EMRI[key])
+        else:
+            print(f"[SKIPPING] '{key}' not in keys_to_save_EMRI, skipping saving to EMRI dataset.")
 
-with h5py.File(f'{loc}/true_data_EMRI.h5', 'w') as hf:
-    for key in keys_to_save_EMRI:
-        theta0_EMRI_final[key] = theta0_EMRI[key]  # Store in final dict for later plotting
-        print(f"[SAVING] '{key}' to EMRI dataset...")
-        hf.create_dataset(key, data=theta0_EMRI[key])
+# Save EMRI data as torch tensors separately
+print("\n[SAVING] EMRI torch data...")
+torch.save({key: to_torch(theta0_EMRI_final[key]) for key in theta0_EMRI_final.keys()}, 
+           f'{loc}/true_data_EMRI_{ "clustering" if args.is_clustering else "no_clustering" }_torch.pt') 
 
-# for survey in ['ZTF', 'LSST']:
-for survey in ['ZTF']:
-    print(f"\nInspecting TDE data for survey '{survey}':")
-    with h5py.File(f'./data/fisher_data/{args.GALAXIES}/true_data_TDE_{survey}.h5', 'r') as hf:
+
+
+for survey in ['ZTF', 'LSST']:
+    print("===============================================")
+    print(f"Inspecting TDE data for survey '{survey}':")
+    print("===============================================")
+
+    with h5py.File(f'./data/fisher_data/{args.GALAXIES}/true_data_TDE_{survey}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r') as hf, h5py.File(f'{loc}/true_data_TDE_{survey}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w') as hf_out:
         for key in hf.keys():
             print(f"Dataset '{key}' shape = {hf[key].shape}, dtype = {hf[key].dtype}")
             theta0_TDE[key] = hf[key][()]
 
-    # with h5py.File(f'./data/fisher_data/{args.GALAXIES}/fisher_results_TDE_{survey}.h5', 'r') as fisher_tde_file:
-    #     for gal in fisher_tde_file.keys():
-    #         print(f"Galaxy '{gal}' has attributes:")
-    #         for attr_key in fisher_tde_file[gal].attrs.keys():
-    #             print(f"  - {attr_key}: {fisher_tde_file[gal].attrs[attr_key]}")
+            if key in keys_to_save_TDE:
+                saved_key = key  # Keep track of original key
+                data = theta0_TDE[key].copy()
+                
+                if key == 'mbh_6':  # Convert mbh_6 back to log10_M for consistency
+                    data = data + 6  # Convert mbh_6 to log10_M
+                    saved_key = 'lgMBH_mass'
+                elif key == 'stellar_mass':
+                    saved_key = 'CO_mass'
+                elif key == 'redshift':
+                    saved_key = 'z_gal'
 
-    with h5py.File(f'{loc}/true_data_TDE_{survey}.h5', 'w') as hf:
-        for key in keys_to_save_TDE:
-            values = theta0_TDE[key]
-            if key == 'mbh_6':  # Convert mbh_6 back to log10_M for consistency
-                values = values + 6  # Convert mbh_6 to log10_M
-                key = 'lgMBH_mass'  # Save under the same key as EMRI data for consistency
-            theta0_TDE_final[key] = values  # Store in final dict for later plotting
-            print(f"[SAVING] '{key}' to TDE dataset...")
-            hf.create_dataset(key, data=values)
+                if survey == 'ZTF':
+                    theta0_TDE_final_ZTF[saved_key] = data
+                    print(f"[SAVING] '{saved_key}' to TDE dataset for ZTF...")
+                else:
+                    theta0_TDE_final_LSST[saved_key] = data
+                    print(f"[SAVING] '{saved_key}' to TDE dataset for LSST...")
+                hf_out.create_dataset(saved_key, data=data)
+                # Also save torch version
+                hf_out.create_dataset(f'{saved_key}_torch', data=to_numpy(to_torch(data)))
 
-    hf.close()
-    
-    plot_1D_histogram(theta0_EMRI_final, source='EMRI')
-    plot_1D_histogram(theta0_TDE_final, source=f'TDE_{survey}')
+# Save TDE torch data separately for each survey
+print("\n[SAVING] TDE torch data for ZTF...")
+torch.save({key: to_torch(theta0_TDE_final_ZTF[key]) for key in theta0_TDE_final_ZTF.keys()}, 
+           f'{loc}/true_data_TDE_ZTF_{ "clustering" if args.is_clustering else "no_clustering" }_torch.pt')
+
+print("[SAVING] TDE torch data for LSST...")
+torch.save({key: to_torch(theta0_TDE_final_LSST[key]) for key in theta0_TDE_final_LSST.keys()}, 
+           f'{loc}/true_data_TDE_LSST_{ "clustering" if args.is_clustering else "no_clustering" }_torch.pt')
+
+kwargs_sources = {
+    "EMRI": theta0_EMRI_final,
+    "TDE (ZTF)": theta0_TDE_final_ZTF,
+    "TDE (LSST)": theta0_TDE_final_LSST
+}
+
+Plotting.plot_comparison_histogram(key="lgMBH_mass", loc=loc, x_label=r"$\log_{10}(M_{\mathrm{BH}}/M_\odot)$", **kwargs_sources)
+Plotting.plot_comparison_histogram(key="MBHspin", loc=loc, x_label=r"$a$", **kwargs_sources)
+Plotting.plot_comparison_histogram(key="CO_mass", loc=loc, x_label=r"$m_{\mathrm{CO}}$", **kwargs_sources)
+# Plotting.plot_comparison_histogram(key="e0", loc=loc, x_label=r"$e_0$", **kwargs_sources)
+Plotting.plot_comparison_histogram(key="z_gal", loc=loc, x_label=r"$z$", **kwargs_sources)

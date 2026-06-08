@@ -16,6 +16,7 @@ parser.add_argument("--OBSERVING_WINDOW", type=float, required=True)
 parser.add_argument("--MIN_DETECTIONS", type=int, required=True)
 parser.add_argument("--BANDS", nargs="+", default=["ztfg", "ztfr", "ztfi"], help="Bands to check for detections (e.g., 'ztfg ztfr ztfi' for ZTF)")
 parser.add_argument("--SURVEY", type=str, default="ztf", help="Survey to simulate (e.g., 'ztf' or 'lsst')")
+parser.add_argument("--is_clustering", type=int, required=True, help="Whether to use clustering")
 
 args = parser.parse_args()
 
@@ -25,14 +26,19 @@ MIN_DETECTIONS = args.MIN_DETECTIONS
 SURVEY = args.SURVEY
 BANDS = args.BANDS
 
+# # ZTF-safe window
+# t0_mjd_transient = np.random.uniform(58200, 59550)
+# # Rubin 10yr baseline, with buffers
+# t0_mjd_transient = np.random.uniform(60100, 63500)
+
 if SURVEY == "ZTF":
     SIMULATE_FN = SimulateOpticalTransient.simulate_transient_in_ztf
     SURVEY = "ztf"
-    t0_mjd_transient = 58288 # MJD for ZTF (can be adjusted)
+    # t0_mjd_transient = 58288 # MJD for ZTF (can be adjusted)
 elif SURVEY == "LSST":
     SIMULATE_FN = SimulateOpticalTransient.simulate_transient_in_rubin
     SURVEY = "Rubin_10yr_baseline"
-    t0_mjd_transient = 60000 # MJD for Rubin (can be adjusted)
+    # t0_mjd_transient = 60000 # MJD for Rubin (can be adjusted)
 else:
     raise ValueError(f"Unsupported survey: {SURVEY}")
 
@@ -46,7 +52,7 @@ def run_telescope_simulator(theta):
         parameters=theta,
         model_kwargs={},
         end_transient_time=OBSERVING_WINDOW,
-        snr_threshold=10.0,
+        snr_threshold=5.0,
         add_source_noise=False
     )
     
@@ -84,26 +90,30 @@ def process_one_galaxy(gal, dat):
     print(f"\n[GALAXY] Processing {gal} at z={dat['z_gal']} with lgMBH={dat['lgMBH_mass']} and star_mass={dat['star_mass']}")
 
     z_gal = float(dat["z_gal"])
-    ra = float(dat["ra"])
-    dec = float(dat["dec"])
+    ra_rad = float(dat["ra_rad"])
+    dec_rad = float(dat["dec_rad"])
     mbh6 = float(dat["lgMBH_mass"] - 6)
     stellar_mass = float(dat["star_mass"])
 
     alpha = dat["alpha"]
     beta = dat["beta"]
     eta = dat["eta"]
+    t0_mjd_transient = dat["t0_mjd_transient_" + args.SURVEY.upper()]
 
     thetas = [{
         "redshift": z_gal,
         "mbh_6": mbh6,
         "stellar_mass": stellar_mass,
-        "eta": 0.1, #float(eta[i]),
-        "alpha": 0.1, #float(alpha[i]),
-        "beta": 0.9, #float(beta[i]),
-        "t0_mjd_transient": t0_mjd_transient,
-        "t0": t0_mjd_transient,
-        "ra": ra,
-        "dec": dec,
+        # "eta": 0.1, #float(eta[i]),
+        # "alpha": 0.1, #float(alpha[i]),
+        # "beta": 0.9, #float(beta[i]),
+        "eta": float(eta[i]),
+        "alpha": float(alpha[i]),
+        "beta": float(beta[i]),
+        "t0_mjd_transient": t0_mjd_transient[i],
+        "t0": t0_mjd_transient[i],
+        "ra": ra_rad,
+        "dec": dec_rad,
     } for i in range(len(alpha))]
 
     print(f"[INFO] Running {len(thetas)} transient simulations...")
@@ -126,7 +136,7 @@ def process_one_galaxy(gal, dat):
 if __name__ == "__main__":
     
     print("[INFO] Loading HDF5 file...")
-    with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_events.h5', 'r') as hf:
+    with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_events_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r') as hf:
         data = {
             gal: {k: np.array(hf[gal][k]) for k in hf[gal].keys()}
             for gal in hf.keys()

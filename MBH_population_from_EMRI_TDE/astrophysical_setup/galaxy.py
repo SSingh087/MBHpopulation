@@ -1,25 +1,192 @@
+"""
+================================================================================
+galaxy.py
+================================================================================
+
+GALAXY INITIALIZATION AND PROPERTIES
+This module handles galaxy stellar mass, velocity dispersion, and black hole
+mass calculations using fundamental astrophysical relations.
+
+KEY RELATIONS
+─────────────────────────────────────────────────────────────────────────
+1. Size-Mass Relation: log10(Re/kpc) = 0.24*(Mgal-10.7) + 0.82 + scatter
+   INPUT: lgMgal (log10(M*) in Msun)
+   OUTPUT: Re (half-light radius in kpc)
+   SCATTER: 0.20 dex
+
+2. Virial Relation: sigma = sqrt(G*M_enclosed / (kvir*Re))
+   INPUT: M_enclosed (typically 0.5*Mstar), Re
+   OUTPUT: sigma (velocity dispersion in km/s)
+
+3. M-Sigma Relation: log10(MBH) = A + B*log10(sigma/sigma_0) + scatter
+   INPUT: sigma (velocity dispersion in km/s)
+   OUTPUT: MBH mass in Msun
+   REFERENCES: arXiv:2205.06277 (Greene et al. style)
+   SCATTER: 0.53 dex
+
+4. Nucleation Fraction: f_NSC(Mgal) depends on galaxy mass
+   INPUT: lgMgal
+   OUTPUT: probability that galaxy hosts an NSC
+   REFERENCES:
+     - Hannah et al. arXiv:2407.10911 Fig 4
+     - Neumayer et al. arXiv:2001.03626 Fig 3
+
+MODES
+─────────────────────────────────────────────────────────────────────────
+Three initialization modes:
+  Mode 1 (Forward): Provide lgMgal → computes sigma → computes MBH
+  Mode 2 (Inverse):  Provide lgMBH + sigma_pc_yr → uses directly
+  Mode 3 (Mixed):    Provide both lgMgal + lgMBH → treats independently
+
+================================================================================
+"""
+
 import numpy as np
 from typing import Optional
 import warnings
 
 from config import *
 
+# NUCLEATION FRACTION MODELS
+# ─────────────────────────────────────────────────────────────────────────
+# These functions model the probability that a galaxy of stellar mass Mgal
+# hosts a nuclear star cluster.
+#
+# INPUTS: lgMgal (log10(M*/Msun))
+# OUTPUTS: probability in range [0, 1]
+#
+# REFERENCES:
+#   _f_NSC_Hannah_: arXiv:2407.10911 Fig 4
+#   _f_NSC_Neumayer_: arXiv:2001.03626 Fig 3
+#
+# The final nucleation probability is the maximum of the two models.
+
 _f_NSC_Hannah_   = lambda lgMgal: np.exp(-((lgMgal - 7.6)**4) / 400.0)  # arXiv:2407.10911 Fig 4
 _f_NSC_Neumayer_ = lambda lgMgal: np.exp(-((lgMgal - 9.0)**4) /  50.0)  # arXiv:2001.03626 Fig 3
 
 class Galaxy:
     """
-    Galaxy with simple size-mass, virial sigma, and M-sigma MBH.
+    Galaxy with size-mass, virial sigma, and M-sigma black hole relations.
+
+    This class encapsulates galaxy properties and derived quantities based on
+    stellar mass, with automatic computation of velocity dispersion and
+    black hole mass using well-calibrated astrophysical relations.
+
+    INITIALIZATION MODES
+    ────────────────────────────────────────────────────────────────────────
+    The class supports three initialization modes:
+
+    MODE 1: FORWARD (lgMgal → sigma → MBH)
+      lgMgal is provided, sigma and MBH are computed
+      Inputs: lgMgal, z_gal, nucleation_occurs, ra_deg, dec_deg, rng
+      Usage: gal = Galaxy(lgMgal=array, z_gal=z_array, ...)
+      Automatically applies nucleation filtering
+
+    MODE 2: INVERSE (lgMBH directly specified)
+      lgMBH and sigma are provided externally
+      Inputs: lgMBH, sigma_pc_yr, z_gal
+      Usage: gal = Galaxy(lgMBH=array, sigma_pc_yr=array, z_gal=z_array)
+      Skips M-sigma relation, assumes all objects are nucleated
+
+    MODE 3: MIXED (both lgMgal and lgMBH specified)
+      Both quantities provided independently for testing/PDF construction
+      Inputs: lgMgal, lgMBH, z_gal
+      Usage: gal = Galaxy(lgMgal=array, lgMBH=array, z_gal=z_array)
+      Bypasses M-sigma relation; lgMgal and lgMBH are independent
+
+    ATTRIBUTES AFTER INITIALIZATION
+    ────────────────────────────────────────────────────────────────────────
+    lgMgal : ndarray
+        log10(stellar mass / Msun), shape (N_nucleated,)
+    sigma_pc_yr : ndarray
+        velocity dispersion in pc/year, shape (N_nucleated,)
+    sigma_km_s : ndarray
+        velocity dispersion in km/s, shape (N_nucleated,)
+    lgMBH_mass : ndarray
+        log10(MBH mass / Msun), shape (N_nucleated,)
+    z_gal : ndarray
+        galaxy redshift, shape (N_nucleated,)
+    ra_deg : ndarray
+        right ascension in degrees, shape (N_nucleated,)
+    dec_deg : ndarray
+        declination in degrees, shape (N_nucleated,)
+    nucleation_occurs : ndarray
+        boolean mask of which input galaxies became nucleated
+
+    UNITS
+    ────────────────────────────────────────────────────────────────────────
+    sigma : pc/year (stored as sigma_pc_yr) or km/s (sigma_km_s)
+    lgMgal : log10(Msun)
+    lgMBH_mass : log10(Msun)
+    Mass: Msun (log10 space)
+    Radius: kpc, cm, or pc (depends on method)
+    Redshift: dimensionless
     """
 
     def __init__(self, z_gal: np.ndarray, ra_deg: np.ndarray=None, dec_deg: np.ndarray=None, rng: Optional[np.random.Generator] = None, lgMgal: Optional[np.ndarray] = None, lgMBH: Optional[np.ndarray] = None, sigma_pc_yr: Optional[np.ndarray] = None, nucleation_occurs: bool = True):
         """
-        Parameters
-        ----------
-        lgMgal : float
-            log10(Mstar/Msun)
-        nucleation_occurs : bool
-            Whether nucleation occurs for this galaxy (flag decided externally).
+        Initialize a Galaxy instance with stellar mass and derived properties.
+
+        PARAMETERS
+        ──────────────────────────────────────────────────────────────────────
+        z_gal : ndarray
+            Galaxy redshift (required for all modes)
+            DIMENSION: (N_gal,)
+            UNITS: dimensionless
+
+        lgMgal : ndarray, optional
+            log10(stellar mass / Msun) - used in FORWARD mode
+            DIMENSION: (N_gal,)
+            UNITS: dex (log10 scale)
+            DEFAULT: None (triggers INVERSE mode if lgMgal is None and lgMBH is provided)
+
+        lgMBH : ndarray, optional
+            log10(black hole mass / Msun) - used in INVERSE or MIXED modes
+            DIMENSION: (N_gal,)
+            UNITS: dex (log10 scale)
+            DEFAULT: None
+
+        sigma_pc_yr : ndarray, optional
+            Velocity dispersion in pc/year (INVERSE mode only)
+            DIMENSION: (N_gal,)
+            UNITS: pc/year
+            DEFAULT: None (computed from M-Sigma in FORWARD mode)
+
+        nucleation_occurs : ndarray or bool, optional
+            Boolean mask indicating which galaxies are nucleated
+            DIMENSION: (N_gal,) or scalar
+            UNITS: dimensionless
+            DEFAULT: True (all nucleated)
+
+        ra_deg : ndarray, optional
+            Right ascension in degrees
+            DIMENSION: (N_gal,)
+            UNITS: degrees [0, 360)
+            DEFAULT: None (randomly generated)
+
+        dec_deg : ndarray, optional
+            Declination in degrees
+            DIMENSION: (N_gal,)
+            UNITS: degrees [-90, 90]
+            DEFAULT: None (randomly generated)
+
+        rng : numpy.random.Generator, optional
+            Random number generator for reproducibility
+            DEFAULT: numpy.random.default_rng() (system entropy)
+
+        INTERNAL DERIVATIONS
+        ──────────────────────────────────────────────────────────────────────
+        The class automatically:
+          1. Computes velocity dispersion from size-mass relation (FORWARD mode)
+          2. Derives black hole mass from M-sigma relation (FORWARD mode)
+          3. Applies nucleation filtering based on f_NSC(Mgal)
+          4. Converts units between pc/year and km/s as needed
+          5. Stores scatter as part of object for consistency
+
+        RAISES
+        ──────────────────────────────────────────────────────────────────────
+        ValueError
+            If neither lgMgal nor lgMBH is provided (ambiguous mode)
         """
 
         self.rng = rng if rng is not None else np.random.default_rng()
@@ -28,20 +195,31 @@ class Galaxy:
         if lgMgal is None and lgMBH is None:
             raise ValueError("Must specify either lgMgal or lgMBH. They are related by the M-sigma relation. Specify one or the other, or neither to compute lgMBH from lgMgal.")
 
-        # Case 1: MBH → sigma, Mgal   (inverse deterministic mode)
+        # Case 1: MBH → sigma (inverse deterministic mode with both lgMgal and lgMBH)
         if lgMgal is not None and lgMBH is not None:
-            warnings.warn("Both lgMgal and lgMBH are provided. This will ignore the M-sigma relation and treat them as independent. Ensure this is intended behavior.")
+            warnings.warn("[INFO] : Both lgMgal and lgMBH are provided. This will ignore the M-sigma relation and treat them as independent. Ensure this is intended behavior. Also one should not attempt to use the M-sigma relation in this mode since it will be inconsistent with the provided lgMBH and lgMgal. This mode is primarily for testing and PDF construction where we want to condition on both properties independently.")
+            self.lgMBH_mass = np.asarray(lgMBH)
+            self.lgMgal = np.asarray(lgMgal)
+
+            # No nucleation randomness in since we are conditioning on lgMBH which implies a nucleated galaxy. So we can set nucleation_occurs=True for all of them.
+            self.nucleation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
+
+        # Case 2: Only lgMBH provided (inverse mode - MBH/sigma specified externally)
+        elif lgMBH is not None and lgMgal is None:
+            print("[INFO] : Only lgMBH is provided. This will compute lgMgal and sigma from lgMBH using the M-sigma relation.")
             self.lgMBH_mass = np.asarray(lgMBH)
             self.sigma_pc_yr = np.asarray(sigma_pc_yr)
             self.sigma_km_s = self.sigma_pc_yr * pc_to_cm / sec_per_year / 1e5  # convert to km/s
-            self.lgMgal = np.asarray(lgMgal)
+            self.lgMgal = None  # Not known in this mode
 
-            # No nucleation randomness in PDF mode since we are conditioning on lgMBH which implies a nucleated galaxy. So we can set nucleation_occurs=True for all of them.
+            # All objects are nucleated in this mode since we are conditioning on lgMBH
             self.nucleation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
 
-        # Case 2: Mgal → sigma, MBH (forward galaxy model)
+        # Case 3: Mgal → sigma, MBH (forward galaxy model)
         elif lgMgal is not None and lgMBH is None:
+            print("[INFO] : Mgal is provided. This will compute sigma and MBH from lgMgal using the M-sigma relation.")
             self.lgMgal = np.array(lgMgal)
+
 
             # vectorized nucleation flags
             if nucleation_occurs is None:
@@ -60,35 +238,121 @@ class Galaxy:
         if ra_deg is None and dec_deg is None:
             self.ra_deg, self.dec_deg = self.sky_location()[self.nucleation_occurs].T
         else:
-            self.ra_deg = np.asarray(ra_deg[self.nucleation_occurs])
-            self.dec_deg = np.asarray(dec_deg[self.nucleation_occurs])
+            ra_deg = np.asarray(ra_deg)
+            dec_deg = np.asarray(dec_deg)
+            self.ra_deg = ra_deg[self.nucleation_occurs]
+            self.dec_deg = dec_deg[self.nucleation_occurs]
         
-            # print(f"Number of galaxies: {self.lgMgal.shape[0]} with nucleation_occurs={self.nucleation_occurs.sum()} out of {self.lgMgal.shape[0]} total.")
+        # print(f"Number of galaxies: {self.lgMgal.shape[0]} with nucleation_occurs={self.nucleation_occurs.sum()} out of {self.lgMgal.shape[0]} total.")
 
     @classmethod
     def check_nucleation(cls, lgMgal, z_gal):
         """
-        returns a Galaxy instance if nucleation occurs, else None.
+        Determine which galaxies are nucleated based on stellar mass.
+
+        This method applies nucleation probability models and stochastically
+        determines which galaxies in a sample host nuclear star clusters (NSCs).
+
+        NUCLEATION MODEL
+        ────────────────────────────────────────────────────────────────────────
+        Probability of NSC is determined by:
+            f_NSC(Mgal) = max(f_Hannah(Mgal), f_Neumayer(Mgal))
+
+        where:
+            f_Hannah(Mgal) ∝ exp[-((Mgal - 7.6)^4 / 400)]
+            f_Neumayer(Mgal) ∝ exp[-((Mgal - 9.0)^4 / 50)]
+
+        Each galaxy is then nucleated with probability f_NSC(Mgal).
+
+        INPUTS
+        ────────────────────────────────────────────────────────────────────────
+        lgMgal : ndarray
+            log10(stellar mass / Msun)
+            DIMENSION: (N_gal,)
+            UNITS: dex
+
+        z_gal : ndarray
+            Galaxy redshift (not currently used in nucleation model)
+            DIMENSION: (N_gal,)
+            UNITS: dimensionless
+
+        OUTPUTS
+        ────────────────────────────────────────────────────────────────────────
+        mask : ndarray (bool)
+            Boolean array indicating nucleated galaxies
+            DIMENSION: (N_gal,)
+            UNITS: True/False
+
+        EXAMPLE
+        ──────────────────────────────────────────────────────────────────────
+        >>> lgMgal = np.array([9.0, 10.0, 11.0])
+        >>> z_gal = np.array([0.1, 0.1, 0.1])
+        >>> mask = Galaxy.check_nucleation(lgMgal, z_gal)
+        >>> print(f"Nucleated: {mask.sum()}/{len(mask)}")
         """
         lgMgal = np.array(lgMgal)
         z_gal = np.array(z_gal)
 
-        p1 = _f_NSC_Hannah_(lgMgal)
-        p2 = _f_NSC_Neumayer_(lgMgal)
+        # Compute nucleation probability from two independent models
+        p1 = _f_NSC_Hannah_(lgMgal)       # Hannah et al. model
+        p2 = _f_NSC_Neumayer_(lgMgal)     # Neumayer et al. model
 
+        # Use maximum (most conservative approach)
         p = np.maximum(p1, p2)
 
+        # Stochastic sampling: draw uniform random numbers
         f = np.random.uniform(0.0, 1.0, size=lgMgal.shape)
 
+        # Galaxy is nucleated if f < p_NSC(Mgal)
         mask = f < p
-
         return mask
 
 
     def R_eff(self, lg_A=0.82, B=0.24, Re_scatter=0.20, unit='kpc'):
         """
-        Half-light (effective) radius from size-mass relation:
-        log10(Re/kpc) = B * (lgMgal - 10.7) + lg_A + N(0, Re_scatter)
+        Half-light (effective) radius from size-mass relation.
+
+        SCALING RELATION
+        ────────────────────────────────────────────────────────────────────────
+        The relation between galaxy size and stellar mass follows:
+
+            log10(Re / kpc) = B * (lgMgal - 10.7) + lg_A + N(0, Re_scatter)
+
+        where:
+          - Re is the effective (half-light) radius
+          - Mgal is the stellar mass
+          - Scatter is Gaussian in log-space
+
+        INPUTS
+        ────────────────────────────────────────────────────────────────────────
+        lg_A : float, optional
+            Logarithmic intercept (default: 0.82)
+            UNITS: dex
+
+        B : float, optional
+            Slope parameter (default: 0.24)
+            UNITS: dimensionless (dex/dex)
+
+        Re_scatter : float, optional
+            Gaussian scatter in log10(Re) (default: 0.20)
+            UNITS: dex
+
+        unit : str, optional
+            Output unit: 'kpc' or 'cm'
+            DEFAULT: 'kpc'
+
+        OUTPUTS
+        ────────────────────────────────────────────────────────────────────────
+        Re : ndarray
+            Half-light radius for each galaxy
+            DIMENSION: (N_nucleated,)
+            UNITS: kpc or cm (as specified)
+
+        EXAMPLE
+        ──────────────────────────────────────────────────────────────────────
+        >>> gal = Galaxy(lgMgal=np.array([10.0, 11.0]), z_gal=np.array([0.1, 0.1]))
+        >>> Re_kpc = gal.R_eff(unit='kpc')
+        >>> Re_cm = gal.R_eff(unit='cm')
         """
         lgreff = B * (self.lgMgal - 10.7) + lg_A
         lgreff += np.random.normal(0.0, Re_scatter, size=self.lgMgal.shape)
@@ -103,8 +367,55 @@ class Galaxy:
 
     def sigma(self, kvir=1.0, unit='km/s'):
         """
-        Virial sigma ~ sqrt( G * M_enclosed / (kvir * Re) ).
-        Here use M_enclosed = 0.5 * Mstar (in grams), Re in cm.
+        Compute velocity dispersion from virial relation.
+
+        PHYSICAL RELATION
+        ────────────────────────────────────────────────────────────────────────
+        The velocity dispersion is derived from the virial theorem:
+
+            sigma = sqrt(G * M_enclosed / (kvir * Re))
+
+        where:
+          - M_enclosed = 0.5 * Mstar (assumed half the stellar mass within Re)
+          - kvir is a virial dimensionless factor (typically 1.0 or 2.0)
+          - Re is the effective radius from size-mass relation
+
+        INPUTS
+        ────────────────────────────────────────────────────────────────────────
+        kvir : float, optional
+            Virial factor. Typical values:
+              kvir = 1.0 → singular isothermal sphere (default)
+              kvir = 2.0 → typical galaxy virial models
+            DEFAULT: 1.0
+            UNITS: dimensionless
+
+        unit : str, optional
+            Output unit for velocity dispersion:
+              'km/s'    → kilometers per second (most common)
+              'cm/s'    → centimeters per second (CGS)
+              'pc/year' → parsecs per year (astronomical)
+            DEFAULT: 'km/s'
+
+        OUTPUTS
+        ────────────────────────────────────────────────────────────────────────
+        sigma : ndarray
+            Velocity dispersion for each galaxy
+            DIMENSION: (N_nucleated,)
+            UNITS: km/s, cm/s, or pc/year (as specified)
+
+        INTERNAL COMPUTATION
+        ────────────────────────────────────────────────────────────────────────
+        1. Retrieves Re from size-mass relation in cm
+        2. Computes M_enclosed = 0.5 * Mstar (in grams)
+        3. Applies G_cgs (cm^3 g^-1 s^-2) virial formula
+        4. Returns result in CGS units (cm/s)
+        5. Converts to requested unit
+
+        EXAMPLE
+        ──────────────────────────────────────────────────────────────────────
+        >>> gal = Galaxy(lgMgal=np.array([10.0, 11.0]), z_gal=np.array([0.1, 0.1]))
+        >>> sigma_km_s = gal.sigma(kvir=1.0, unit='km/s')
+        >>> sigma_pc_yr = gal.sigma(kvir=1.0, unit='pc/year')
         """
         Re_cm = self.R_eff(unit='cm')
         Mstar_linear = 10.0**self.lgMgal
@@ -123,8 +434,76 @@ class Galaxy:
 
     def lgMBH(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, unit='Msun'):
         """
-        log10(MBH/Msun) from M-sigma; add Gaussian scatter.
-        Defaults match your Greene+20-like parameters.
+        Compute black hole mass from M-sigma scaling relation.
+
+        PHYSICAL RELATION (M-SIGMA)
+        ────────────────────────────────────────────────────────────────────────
+        The relation between supermassive black hole (SMBH) mass and galaxy
+        velocity dispersion follows:
+
+            log10(MBH/Msun) = A + B*log10(sigma/sigma_0) + scatter
+
+        where:
+          - MBH is the black hole mass
+          - sigma is the galaxy velocity dispersion
+          - sigma_0 is a reference velocity dispersion
+          - scatter is Gaussian intrinsic scatter in log-space
+
+        REFERENCE: arXiv:2205.06277 (Greene et al. style M-sigma relation)
+
+        INPUTS
+        ────────────────────────────────────────────────────────────────────────
+        A : float, optional
+            M-sigma intercept (dimensionless)
+            DEFAULT: 7.87 (from config.py)
+            UNITS: dex
+
+        B : float, optional
+            M-sigma slope (dimensionless, dex/dex)
+            DEFAULT: 4.55 (from config.py)
+            UNITS: dex per dex
+
+        sigma_0 : float, optional
+            Reference velocity dispersion
+            DEFAULT: 160.0 km/s (from config.py)
+            UNITS: km/s
+            Note: Some studies use 70 km/s instead, which significantly
+                  affects both Gamma_E (peak rate) and t_EMRI (peak time)
+
+        MBH_scatter : float, optional
+            Intrinsic scatter (standard deviation in log-space)
+            DEFAULT: 0.53 dex (from config.py)
+            UNITS: dex
+
+        unit : str, optional
+            Output unit (currently only 'Msun' supported)
+            DEFAULT: 'Msun'
+
+        OUTPUTS
+        ────────────────────────────────────────────────────────────────────────
+        lgMBH : ndarray
+            log10(MBH mass / Msun) for each galaxy
+            DIMENSION: (N_nucleated,)
+            UNITS: dex (log10 scale)
+
+        INTERNAL COMPUTATION
+        ────────────────────────────────────────────────────────────────────────
+        1. Retrieves sigma_km_s from virial relation
+        2. Applies M-sigma power law: A + B*log10(sigma/sigma_0)
+        3. Adds Gaussian scatter with std=MBH_scatter
+        4. Returns log10(M_BH/Msun)
+
+        EXAMPLE
+        ──────────────────────────────────────────────────────────────────────
+        >>> gal = Galaxy(lgMgal=np.array([10.0, 11.0]), z_gal=np.array([0.1, 0.1]))
+        >>> lgMBH_mass = gal.lgMBH(A=7.87, B=4.55, sigma_0=160.0)
+        >>> MBH_mass = 10**lgMBH_mass  # Convert to linear Msun
+
+        DEPENDENCIES
+        ────────────────────────────────────────────────────────────────────────
+        Requires sigma in km/s, which is computed from:
+          1. R_eff (size-mass relation)
+          2. Virial relation with stellar mass
         """
         sigma = self.sigma(unit='km/s')
         lgMBH = A + B * np.log10(sigma / sigma_0)
@@ -156,6 +535,8 @@ class Galaxy:
         """
         Random sky location in RA (0 to 360 degrees) and Dec (-90 to 90 degrees).
         """
-        ra_deg = self.rng.uniform(0.0, 360.0, size=len(self.lgMgal))
-        dec_deg = self.rng.uniform(-90.0, 90.0, size=len(self.lgMgal))
+        # Use lgMgal if available, otherwise use lgMBH_mass length
+        size = len(self.lgMgal) if self.lgMgal is not None else len(self.lgMBH_mass)
+        ra_deg = self.rng.uniform(0.0, 360.0, size=size)
+        dec_deg = self.rng.uniform(-90.0, 90.0, size=size)
         return np.column_stack((ra_deg, dec_deg))

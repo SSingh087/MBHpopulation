@@ -113,12 +113,19 @@ def compute_fisher(theta0, times_by_band, bands):
 
     for b in bands:
         J = np.vstack([derivs[p][b] for p in params])
-        sigma = np.full(J.shape[1], 0.05)
+        
+        # Use absolute value of data to estimate noise (magnitude errors are ~5%)
+        data_mag = np.abs(J[0, :])  # Use redshift derivatives as proxy for data scale
+        sigma = np.maximum(0.05 * data_mag, 0.01)  # At least 1% noise floor
         W = 1.0 / sigma**2
         JW = J * W
         F += JW @ J.T
 
     F = 0.5 * (F + F.T)
-    cov = np.linalg.inv(F + 1e-12 * np.eye(P))  # small reg
+    
+    # Add stronger regularization to prevent singular matrix
+    cond_num = np.linalg.cond(F)
+    reg = 1e-6 * np.trace(F) / P if cond_num > 1e10 else 1e-12
+    cov = np.linalg.inv(F + reg * np.eye(P))
 
     return F, cov, derivs

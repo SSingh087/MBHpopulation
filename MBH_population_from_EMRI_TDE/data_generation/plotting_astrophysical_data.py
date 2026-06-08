@@ -78,7 +78,6 @@ Plotting.MBHmass_vs_spin(lgMBH_clustering, initial_MBHspin_clustering, z_gal_clu
 # EVENT RATES
 # ====================
 
-
 Plotting.plot_event_rates(z_gal_no_clustering, lgMBH_no_clustering, generated_EMRIs_no_clustering, generated_TDEs_no_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/event_rates_no_clustering.png')
 
 Plotting.plot_event_rates(z_gal_clustering, lgMBH_clustering, generated_EMRIs_clustering, generated_TDEs_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/event_rates_clustering.png')
@@ -145,3 +144,13 @@ Plotting.plot_event_rates_hist_2d_waterfall(lgMBH_clustering, z_gal_clustering, 
 Plotting.plot_MBH_vs_waterfall(lgMBH_no_clustering, z_gal_no_clustering, generated_EMRIs_no_clustering, generated_TDEs_no_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/MBH_vs_waterfall_no_clustering.png')
 
 Plotting.plot_MBH_vs_waterfall(lgMBH_clustering, z_gal_clustering, generated_EMRIs_clustering, generated_TDEs_clustering, args.OBSERVING_WINDOW, filename=f'{loc}/MBH_vs_waterfall_clustering.png')
+
+import matplotlib.pyplot as plt
+import numpy as np
+plt.hist(lgMBH_no_clustering, bins=30, alpha=0.5, label='No Clustering', histtype='step')
+plt.hist(lgMBH_clustering, bins=30, alpha=0.5, label='Clustering', histtype='step')
+plt.xlabel('log10(MBH Mass)')
+plt.ylabel('Number of Galaxies')
+plt.title('MBH Mass Distribution')
+plt.legend()
+plt.savefig(f'{loc}/MBH_mass_histogram.png')

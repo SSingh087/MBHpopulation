@@ -44,7 +44,7 @@ class Plotting:
 
     @staticmethod
     def plot_lgMgal_vs_lgsigma(lgMgal: np.ndarray, sigma_kms: np.ndarray,
-                               color='lightcoral', lw=2, label=None):
+                               color='lightcoral', lw=2, label=None, filename='lgMgal_vs_lgsigma.png'):
         plt.figure(figsize=(6.2, 4.6))
         plt.scatter(lgMgal, np.log10(sigma_kms), color=color, lw=lw, label=label)
         plt.xlabel(r'$\log_{10}(M_\star/M_\odot)$')
@@ -52,13 +52,13 @@ class Plotting:
         if label:
             plt.legend(frameon=False)
         plt.tight_layout()
-        plt.savefig('lgMgal_vs_lgsigma.png')
+        plt.savefig(filename, dpi=300)
         plt.show()
         plt.close()
 
     @staticmethod
     def plot_lgMgal_vs_lgMBH(lgMgal: np.ndarray, lgMBH: np.ndarray,
-                             color='lightcoral', lw=2, label=None):
+                             color='lightcoral', lw=2, label=None, filename='lgMgal_vs_lgMBH.png'):
         plt.figure(figsize=(6.2, 4.6))
         plt.scatter(lgMgal, lgMBH, color=color, lw=lw, label=label)
         plt.xlabel(r'$\log_{10}(M_\star/M_\odot)$')
@@ -66,13 +66,13 @@ class Plotting:
         if label:
             plt.legend(frameon=False)
         plt.tight_layout()
-        plt.savefig('./data/lgMgal_vs_lgMBH.png')
+        plt.savefig(filename, dpi=300)
         plt.show()
         plt.close()
 
     @staticmethod
     def plot_lgsigma_vs_lgMBH(sigma_kms: np.ndarray, lgMBH: np.ndarray,
-                              color='lightcoral', lw=2, label=None):
+                              color='lightcoral', lw=2, label=None, filename='lgsigma_vs_lgMBH.png'):
         plt.figure(figsize=(6.2, 4.6))
         plt.scatter(np.log10(sigma_kms), lgMBH, color=color, lw=lw, label=label)
         plt.xlabel(r'$\log_{10}(\sigma\,[\mathrm{km\,s^{-1}}])$')
@@ -80,7 +80,7 @@ class Plotting:
         if label:
             plt.legend(frameon=False)
         plt.tight_layout()
-        plt.savefig('./data/lgsigma_vs_lgMBH.png')
+        plt.savefig(filename, dpi=300)
         plt.show()
         plt.close()
 
@@ -821,4 +821,94 @@ class Plotting:
         plt.savefig(filename)
         plt.close()
             
+    @staticmethod
+    def plot_comparison_histogram(key, loc='.', x_label=None, **kwargs_sources):
+        """
+        Plot comparison histograms for different datasets.
+
+        Parameters:
+            key (str): The key/column to plot from each dataset.
+            loc (str): Directory path to save the figure.
+            **kwargs_sources: Arbitrary keyword arguments of the form name=dataframe,
+                            where `name` is the label and `dataframe` contains the key.
+        """
+        plt.figure(figsize=(8,6))
         
+        combined_data = []
+        
+        for label, df in kwargs_sources.items():
+            if key not in df:
+                print(f"Key '{key}' not found in dataframe '{label}'")
+                continue
+            data = df[key].mean(axis=1)
+            combined_data.append(data)
+            plt.hist(data, bins=40, histtype='step', label=label)
+        
+        # Plot combined histogram
+        combined_array = np.concatenate(combined_data)
+        plt.hist(combined_array, bins=40, color='black', histtype='step', linestyle='--', linewidth=2, label='Combined')
+        
+        # Labels and styling
+        plt.xlabel(x_label, fontsize=16)
+        plt.ylabel("Counts", fontsize=16)
+        plt.legend()
+        plt.tight_layout()
+        
+        # Save figure
+        plt.savefig(f'{loc}/{key}_comparison_histogram.png')
+        plt.close()
+
+    @staticmethod
+    def make_waterfall_plot_EMRIs():
+        pass
+
+    @staticmethod    
+    def make_waterfall_plot_TDEs():
+        pass
+
+
+    @staticmethod
+    def plot_mass_functions(lgMgal_grid, phi_gsmf_grid, lgMBH_grid, phi_mbhmf_grid, z_grid, filename):
+
+        from matplotlib.lines import Line2D
+
+        cmap = plt.get_cmap('plasma')
+        colors = cmap(np.linspace(0, 1, len(z_grid)))
+
+        fig, ax1 = plt.subplots(figsize=(12, 8))
+
+        # Plot GSMF
+        for i, z in enumerate(z_grid):
+            ax1.plot(lgMgal_grid, phi_gsmf_grid[i], color=colors[i], linestyle='-', linewidth=2.0)
+
+        ax1.set_xlabel(r'$\log_{10}(M_\mathrm{gal}/M_{\odot})$', fontsize=16)
+        ax1.set_ylabel(r'$\log_{10}(\phi/\mathrm{cMpc}^{-3} \mathrm{dex}^{-1})$', fontsize=16)
+        ax1.set_xlim(6.5, 12)
+        ax1.set_ylim(-5, 1)
+        # ax1.grid(alpha=0.3)
+
+        # Plot MBHMF on top axis
+        ax2 = ax1.twiny()
+        for i, z in enumerate(z_grid):
+            ax2.plot(lgMBH_grid, phi_mbhmf_grid[i], color=colors[i], linestyle='--', linewidth=2.0)
+
+        ax2.set_xlabel(r'$\log_{10}(M_\mathrm{BH}/M_{\odot})$', fontsize=16)
+
+        # Create separate legend for linestyles
+        linestyle_legend = [
+            Line2D([0], [0], color='black', linestyle='-', linewidth=2.0, label='GSMF'),
+            Line2D([0], [0], color='black', linestyle='--', linewidth=2.0, label='MBHMF')
+        ]
+        legend1 = ax1.legend(handles=linestyle_legend, title='Mass Function', loc='upper right', fontsize=20,  title_fontsize=24, frameon=False)
+
+        # Create separate legend for colors (redshift)
+        color_legend = [Line2D([0], [0], color=colors[i], lw=2, label=f"$z={z_grid[i]:.2f}$") for i in range(len(z_grid))]
+        legend2 = ax1.legend(handles=color_legend, loc='lower left', fontsize=20, frameon=False, title_fontsize=24)
+
+        # Add first legend back manually
+        ax1.add_artist(legend1)
+
+        plt.tight_layout()
+        plt.savefig(filename, dpi=300)
+        plt.show()
+        plt.close()

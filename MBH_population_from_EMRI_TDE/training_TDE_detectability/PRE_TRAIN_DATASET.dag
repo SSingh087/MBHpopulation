@@ -1,0 +1,20 @@
+# Job 1: Generate TDE parameters
+JOB gen_TDE_params_ZTF SUBMIT_FILES/gen_TDE_params.sub
+VARS gen_TDE_params_ZTF SURVEY="ZTF"
+
+JOB gen_TDE_params_LSST SUBMIT_FILES/gen_TDE_params.sub
+VARS gen_TDE_params_LSST SURVEY="LSST"
+
+# Job 2: Calculate SNR for ZTF (depends on parameter generation)
+JOB gen_TDE_SNRs_ZTF SUBMIT_FILES/gen_TDE_SNRs.sub
+VARS gen_TDE_SNRs_ZTF SURVEY="ZTF"
+PARENT gen_TDE_params_ZTF CHILD gen_TDE_SNRs_ZTF
+
+# Job 3: Calculate SNR for LSST (depends on parameter generation)
+JOB gen_TDE_SNRs_LSST SUBMIT_FILES/gen_TDE_SNRs.sub
+VARS gen_TDE_SNRs_LSST SURVEY="LSST"
+PARENT gen_TDE_params_LSST CHILD gen_TDE_SNRs_LSST
+
+# Job 4: Preprocess TDE data (depends on both SNR jobs)
+JOB preprocess_TDE SUBMIT_FILES/preprocess_DATA.sub
+PARENT gen_TDE_SNRs_ZTF gen_TDE_SNRs_LSST CHILD preprocess_TDE
