@@ -12,7 +12,7 @@ output          = OUTPUT_FILES/gen_TDE_SNRs_$(SURVEY).out
 # Notifications
 
 # Resources
-request_cpus    = 8
-request_memory  = 6GB
+request_cpus    = 12
+request_memory  = 128GB
 
 queue 1

@@ -99,8 +99,8 @@ def process_events(theta_dict):
 
     for i in range(n_events):
         z_gal = float(theta_dict["z_gal"][i])
-        ra_deg = float(theta_dict["ra_deg"][i])
-        dec_deg = float(theta_dict["dec_deg"][i])
+        ra_rad = float(theta_dict["ra_rad"][i])
+        dec_rad = float(theta_dict["dec_rad"][i])
         lgMBH = float(theta_dict["lgMBH"][i])
         mbh_6 = lgMBH - 6
         eta = float(theta_dict["eta"][i])
@@ -116,13 +116,30 @@ def process_events(theta_dict):
             "beta": beta,
             "t0_mjd_transient": t0_mjd_transient[i],
             "t0": t0_mjd_transient[i],
-            "ra": ra_deg,
-            "dec": dec_deg,
+            "ra": ra_rad,
+            "dec": dec_rad,
         })
     
-    print(f"[INFO] Running {len(thetas)} transient simulations...")
-    with Pool(processes=16) as pool:
-        sims = pool.map(run_telescope_simulator, thetas)
+    print(f"[INFO] Running {len(thetas)} transient simulations (batch processing)...")
+    
+    # Process in batches to reduce memory usage
+    batch_size = 25
+    sims = []
+    for batch_start in range(0, len(thetas), batch_size):
+        batch_end = min(batch_start + batch_size, len(thetas))
+        batch = thetas[batch_start:batch_end]
+        
+        print(f"[INFO] Processing batch {batch_start//batch_size + 1}/{(len(thetas) + batch_size - 1)//batch_size} ({batch_start}-{batch_end})")
+        
+        with Pool(processes=12) as pool:
+            batch_sims = pool.map(run_telescope_simulator, batch)
+        
+        sims.extend(batch_sims)
+        
+        # Explicit cleanup
+        del batch_sims, batch
+        import gc
+        gc.collect()
     
     # Determine detectability (0 or 1) for each event
     detectability = np.zeros(n_events, dtype=int)
@@ -150,8 +167,8 @@ if __name__ == "__main__":
         lgMBH = hf['lgMBH'][:]
         MBHspin = hf['MBHspin'][:]
         z_gal = hf['z_gal'][:]
-        ra_deg = hf['ra_deg'][:]
-        dec_deg = hf['dec_deg'][:]
+        ra_rad = hf['ra_rad'][:]
+        dec_rad = hf['dec_rad'][:]
         eta = hf['eta'][:]
         alpha = hf['alpha'][:]
         beta = hf['beta'][:]
@@ -160,8 +177,8 @@ if __name__ == "__main__":
         "lgMBH": lgMBH,
         "MBHspin": MBHspin,
         "z_gal": z_gal,
-        "ra_deg": ra_deg,
-        "dec_deg": dec_deg,
+        "ra_rad": ra_rad,
+        "dec_rad": dec_rad,
         "eta": eta,
         "alpha": alpha,
         "beta": beta

@@ -1,0 +1,32 @@
+log = LOG_FILES/train_TDE.$(num_neurons)_$(layers)_$(loss_type)_$(rescaler_flag)_$(SURVEY).log
+error = ERROR_FILES/train_TDE.$(num_neurons)_$(layers)_$(loss_type)_$(rescaler_flag)_$(SURVEY).err
+output = OUTPUT_FILES/train_TDE.$(num_neurons)_$(layers)_$(loss_type)_$(rescaler_flag)_$(SURVEY).out
+
+
+executable = EXECUTABLES/train_TDE_detectability.sh
+getenv = True
+
+request_GPUs = 1
+request_cpus = 1
+request_memory = 8GB
+
+arguments = $(num_neurons) $(layers) $(loss_type) $(rescaler_flag) $(SURVEY)
+
+# Smart hyperparameter combinations for binary TDE detectability classification
+# Testing: neurons (64,128,256) × layers (2,3,4) × loss (BCE) × rescaler (yes/no) × surveys (ZTF,LSST)
+queue num_neurons, layers, loss_type, rescaler_flag, SURVEY from (
+64 2 BCE no_rescaler ZTF
+64 2 BCE no_rescaler LSST
+64 3 BCE no_rescaler ZTF
+64 3 BCE no_rescaler LSST
+128 2 BCE no_rescaler ZTF
+128 2 BCE no_rescaler LSST
+128 3 BCE no_rescaler ZTF
+128 3 BCE no_rescaler LSST
+128 4 BCE no_rescaler ZTF
+128 4 BCE no_rescaler LSST
+256 3 BCE no_rescaler ZTF
+256 3 BCE no_rescaler LSST
+256 4 BCE no_rescaler ZTF
+256 4 BCE no_rescaler LSST
+)

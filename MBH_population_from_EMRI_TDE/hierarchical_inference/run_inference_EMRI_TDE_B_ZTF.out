@@ -1,0 +1,4 @@
+Doing inference for source EMRI_TDE and survey ZTF assuming POPULATION B
+Using device: cpu
+Truths: [-2.5, 0.3, 0.1, 0.7, 0.1, 0.7, 1.0, 0.5, 10.0, 0.5, 0.5, 0.2, 0.1, 0.8, 0.1, 0.65, 0.01, 1]
+Labels: ['$\\lambda_M$', '$\\mu_{1,a}$', '$\\sigma_{1,a}$', '$\\mu_{2,a}$', '$\\sigma_{2,a}$', '$w_a$', '$\\mu_{1,e}$', '$\\sigma_{1,e}$', '$\\mu_{2,e}$', '$\\sigma_{2,e}$', '$w_e$', '$\\mu_{\\rm sBH}$', '$\\mu_{\\star}$', '$\\sigma_{\\rm sBH}$', '$\\sigma_{\\star}$', '$w_{\\rm CO}$', '$\\alpha_z$', '$\\beta_z$']

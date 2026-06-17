@@ -5,14 +5,11 @@ EVENTS_SCI=$(printf "%.0E" $EVENTS | sed 's/+0//')_events
 
 EVENTS=$(printf "%.0E" "$EVENTS" | sed 's/E+0/E/')
 
-
 NUM_NEURONS=$1
 LAYERS=$2
 LOSS_TYPE=$3
 RESCALER_FLAG=$4
-
 SURVEY=$5
-
 
 if [ "$SURVEY" = "LSST" ]; then
     Z_MIN=$Z_GAL_MIN_LSST
@@ -22,7 +19,13 @@ else
     Z_MAX=$Z_GAL_MAX_ZTF
 fi
 
-echo "Training prams-> TDE detectability model with $NUM_NEURONS neurons, $LAYERS layers, loss type: $LOSS_TYPE, rescaler_flag: $RESCALER_FLAG"
+echo "Training TDE detectability model"
+echo "  Neurons: $NUM_NEURONS"
+echo "  Layers: $LAYERS"
+echo "  Loss type: $LOSS_TYPE"
+echo "  Rescaler: $RESCALER_FLAG"
+echo "  Survey: $SURVEY"
+echo "  Events: $EVENTS"
 
 python train_model.py \
    --events $EVENTS \
@@ -31,12 +34,12 @@ python train_model.py \
    --num_neurons $NUM_NEURONS \
    --layers $LAYERS \
    --train_test_frac 0.8 \
-   --learning_rate .0001 \
+   --learning_rate 0.0001 \
    --n_epochs 1000 \
    --n_batches 10 \
-   --update_every 500 \
+   --update_every 10 \
    --verbose True \
-   --outdir MODEL_${LOSS_TYPE}_${RESCALER_FLAG} \
+   --outdir TDE_DETECT_${LOSS_TYPE}_${RESCALER_FLAG} \
    --device cuda \
-  --loss_type $LOSS_TYPE \
-  --rescaler_flag $RESCALER_FLAG
+   --loss_type $LOSS_TYPE \
+   --rescaler_flag $RESCALER_FLAG

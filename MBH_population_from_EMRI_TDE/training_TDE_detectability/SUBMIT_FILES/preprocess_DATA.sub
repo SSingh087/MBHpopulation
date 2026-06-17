@@ -10,7 +10,7 @@ getenv = True
 
 # Resource requirements
 request_cpus = 1
-request_memory = 1GB
+request_memory = 4GB
 
 # Number of jobs
 queue 1

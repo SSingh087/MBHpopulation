@@ -180,155 +180,309 @@ class Plotting:
 
     @staticmethod
     def MBHmass_vs_spin(mbhmass, spin, z, loc, cmap="plasma"):   
+
+        from matplotlib.colors import Normalize
+
+        mbhmass = np.asarray(mbhmass)
+        spin    = np.asarray(spin)
+        z       = np.asarray(z)
+
+        # ── figure / grid ─────────────────────────────────────────────────────────
         fig = plt.figure(figsize=(9, 9))
-        gs = gridspec.GridSpec(
-            4, 4,
-            figure=fig,
-            wspace=0.0,
-            hspace=0.0
-        )
+        gs  = gridspec.GridSpec(4, 4, figure=fig, wspace=0.0, hspace=0.0)
 
         ax_main  = fig.add_subplot(gs[1:4, 0:3])
-        ax_top   = fig.add_subplot(gs[0, 0:3], sharex=ax_main)
-        ax_right = fig.add_subplot(gs[1:4, 3], sharey=ax_main)
+        ax_top   = fig.add_subplot(gs[0,   0:3], sharex=ax_main)
+        ax_right = fig.add_subplot(gs[1:4, 3],   sharey=ax_main)
 
-        # --------------------------------------------------
-        # MAIN PANEL: SCATTER
-        # --------------------------------------------------
+        # ── colourmap / normalisation for scatter ─────────────────────────────────
+        norm = Normalize(vmin=z.min(), vmax=z.max())
+
+        # ── MAIN PANEL ────────────────────────────────────────────────────────────
+        # 1. scatter coloured by redshift (drawn first, lowest zorder)
         sc = ax_main.scatter(
-            mbhmass,
-            spin,
-            c=z,
-            cmap="viridis",
-            s=18,
-            alpha=0.8,
-            linewidths=0,
-            zorder=2
+            mbhmass, spin,
+            c=z, cmap="viridis", norm=norm,
+            s=16, alpha=0.55, linewidths=0,
+            zorder=2,
         )
 
-        # KDE LINE CONTOURS ONLY (NO FILL)
-        sns.kdeplot(
-            x=mbhmass,
-            y=spin,
-            ax=ax_main,
-            levels=5,
-            cmap=cmap,
-            linewidths=1.1,
-            fill=True,
-            zorder=3
-        )
+        sns.kdeplot(x=mbhmass, y=spin, ax=ax_main, levels=6, cmap=cmap, fill=True, alpha=0.30, zorder=3, warn_singular=False)
 
-        ax_main.set_xlabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
-        ax_main.set_ylabel(r'$a_{\rm BH}$')
+        # 3. solid contour lines on top for crisp iso-density curves
+        sns.kdeplot(x=mbhmass, y=spin, ax=ax_main, levels=6, cmap=cmap,fill=False, linewidths=1.2, zorder=4, warn_singular=False)
 
-        # --------------------------------------------------
-        # TOP MARGINAL KDE (FILLED, BOXED)
-        # --------------------------------------------------
-        sns.kdeplot(
-            x=mbhmass,
-            ax=ax_top,
-            fill=True,
-            color="#8fb1ff",
-            linewidth=1.0,
-            alpha=0.85
-        )
+        ax_main.set_xlabel(r"$\log_{10}(M_{\rm BH}/M_\odot)$", fontsize=13)
+        ax_main.set_ylabel(r"$a_{\rm BH}$", fontsize=13)
+        ax_main.tick_params(labelsize=10)
+        ax_main.set_ylim(0.0, 1.0)
 
-        # --------------------------------------------------
-        # RIGHT MARGINAL KDE (FILLED, BOXED)
-        # --------------------------------------------------
-        sns.kdeplot(
-            y=spin,
-            ax=ax_right,
-            fill=True,
-            color="#ffb199",
-            linewidth=1.0,
-            alpha=0.85
-        )
+        # ── TOP MARGINAL ──────────────────────────────────────────────────────────
+        sns.kdeplot(x=mbhmass, ax=ax_top, fill=True, color="#8fb1ff", linewidth=1.0, alpha=0.85, warn_singular=False)
+        ax_top.set_ylabel("p(M)", fontsize=9, labelpad=2)
 
-        # --------------------------------------------------
-        # MARGINAL AXES: NO TICKS, KEEP BOXES
-        # --------------------------------------------------
-        for ax in [ax_top, ax_right]:
-            ax.tick_params(
-                left=False, bottom=False,
-                labelleft=False, labelbottom=False
-            )
+        # ── RIGHT MARGINAL ────────────────────────────────────────────────────────
+        sns.kdeplot(y=spin, ax=ax_right,fill=True,  color="#ffb199", linewidth=1.0, alpha=0.85,warn_singular=False)
+        ax_right.set_xlabel("p(a)", fontsize=9, labelpad=2)
+
+        # ── suppress ticks on marginals, keep box spines ──────────────────────────
+        for ax in (ax_top, ax_right):
+            ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
             for spine in ax.spines.values():
                 spine.set_visible(True)
-                spine.set_linewidth(0.9)
+                spine.set_linewidth(0.8)
+
+        # ── layout BEFORE placing the colorbar ───────────────────────────────────
+        # BUG FIX: original called subplots_adjust AFTER add_axes for the colorbar;
+        # that shifts the main axes but leaves the cbar axes unmoved → misalignment.
+        fig.subplots_adjust(left=0.12, right=0.90, bottom=0.10, top=0.88)
 
 
-        cax = fig.add_axes([0.16, 0.935, 0.68, 0.022])
+        cax  = fig.add_axes([0.12, 0.916, 0.63, 0.020])
         cbar = fig.colorbar(sc, cax=cax, orientation="horizontal")
-        cbar.set_label("")
+
+        # BUG FIX: label was empty string "" → now informative
+        cbar.set_label(r"Redshift $z$", fontsize=10, labelpad=3)
+        cbar.ax.xaxis.set_label_position("top")
+        cbar.ax.xaxis.tick_top()
         cbar.ax.tick_params(labelsize=9)
 
-        # DETECTABILITY MARKERS
-        z_ZTF  = 1.0
-        z_LSST = 2.0
-        z_LISA = 8.0
+        fig.savefig(loc, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        
+        print(f"Saved → {loc}")
 
-        for z_val, label, colour in [
-            (z_ZTF,  "ZTF",  "blue"),
-            (z_LSST, "LSST", "orange"),
-            (z_LISA, "LISA", "red")
-        ]:
-            cbar.ax.axvline(
-                z_val,
-                color=colour,
-                linestyle="--",
-                linewidth=2
-            )
-            cbar.ax.text(
-                z_val,
-                1.4,
-                label,
-                ha="center",
-                va="bottom",
-                fontsize=10,
-                color=colour
-            )
+    @staticmethod
+    def MBHmass_vs_spin(mbhmass, spin, z, loc, cmap="plasma"):   
 
-        # --------------------------------------------------
-        # FINAL ADJUSTMENTS
-        # --------------------------------------------------
-        sns.despine(ax=ax_main)
-        plt.subplots_adjust(top=0.92)
+        from matplotlib.colors import Normalize
 
-        plt.savefig(loc, dpi=300)
-        plt.close()
+        mbhmass = np.asarray(mbhmass)
+        spin    = np.asarray(spin)
+        z       = np.asarray(z)
+
+        # ── figure / grid ─────────────────────────────────────────────────────────
+        fig = plt.figure(figsize=(9, 9))
+        gs  = gridspec.GridSpec(4, 4, figure=fig, wspace=0.0, hspace=0.0)
+
+        ax_main  = fig.add_subplot(gs[1:4, 0:3])
+        ax_top   = fig.add_subplot(gs[0,   0:3], sharex=ax_main)
+        ax_right = fig.add_subplot(gs[1:4, 3],   sharey=ax_main)
+
+        # ── colourmap / normalisation for scatter ─────────────────────────────────
+        norm = Normalize(vmin=z.min(), vmax=z.max())
+
+        # ── MAIN PANEL ────────────────────────────────────────────────────────────
+        # 1. scatter coloured by redshift (drawn first, lowest zorder)
+        sc = ax_main.scatter(
+            mbhmass, spin,
+            c=z, cmap="viridis", norm=norm,
+            s=16, alpha=0.55, linewidths=0,
+            zorder=2,
+        )
+
+        sns.kdeplot(x=mbhmass, y=spin, ax=ax_main, levels=6, cmap=cmap, fill=True, alpha=0.30, zorder=3, warn_singular=False)
+
+        # 3. solid contour lines on top for crisp iso-density curves
+        sns.kdeplot(x=mbhmass, y=spin, ax=ax_main, levels=6, cmap=cmap,fill=False, linewidths=1.2, zorder=4, warn_singular=False)
+
+        ax_main.set_xlabel(r"$\log_{10}(M_{\rm BH}/M_\odot)$", fontsize=13)
+        ax_main.set_ylabel(r"$a_{\rm BH}$", fontsize=13)
+        ax_main.tick_params(labelsize=10)
+        ax_main.set_ylim(0.0, 1.0)
+
+        # ── TOP MARGINAL ──────────────────────────────────────────────────────────
+        sns.kdeplot(x=mbhmass, ax=ax_top, fill=True, color="#8fb1ff", linewidth=1.0, alpha=0.85, warn_singular=False)
+        ax_top.set_ylabel("p(M)", fontsize=9, labelpad=2)
+
+        # ── RIGHT MARGINAL ────────────────────────────────────────────────────────
+        sns.kdeplot(y=spin, ax=ax_right,fill=True,  color="#ffb199", linewidth=1.0, alpha=0.85,warn_singular=False)
+        ax_right.set_xlabel("p(a)", fontsize=9, labelpad=2)
+
+        # ── suppress ticks on marginals, keep box spines ──────────────────────────
+        for ax in (ax_top, ax_right):
+            ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+            for spine in ax.spines.values():
+                spine.set_visible(True)
+                spine.set_linewidth(0.8)
+
+        # ── layout BEFORE placing the colorbar ───────────────────────────────────
+        # BUG FIX: original called subplots_adjust AFTER add_axes for the colorbar;
+        # that shifts the main axes but leaves the cbar axes unmoved → misalignment.
+        fig.subplots_adjust(left=0.12, right=0.90, bottom=0.10, top=0.88)
+
+
+        cax  = fig.add_axes([0.12, 0.916, 0.63, 0.020])
+        cbar = fig.colorbar(sc, cax=cax, orientation="horizontal")
+
+        # BUG FIX: label was empty string "" → now informative
+        cbar.set_label(r"Redshift $z$", fontsize=10, labelpad=3)
+        cbar.ax.xaxis.set_label_position("top")
+        cbar.ax.xaxis.tick_top()
+        cbar.ax.tick_params(labelsize=9)
+
+        fig.savefig(loc, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        
+        print(f"Saved → {loc}")
+
+    @staticmethod
+    def MBHmass_vs_eccentricity_at_plunge(mbhmass, eccentricity_at_plunge, z, loc, cmap="plasma"):   
+
+        from matplotlib.colors import Normalize
+
+        mbhmass = np.asarray(mbhmass)
+        eccentricity_at_plunge = np.asarray(eccentricity_at_plunge)
+        z       = np.asarray(z)
+
+        # ── figure / grid ─────────────────────────────────────────────────────────
+        fig = plt.figure(figsize=(9, 9))
+        gs  = gridspec.GridSpec(4, 4, figure=fig, wspace=0.0, hspace=0.0)
+
+        ax_main  = fig.add_subplot(gs[1:4, 0:3])
+        ax_top   = fig.add_subplot(gs[0,   0:3], sharex=ax_main)
+        ax_right = fig.add_subplot(gs[1:4, 3],   sharey=ax_main)
+
+        # ── colourmap / normalisation for scatter ─────────────────────────────────
+        norm = Normalize(vmin=z.min(), vmax=z.max())
+
+        # ── MAIN PANEL ────────────────────────────────────────────────────────────
+        # 1. scatter coloured by redshift (drawn first, lowest zorder)
+        sc = ax_main.scatter(
+            mbhmass, eccentricity_at_plunge,
+            c=z, cmap="viridis", norm=norm,
+            s=16, alpha=0.55, linewidths=0,
+            zorder=2,
+        )
+
+        sns.kdeplot(x=mbhmass, y=eccentricity_at_plunge, ax=ax_main, levels=6, cmap=cmap, fill=True, alpha=0.30, zorder=3, warn_singular=False)
+
+        # 3. solid contour lines on top for crisp iso-density curves
+        sns.kdeplot(x=mbhmass, y=eccentricity_at_plunge, ax=ax_main, levels=6, cmap=cmap,fill=False, linewidths=1.2, zorder=4, warn_singular=False)
+
+        ax_main.set_xlabel(r"$\log_{10}(M_{\rm BH}/M_\odot)$", fontsize=13)
+        ax_main.set_ylabel(r"$e_{\rm plunge}$", fontsize=13)
+        ax_main.tick_params(labelsize=10)
+        ax_main.set_ylim(0.0, 1.0)
+
+        # ── TOP MARGINAL ──────────────────────────────────────────────────────────
+        sns.kdeplot(x=mbhmass, ax=ax_top, fill=True, color="#8fb1ff", linewidth=1.0, alpha=0.85, warn_singular=False)
+        ax_top.set_ylabel("p(M)", fontsize=9, labelpad=2)
+
+        # ── RIGHT MARGINAL ────────────────────────────────────────────────────────
+        sns.kdeplot(y=eccentricity_at_plunge, ax=ax_right,fill=True,  color="#ffb199", linewidth=1.0, alpha=0.85,warn_singular=False)
+        ax_right.set_xlabel("p(e)", fontsize=9, labelpad=2)
+
+        # ── suppress ticks on marginals, keep box spines ──────────────────────────
+        for ax in (ax_top, ax_right):
+            ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+            for spine in ax.spines.values():
+                spine.set_visible(True)
+                spine.set_linewidth(0.8)
+
+        # ── layout BEFORE placing the colorbar ───────────────────────────────────
+        # BUG FIX: original called subplots_adjust AFTER add_axes for the colorbar;
+        # that shifts the main axes but leaves the cbar axes unmoved → misalignment.
+        fig.subplots_adjust(left=0.12, right=0.90, bottom=0.10, top=0.88)
+
+
+        cax  = fig.add_axes([0.12, 0.916, 0.63, 0.020])
+        cbar = fig.colorbar(sc, cax=cax, orientation="horizontal")
+
+        # BUG FIX: label was empty string "" → now informative
+        cbar.set_label(r"Redshift $z$", fontsize=10, labelpad=3)
+        cbar.ax.xaxis.set_label_position("top")
+        cbar.ax.xaxis.tick_top()
+        cbar.ax.tick_params(labelsize=9)
+
+        fig.savefig(loc, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        
+        print(f"Saved → {loc}")
+
+
+
+    # @staticmethod
+    # def plot_event_rates(z_gal, lgMBH, generated_EMRIs, generated_TDEs, T_obs, filename):
+    #     import matplotlib.colors as mcolors
+
+    #     fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
+
+    #     # --- Color normalization across full z range ---
+    #     norm = mcolors.Normalize(vmin=np.min(z_gal), vmax=np.max(z_gal))
+    #     colors = z_gal
+
+    #     # --- Top: EMRIs ---
+    #     sc = axes[0].scatter(lgMBH, generated_EMRIs, c=colors, cmap='plasma', norm=norm,
+    #                         marker='o', alpha=0.9, s=20)
+
+    #     axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs)}')
+    #     axes[0].set_yscale('log')
+    #     axes[0].set_ylabel(f'Number of events in {T_obs} yrs')
+
+    #     axes[1].scatter(lgMBH, generated_TDEs, c=colors, cmap='plasma', norm=norm,
+    #                     marker='d', alpha=0.9, s=20)
+
+    #     axes[1].set_title(f'TDEs = {np.sum(generated_TDEs)}')
+    #     axes[1].set_yscale('log')
+    #     axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
+    #     axes[1].set_ylabel(f'Number of events in {T_obs} yrs')
+
+    #     cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
+    #     fig.colorbar(sc, cax=cbar_ax, label='Redshift')
+
+    #     plt.tight_layout(rect=[0, 0, 0.9, 1])
+    #     plt.savefig(filename, dpi=300)
+    #     plt.close()
 
     @staticmethod
     def plot_event_rates(z_gal, lgMBH, generated_EMRIs, generated_TDEs, T_obs, filename):
         import matplotlib.colors as mcolors
+        import matplotlib.cm as cm
 
         fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
 
-        # --- Color normalization across full z range ---
-        norm = mcolors.Normalize(vmin=np.min(z_gal), vmax=np.max(z_gal))
-        colors = z_gal
+        # --- Separate normalization per source, over event counts ---
+        norm_emri = mcolors.Normalize(vmin=np.min(generated_EMRIs), vmax=np.max(generated_EMRIs))
+        norm_tde  = mcolors.Normalize(vmin=np.min(generated_TDEs),  vmax=np.max(generated_TDEs))
 
-        # --- Top: EMRIs ---
-        sc = axes[0].scatter(lgMBH, generated_EMRIs, c=colors, cmap='plasma', norm=norm,
-                            marker='o', alpha=0.9, s=20)
-
+        # --- Top: EMRIs — x=z, y=lgMBH, color=N_events ---
+        sc0 = axes[0].scatter(
+            z_gal, lgMBH,
+            c=generated_EMRIs, cmap='plasma', norm=norm_emri,
+            marker='o', alpha=0.9, s=20
+        )
         axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs)}')
-        axes[0].set_yscale('log')
-        axes[0].set_ylabel(f'Number of events in {T_obs} yrs')
+        axes[0].set_ylabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
+        # y is already log10(M), so linear scale is correct
+        axes[0].set_yscale('linear')
 
-        axes[1].scatter(lgMBH, generated_TDEs, c=colors, cmap='plasma', norm=norm,
-                        marker='d', alpha=0.9, s=20)
-
+        # --- Bottom: TDEs ---
+        sc1 = axes[1].scatter(
+            z_gal, lgMBH,
+            c=generated_TDEs, cmap='viridis', norm=norm_tde,
+            marker='d', alpha=0.9, s=20
+        )
         axes[1].set_title(f'TDEs = {np.sum(generated_TDEs)}')
-        axes[1].set_yscale('log')
-        axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
-        axes[1].set_ylabel(f'Number of events in {T_obs} yrs')
+        axes[1].set_xlabel('Redshift $z$')
+        axes[1].set_ylabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
+        axes[1].set_yscale('linear')
 
-        cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
-        fig.colorbar(sc, cax=cbar_ax, label='Redshift')
+        # --- Two separate colorbars, one per panel ---
+        # Reserve right margin for both
+        fig.subplots_adjust(right=0.82)
 
-        plt.tight_layout(rect=[0, 0, 0.9, 1])
-        plt.savefig(filename, dpi=300)
+        # Top colorbar aligned to top panel
+        pos0 = axes[0].get_position()
+        cbar_ax0 = fig.add_axes([0.85, pos0.y0, 0.03, pos0.height])
+        fig.colorbar(sc0, cax=cbar_ax0, label=f'N events (EMRIs)')
+
+        # Bottom colorbar aligned to bottom panel
+        pos1 = axes[1].get_position()
+        cbar_ax1 = fig.add_axes([0.85, pos1.y0, 0.03, pos1.height])
+        fig.colorbar(sc1, cax=cbar_ax1, label=f'N events (TDEs)')
+
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
         plt.close()
 
     @staticmethod
@@ -387,7 +541,7 @@ class Plotting:
             cmap: str or Colormap, matplotlib colormap for points
         """
         # Prepare figure with two polar subplots stacked vertically
-        fig, axes = plt.subplots(2, 1, figsize=(8, 10), subplot_kw={'projection': 'polar'})
+        fig, axes = plt.subplots(2, 1, figsize=(8, 10), subplot_kw={'projection': 'polar'}, constrained_layout=True)
         fig.patch.set_facecolor('white')
 
         colors = z_gal
@@ -414,7 +568,7 @@ class Plotting:
         cbar = fig.colorbar(sc1, ax=axes.ravel().tolist(), shrink=0.8, pad=0.02)
         cbar.set_label('Redshift', fontsize=12)
 
-        plt.tight_layout()
+        # plt.tight_layout()
         plt.savefig(filename, dpi=300)
         plt.close(fig)
 

@@ -30,6 +30,7 @@ phiS_rad = np.deg2rad(np.array(hf['dec_deg'][:])) # Sky location azimuthal angle
 
 lgMBH_mass = np.array(hf['lgMBH'][:])
 initial_MBHspin = np.array(hf['initial_MBHspin'][:])
+eccentricities_at_plunge = np.array(hf['eccentricities_at_plunge'][:])
 
 sBH_masses = np.array(hf['sBH_masses'])
 
@@ -39,7 +40,9 @@ hf.close()
 
 distances = cosmo_model.luminosity_distance(z_gal, unit='Gpc')
 
-e0_min, e0_max = args.e0
+
+e0_min, e0_max = args.e0 # this needs to now use integrate backwards https://fastemriwaveforms.readthedocs.io/en/latest/user/traj.html#few.trajectory.inspiral.EMRIInspiral
+
 Y0_min, Y0_max = args.Y0
 T_SIGNAL_min, T_SIGNAL_max = args.T_SIGNAL
 
@@ -69,7 +72,6 @@ param_names = [
     "Phi_phi0", "Phi_theta0", "Phi_r0",
     "T_SIGNAL_duration_years"
 ]
-
 
 with h5py.File(f"./data/astrophysical_data/{args.GALAXIES}/all_galaxies_EMRI_events_{ 'clustering' if args.is_clustering else 'no_clustering' }.h5", "w") as f:
 

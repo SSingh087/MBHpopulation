@@ -1,0 +1,18 @@
+
+# Executable and arguments
+executable      = ./EXECUTABLES/gen_TDE_SNRs.sh
+getenv          = true
+arguments       = $(SURVEY)
+
+# Logs
+log             = LOG_FILES/gen_TDE_SNRs_$(SURVEY).log 
+error           = ERROR_FILES/gen_TDE_SNRs_$(SURVEY).err
+output          = OUTPUT_FILES/gen_TDE_SNRs_$(SURVEY).out
+
+# Notifications
+
+# Resources
+request_cpus    = 8
+request_memory  = 12GB
+
+queue 1
