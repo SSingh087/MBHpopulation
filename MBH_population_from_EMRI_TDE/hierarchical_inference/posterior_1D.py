@@ -16,8 +16,7 @@ matplotlib.rc('text', usetex=True)
 
 pal = sns.color_palette(palette="colorblind").as_hex()
 
-# --- Source combinations to overlay (this replaces the old event-count axis) ---
-SOURCE_ORDER = ['EMRI', 'TDE']  # add 'EMRI_TDE' back in once that run exists
+SOURCE_ORDER = ['EMRI', 'TDE']#, 'EMRI_TDE']
 SOURCE_LABELS = {'EMRI': 'EMRI', 'TDE': 'TDE', 'EMRI_TDE': 'EMRI+TDE'}
 SOURCE_COLORS = [pal[4], pal[2], pal[0]]
 

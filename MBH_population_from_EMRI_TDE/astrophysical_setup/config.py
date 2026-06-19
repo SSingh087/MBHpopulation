@@ -30,6 +30,15 @@ MBH_B = 4.55
 MBH_sigma0 = 160.0 #km/s arXiv:2205.06277 uses sigma_0 = 70 which will have consequnce of the Gamma_E and the t_EMRI. t_EMRI will go up and Gamma_E lower
 MBH_scatter = 0.53
 
+# Broggi et al. 2022 (arXiv:2205.06277) Eq. 15 -- the M-sigma normalization
+# THEIR simulation grid was built around. Independent of this project's
+# own M-sigma relation (MBH_A/MBH_B/MBH_sigma0 above) -- needed specifically
+# to evaluate sigma/sigma_0 in the rate fits, since those were calibrated
+# against Broggi's grid, not against this population's relation.
+BROGGI_SIGMA0    = 70.0      # km/s
+BROGGI_MBH_PIVOT = 1.53e6    # Msun
+BROGGI_INV_SLOPE = 1.0/4.24
+
 # Dehnen profile default slope
 gamma_dehnen_initial = 1.5
 

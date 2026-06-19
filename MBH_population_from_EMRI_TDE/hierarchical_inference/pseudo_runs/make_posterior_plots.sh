@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 
-export GALAXIES=100
+export GALAXIES=1000
 export UNIVERSE_MODEL=0
 export Z_MAX=10.0
 export SEED=42

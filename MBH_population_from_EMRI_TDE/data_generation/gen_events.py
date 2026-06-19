@@ -12,7 +12,7 @@ from galaxy import Galaxy
 from nsc import NSC, CompactObject, MBH_properties
 from density import DehnenProfile
 from relaxation import RelaxationModel
-from rate import RateModel
+from rate import RateModel, ConstantRate
 from evolution import CuspEvolution
 from cosmology import LastMajorMerger, CosmologyModel, GalaxyStellarMassFunction
 import h5py
@@ -136,8 +136,13 @@ rate_obj = RateModel(nsc=NSC_obj)
 
 cusp_evolution_object = CuspEvolution(nsc=NSC_obj, compact_object=CO_objs, relaxation=relax_obj, rate_model=rate_obj, LastMajorMerger=LastMajorMerger(cosmo_model))
 
-generated_EMRIs = cusp_evolution_object.number_of_objects_in_time(T_obs=T_obs, kvir=1.0, kind='EMRI')
-generated_TDEs = cusp_evolution_object.number_of_objects_in_time(T_obs=T_obs, kvir=1.0, kind='TDE')
+# generated_EMRIs = cusp_evolution_object.number_of_objects_in_time(T_obs=T_obs, kvir=1.0, kind='EMRI')
+# generated_TDEs = cusp_evolution_object.number_of_objects_in_time(T_obs=T_obs, kvir=1.0, kind='TDE')
+
+
+generated_EMRIs = cusp_evolution_object.number_of_objects_in_time_constant_rate(T_obs_yr=T_obs, kvir=1.0, kind='EMRI', RateModel=ConstantRate(nsc=NSC_obj))
+generated_TDEs = cusp_evolution_object.number_of_objects_in_time_constant_rate(T_obs_yr=T_obs, kvir=1.0, kind='TDE', RateModel=ConstantRate(nsc=NSC_obj))
+breakpoint()
 
 MBH_mask =  gal_obj.lgMBH_mass > 4.0 
 print(f"Generated EMRIs for  log10(M_BH/Msun) > 4.0: {np.sum(generated_EMRIs[MBH_mask])}")

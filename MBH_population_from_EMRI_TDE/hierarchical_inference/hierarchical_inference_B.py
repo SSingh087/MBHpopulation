@@ -60,8 +60,7 @@ parser.add_argument('--sigma_star',      type=float, nargs=2)
 parser.add_argument('--weight_COmass',   type=float, nargs=2)
 
 # z_gal (BetaDistribution)
-parser.add_argument('--z_gal_alpha',    type=float, nargs=2)
-parser.add_argument('--z_gal_beta',     type=float, nargs=2)
+parser.add_argument('--lam_z_gal',      type=float, nargs=2)
 
 args = parser.parse_args()
 
@@ -86,8 +85,7 @@ mu_star_min,       mu_star_max       = args.mu_star
 sigma_star_min,    sigma_star_max    = args.sigma_star
 weight_CO_min,     weight_CO_max     = args.weight_COmass
 
-alpha_z_gal_min,    alpha_z_gal_max    = args.z_gal_alpha
-beta_z_gal_min,     beta_z_gal_max     = args.z_gal_beta
+lam_z_gal_min,     lam_z_gal_max     = args.lam_z_gal
 
 # ── Population setup ──────────────────────────────────────────────────────
 true_x  = get_true_x("B")
@@ -169,7 +167,7 @@ class PopulationModel(Model):
         # lgMBH + CO params shared by both EMRI and TDE
         shared = ["lambda_M",
                   "mu_sBH", "sigma_sBH", "mu_star", "sigma_star", "weight_COmass", 
-                  "alpha_z_gal", "beta_z_gal"]
+                  "lam_z_gal"]
         # spin only used by EMRI
         emri   = ["mu_1_MBHSpin", "sigma_1_MBHSpin", "mu_2_MBHSpin", "sigma_2_MBHSpin", "weight_MBHSpin",
                   "mu_1_e_pl", "sigma_1_e_pl", "mu_2_e_pl", "sigma_2_e_pl", "weight_e_pl"]
@@ -184,8 +182,7 @@ class PopulationModel(Model):
             'mu_star'        : [mu_star_min,        mu_star_max     ],
             'sigma_star'     : [sigma_star_min,     sigma_star_max  ],
             'weight_COmass'  : [weight_CO_min,      weight_CO_max   ],
-            'alpha_z_gal'    : [alpha_z_gal_min,    alpha_z_gal_max ],
-            'beta_z_gal'     : [beta_z_gal_min,     beta_z_gal_max  ],
+            'lam_z_gal'      : [lam_z_gal_min,      lam_z_gal_max   ],
         }
         if has_EMRI:
             b.update({
@@ -255,9 +252,9 @@ class PopulationModel(Model):
         )
         pdf_z_gal = self.dist_z_gal.pdf(
             self.emri_data['z_gal'],
-            alpha=x["alpha_z_gal"], beta=x["beta_z_gal"]
+            lam=x["lam_z_gal"]
         )
-        logL = torch.sum(torch.log(torch.nanmean(pdf_mass * pdf_spin * pdf_CO * pdf_e_pl, dim=1) + 1e-10))
+        logL = torch.sum(torch.log(torch.nanmean(pdf_mass * pdf_spin * pdf_CO * pdf_e_pl * pdf_z_gal, dim=1) + 1e-10))
         return logL.item()
 
     def TDE_likelihood(self, x):
@@ -275,9 +272,9 @@ class PopulationModel(Model):
         )
         pdf_z_gal = self.dist_z_gal.pdf(
             self.tde_data['z_gal'],
-            alpha=x["alpha_z_gal"], beta=x["beta_z_gal"]
+            lam=x["lam_z_gal"]
         )
-        logL = torch.sum(torch.log(torch.nanmean(pdf_mass * pdf_CO, dim=1) + 1e-10))
+        logL = torch.sum(torch.log(torch.nanmean(pdf_mass * pdf_CO * pdf_z_gal, dim=1) + 1e-10))
         return logL.item()
 
     @torch.inference_mode()

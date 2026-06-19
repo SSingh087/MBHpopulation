@@ -1,3 +1,2 @@
 Doing inference for source TDE and survey ZTF assuming POPULATION A
 Using device: cpu
-[DEBUG] TDE keys: dict_keys(['lgMBH_mass', 'CO_mass', 'z_gal'])

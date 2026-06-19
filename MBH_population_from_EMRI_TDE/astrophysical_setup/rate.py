@@ -1,9 +1,10 @@
 import numpy as np
 
-from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
+from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter, BROGGI_SIGMA0, BROGGI_MBH_PIVOT, BROGGI_INV_SLOPE)
 from nsc import NSC
 from scipy.stats import beta, norm
 from dataclasses import dataclass
+from scipy.interpolate import RegularGridInterpolator
 
 class RateModel:
     def __init__(self, nsc: NSC):
@@ -42,7 +43,6 @@ class RateModel:
         a, b, c = 1.6e-4, -0.22, 1.16 
 
         return a * (MBH)**b * (sigma/sigma_0)**c
-
 
 class UniversalRate:
     """
@@ -110,3 +110,86 @@ class UniversalRate:
         term1 = (1.0 + 0.5 * tau) ** (-0.3)   # Gentle suppression at high tau
         term2 = (0.5 + tau) ** (-0.35)        # Moderate power law decay
         return term1 * term2
+
+class ConstantRate:
+
+    # 7 MBH masses, log-evenly spaced 1e4 - 1e7 Msun
+    _log10_MBH_grid = np.log10(np.array([1e4, 3e4, 1e5, 3e5, 1e6, 3e6, 1e7]))
+
+    # 4 density levels {0.01,0.1,1,10} rho_0 -> sigma/sigma_0 = rho_ratio**(1/6)
+    _sigma_ratio_grid = np.array([0.464, 0.681, 1.0, 1.468])
+    _log10_sigma_ratio_grid = np.log10(_sigma_ratio_grid)
+
+    # N_E, rows = MBH masses (increasing), cols = sigma/sigma_0 (increasing)
+    _N_E = np.array([
+        [2.6,    2.7,    2.8,    3.0],     # 1e4
+        [8.5,    8.3,    9.0,    9.4],     # 3e4
+        [29,     29,     30,     32],      # 1e5
+        [88,     90,     97,     100],     # 3e5
+        [180,    310,    350,    370],     # 1e6
+        [41,     330,    9300,   1300],    # 3e6  -- capping effects dominate here, see paper Sec 4.3.2
+        [2.4,    41,     810,    2800],    # 1e7
+    ])
+
+    # N_T -- screenshot-only source, lower confidence, double check against source
+    _N_T = np.array([
+        [6.7e3,  7.3e3,  7.5e3,  7.9e3],
+        [2.1e4,  2.2e4,  2.3e4,  2.4e4],
+        [7.2e4,  7.4e4,  7.7e4,  9.0e4],
+        [2.1e5,  2.2e5,  2.3e5,  2.4e5],
+        [3.0e5,  6.9e5,  7.5e5,  7.8e5],
+        [2.6e5,  7.5e5,  1.8e6,  2.3e6],
+        [2.0e5,  6.0e5,  1.8e6,  4.6e6],
+    ])
+
+    # t_E [Gyr], used only to derive t_f = min(10*t_E, 10 Gyr) -- matches every tabulated tau
+    _t_E = np.array([
+        [0.089,  0.0029, 0.00092, 0.00030],
+        [0.037,  0.012,  0.0038,  0.0012],
+        [0.18,   0.056,  0.018,   0.0057],
+        [0.73,   0.23,   0.075,   0.023],
+        [3.5,    1.1,    0.35,    0.11],
+        [10,     4.6,    1.5,     0.46],
+        [10,     10,     6.9,     2.1],
+    ])
+
+    def __init__(self, nsc: NSC):
+        self.nsc = nsc
+
+        self._t_f = np.minimum(10.0 * self._t_E, 10.0)          # Gyr
+        rate_EMRI_grid = self._N_E / self._t_f                  # 1/Gyr
+        rate_TDE_grid  = self._N_T / self._t_f                  # 1/Gyr
+
+        self._interp_EMRI = RegularGridInterpolator(
+            (self._log10_MBH_grid, self._log10_sigma_ratio_grid),
+            np.log10(rate_EMRI_grid), bounds_error=False, fill_value=None)
+
+        self._interp_TDE = RegularGridInterpolator(
+            (self._log10_MBH_grid, self._log10_sigma_ratio_grid),
+            np.log10(rate_TDE_grid), bounds_error=False, fill_value=None)
+
+    def broggi_sigma0(self, MBH):
+        """sigma_0(M_BH) per Broggi et al. 2022 Eq. 15."""
+        return BROGGI_SIGMA0 * (MBH / BROGGI_MBH_PIVOT) ** BROGGI_INV_SLOPE
+
+    def constant_rate(self, kind: str = 'EMRI'):
+        MBH = 10.0 ** np.atleast_1d(self.nsc.gal.lgMBH_mass)
+        sigma_0_broggi = self.broggi_sigma0(MBH)
+        sigma_ratio = np.atleast_1d(self.nsc.gal.sigma_km_s) / sigma_0_broggi
+
+        log10_MBH   = np.clip(np.log10(MBH), self._log10_MBH_grid.min(), self._log10_MBH_grid.max())
+        log10_sigma = np.clip(np.log10(sigma_ratio), self._log10_sigma_ratio_grid.min(), self._log10_sigma_ratio_grid.max())
+        pts = np.column_stack([log10_MBH, log10_sigma])
+
+        if kind.upper() == 'EMRI':
+            rate = 10.0 ** self._interp_EMRI(pts)
+        elif kind.upper() == 'TDE':
+            rate = 10.0 ** self._interp_TDE(pts)
+        else:
+            raise ValueError(f"Unknown kind: {kind}")
+
+        # Outside Broggi's simulated MBH range there's no calibration, and
+        # physically LISA-band EMRIs only exist for M_BH ~ 1e4-1e7 anyway --
+        # zero rather than extrapolate or pin to the edge.
+        in_range = (MBH >= 1e4) & (MBH <= 1e7)
+        return np.where(in_range, rate, 0.0)

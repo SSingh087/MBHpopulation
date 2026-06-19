@@ -253,80 +253,6 @@ class Plotting:
         print(f"Saved → {loc}")
 
     @staticmethod
-    def MBHmass_vs_spin(mbhmass, spin, z, loc, cmap="plasma"):   
-
-        from matplotlib.colors import Normalize
-
-        mbhmass = np.asarray(mbhmass)
-        spin    = np.asarray(spin)
-        z       = np.asarray(z)
-
-        # ── figure / grid ─────────────────────────────────────────────────────────
-        fig = plt.figure(figsize=(9, 9))
-        gs  = gridspec.GridSpec(4, 4, figure=fig, wspace=0.0, hspace=0.0)
-
-        ax_main  = fig.add_subplot(gs[1:4, 0:3])
-        ax_top   = fig.add_subplot(gs[0,   0:3], sharex=ax_main)
-        ax_right = fig.add_subplot(gs[1:4, 3],   sharey=ax_main)
-
-        # ── colourmap / normalisation for scatter ─────────────────────────────────
-        norm = Normalize(vmin=z.min(), vmax=z.max())
-
-        # ── MAIN PANEL ────────────────────────────────────────────────────────────
-        # 1. scatter coloured by redshift (drawn first, lowest zorder)
-        sc = ax_main.scatter(
-            mbhmass, spin,
-            c=z, cmap="viridis", norm=norm,
-            s=16, alpha=0.55, linewidths=0,
-            zorder=2,
-        )
-
-        sns.kdeplot(x=mbhmass, y=spin, ax=ax_main, levels=6, cmap=cmap, fill=True, alpha=0.30, zorder=3, warn_singular=False)
-
-        # 3. solid contour lines on top for crisp iso-density curves
-        sns.kdeplot(x=mbhmass, y=spin, ax=ax_main, levels=6, cmap=cmap,fill=False, linewidths=1.2, zorder=4, warn_singular=False)
-
-        ax_main.set_xlabel(r"$\log_{10}(M_{\rm BH}/M_\odot)$", fontsize=13)
-        ax_main.set_ylabel(r"$a_{\rm BH}$", fontsize=13)
-        ax_main.tick_params(labelsize=10)
-        ax_main.set_ylim(0.0, 1.0)
-
-        # ── TOP MARGINAL ──────────────────────────────────────────────────────────
-        sns.kdeplot(x=mbhmass, ax=ax_top, fill=True, color="#8fb1ff", linewidth=1.0, alpha=0.85, warn_singular=False)
-        ax_top.set_ylabel("p(M)", fontsize=9, labelpad=2)
-
-        # ── RIGHT MARGINAL ────────────────────────────────────────────────────────
-        sns.kdeplot(y=spin, ax=ax_right,fill=True,  color="#ffb199", linewidth=1.0, alpha=0.85,warn_singular=False)
-        ax_right.set_xlabel("p(a)", fontsize=9, labelpad=2)
-
-        # ── suppress ticks on marginals, keep box spines ──────────────────────────
-        for ax in (ax_top, ax_right):
-            ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-            for spine in ax.spines.values():
-                spine.set_visible(True)
-                spine.set_linewidth(0.8)
-
-        # ── layout BEFORE placing the colorbar ───────────────────────────────────
-        # BUG FIX: original called subplots_adjust AFTER add_axes for the colorbar;
-        # that shifts the main axes but leaves the cbar axes unmoved → misalignment.
-        fig.subplots_adjust(left=0.12, right=0.90, bottom=0.10, top=0.88)
-
-
-        cax  = fig.add_axes([0.12, 0.916, 0.63, 0.020])
-        cbar = fig.colorbar(sc, cax=cax, orientation="horizontal")
-
-        # BUG FIX: label was empty string "" → now informative
-        cbar.set_label(r"Redshift $z$", fontsize=10, labelpad=3)
-        cbar.ax.xaxis.set_label_position("top")
-        cbar.ax.xaxis.tick_top()
-        cbar.ax.tick_params(labelsize=9)
-
-        fig.savefig(loc, dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        
-        print(f"Saved → {loc}")
-
-    @staticmethod
     def MBHmass_vs_eccentricity_at_plunge(mbhmass, eccentricity_at_plunge, z, loc, cmap="plasma"):   
 
         from matplotlib.colors import Normalize
@@ -400,130 +326,75 @@ class Plotting:
         
         print(f"Saved → {loc}")
 
-
-
     # @staticmethod
     # def plot_event_rates(z_gal, lgMBH, generated_EMRIs, generated_TDEs, T_obs, filename):
     #     import matplotlib.colors as mcolors
+    #     import matplotlib.cm as cm
 
     #     fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
 
-    #     # --- Color normalization across full z range ---
-    #     norm = mcolors.Normalize(vmin=np.min(z_gal), vmax=np.max(z_gal))
-    #     colors = z_gal
+    #     # --- Separate normalization per source, over event counts ---
+    #     norm_emri = mcolors.Normalize(vmin=np.min(generated_EMRIs), vmax=np.max(generated_EMRIs))
+    #     norm_tde  = mcolors.Normalize(vmin=np.min(generated_TDEs),  vmax=np.max(generated_TDEs))
 
-    #     # --- Top: EMRIs ---
-    #     sc = axes[0].scatter(lgMBH, generated_EMRIs, c=colors, cmap='plasma', norm=norm,
-    #                         marker='o', alpha=0.9, s=20)
-
+    #     # --- Top: EMRIs — x=z, y=lgMBH, color=N_events ---
+    #     sc0 = axes[0].scatter(
+    #         z_gal, lgMBH,
+    #         c=generated_EMRIs, cmap='plasma', norm=norm_emri,
+    #         marker='o', alpha=0.9, s=20
+    #     )
     #     axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs)}')
-    #     axes[0].set_yscale('log')
-    #     axes[0].set_ylabel(f'Number of events in {T_obs} yrs')
+    #     axes[0].set_ylabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
+    #     # y is already log10(M), so linear scale is correct
+    #     axes[0].set_yscale('linear')
 
-    #     axes[1].scatter(lgMBH, generated_TDEs, c=colors, cmap='plasma', norm=norm,
-    #                     marker='d', alpha=0.9, s=20)
-
+    #     # --- Bottom: TDEs ---
+    #     sc1 = axes[1].scatter(
+    #         z_gal, lgMBH,
+    #         c=generated_TDEs, cmap='viridis', norm=norm_tde,
+    #         marker='d', alpha=0.9, s=20
+    #     )
     #     axes[1].set_title(f'TDEs = {np.sum(generated_TDEs)}')
-    #     axes[1].set_yscale('log')
-    #     axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
-    #     axes[1].set_ylabel(f'Number of events in {T_obs} yrs')
+    #     axes[1].set_xlabel('Redshift $z$')
+    #     axes[1].set_ylabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
+    #     axes[1].set_yscale('linear')
 
-    #     cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])  # [left, bottom, width, height]
-    #     fig.colorbar(sc, cax=cbar_ax, label='Redshift')
+    #     # --- Two separate colorbars, one per panel ---
+    #     # Reserve right margin for both
+    #     fig.subplots_adjust(right=0.82)
 
-    #     plt.tight_layout(rect=[0, 0, 0.9, 1])
-    #     plt.savefig(filename, dpi=300)
+    #     # Top colorbar aligned to top panel
+    #     pos0 = axes[0].get_position()
+    #     cbar_ax0 = fig.add_axes([0.85, pos0.y0, 0.03, pos0.height])
+    #     fig.colorbar(sc0, cax=cbar_ax0, label=f'N events (EMRIs)')
+
+    #     # Bottom colorbar aligned to bottom panel
+    #     pos1 = axes[1].get_position()
+    #     cbar_ax1 = fig.add_axes([0.85, pos1.y0, 0.03, pos1.height])
+    #     fig.colorbar(sc1, cax=cbar_ax1, label=f'N events (TDEs)')
+
+    #     plt.savefig(filename, dpi=300, bbox_inches='tight')
     #     plt.close()
 
-    @staticmethod
-    def plot_event_rates(z_gal, lgMBH, generated_EMRIs, generated_TDEs, T_obs, filename):
-        import matplotlib.colors as mcolors
-        import matplotlib.cm as cm
-
-        fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
-
-        # --- Separate normalization per source, over event counts ---
-        norm_emri = mcolors.Normalize(vmin=np.min(generated_EMRIs), vmax=np.max(generated_EMRIs))
-        norm_tde  = mcolors.Normalize(vmin=np.min(generated_TDEs),  vmax=np.max(generated_TDEs))
-
-        # --- Top: EMRIs — x=z, y=lgMBH, color=N_events ---
-        sc0 = axes[0].scatter(
-            z_gal, lgMBH,
-            c=generated_EMRIs, cmap='plasma', norm=norm_emri,
-            marker='o', alpha=0.9, s=20
-        )
-        axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs)}')
-        axes[0].set_ylabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
-        # y is already log10(M), so linear scale is correct
-        axes[0].set_yscale('linear')
-
-        # --- Bottom: TDEs ---
-        sc1 = axes[1].scatter(
-            z_gal, lgMBH,
-            c=generated_TDEs, cmap='viridis', norm=norm_tde,
-            marker='d', alpha=0.9, s=20
-        )
-        axes[1].set_title(f'TDEs = {np.sum(generated_TDEs)}')
-        axes[1].set_xlabel('Redshift $z$')
-        axes[1].set_ylabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
-        axes[1].set_yscale('linear')
-
-        # --- Two separate colorbars, one per panel ---
-        # Reserve right margin for both
-        fig.subplots_adjust(right=0.82)
-
-        # Top colorbar aligned to top panel
-        pos0 = axes[0].get_position()
-        cbar_ax0 = fig.add_axes([0.85, pos0.y0, 0.03, pos0.height])
-        fig.colorbar(sc0, cax=cbar_ax0, label=f'N events (EMRIs)')
-
-        # Bottom colorbar aligned to bottom panel
-        pos1 = axes[1].get_position()
-        cbar_ax1 = fig.add_axes([0.85, pos1.y0, 0.03, pos1.height])
-        fig.colorbar(sc1, cax=cbar_ax1, label=f'N events (TDEs)')
-
-        plt.savefig(filename, dpi=300, bbox_inches='tight')
-        plt.close()
 
     @staticmethod
-    def plot_event_rates_hist_2d(lgMBH, z_gal, generated_EMRIs, generated_TDEs, filename):
+    def plot_event_rates(z_EMRI, lgMBH_EMRI, z_TDE, lgMBH_TDE, T_obs, filename):
         fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
-
-        mass_bins = np.linspace(np.min(lgMBH), 
-                                np.max(lgMBH), 100)
-        z_bins = np.linspace(np.min(z_gal), 
-                            np.max(z_gal), 100)
 
         # --- Top: EMRIs ---
-        H_emri, xedges, yedges = np.histogram2d(lgMBH, z_gal, bins=[mass_bins, z_bins], weights=generated_EMRIs)
-
-        # Optionally smooth
-        # H_emri = gaussian_filter(H_emri, sigma=1.5)
-
-        X, Y = np.meshgrid(xedges[:-1], yedges[:-1], indexing='ij')
-        pcm = axes[0].pcolormesh(X, Y, H_emri, cmap='plasma', shading='auto')
-
-        axes[0].set_title(f'EMRIs = {np.sum(generated_EMRIs)}')
-        axes[0].set_ylabel('Redshift (z)')
-
-        # Colorbar for EMRIs
-        cbar_emri = fig.colorbar(pcm, ax=axes[0], label='Number of EMRI events')
+        axes[0].scatter(z_EMRI, lgMBH_EMRI, color='#4361ee', marker='o', alpha=0.7, s=20)
+        axes[0].set_title(f'EMRIs = {len(z_EMRI)}')
+        axes[0].set_ylabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
 
         # --- Bottom: TDEs ---
-        H_tde, _, _ = np.histogram2d(lgMBH, z_gal, bins=[mass_bins, z_bins], weights=generated_TDEs)
-        # H_tde = gaussian_filter(H_tde, sigma=1.5)
+        axes[1].scatter(z_TDE, lgMBH_TDE, color='#f3722c', marker='d', alpha=0.7, s=20)
+        axes[1].set_title(f'TDEs = {len(z_TDE)}')
+        axes[1].set_xlabel('Redshift $z$')
+        axes[1].set_ylabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
 
-        pcm2 = axes[1].pcolormesh(X, Y, H_tde, cmap='plasma', shading='auto')
-
-        axes[1].set_title(f'TDEs = {np.sum(generated_TDEs)}')
-        axes[1].set_xlabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
-        axes[1].set_ylabel('Redshift (z)')
-
-        # Colorbar for TDEs
-        cbar_tde = fig.colorbar(pcm2, ax=axes[1], label='Number of TDE events')
-
+        fig.suptitle(f'Observing window: {T_obs:.2g} yr')
         plt.tight_layout()
-        plt.savefig(filename, dpi=300)
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
         plt.close()
 
     @staticmethod
@@ -627,39 +498,205 @@ class Plotting:
         plt.savefig(filename, dpi=300)
         plt.close()
 
+    # @staticmethod
+    # def plot_event_rates_hist_2d_waterfall(lgMBH, z_gal, generated_EMRIs, generated_TDEs, T_obs, filename):
+    #     from matplotlib.colors import LogNorm
+    #     from scipy.ndimage import gaussian_filter
+
+    #     plt.style.use("dark_background")
+
+    #     # plt.rcParams.update({
+    #     #     "font.size": 13,
+    #     #     "axes.linewidth": 1.2,
+    #     #     "xtick.direction": "in",
+    #     #     "ytick.direction": "in",
+    #     #     "xtick.top": True,
+    #     #     "ytick.right": True,
+    #     #     "axes.facecolor": "#0d0d0d",
+    #     #     "figure.facecolor": "#0d0d0d",
+    #     #     })
+
+    #     mass_bins = np.linspace(np.min(lgMBH), np.max(lgMBH), 400)
+    #     z_bins = np.linspace(np.min(z_gal), np.max(z_gal), 1000)
+
+
+    #     H_emri, xedges, yedges = np.histogram2d(lgMBH, z_gal,
+    #         bins=[mass_bins, z_bins],
+    #         weights=generated_EMRIs,
+    #     )
+
+    #     H_tde, _, _ = np.histogram2d(lgMBH, z_gal,
+    #         bins=[mass_bins, z_bins],
+    #         weights=generated_TDEs,
+    #     )
+
+    #     # Smooth for visualization
+    #     H_emri = gaussian_filter(H_emri, sigma=1.2)
+    #     H_tde = gaussian_filter(H_tde, sigma=1.2)
+
+    #     X, Y = np.meshgrid(xedges[:-1], yedges[:-1], indexing='ij')
+
+    #     logM = X
+    #     Z = Y
+
+    #     # EMRI MODEL
+    #     snr_emri = (500 * np.exp(-((logM - 5.7)**2) / 0.45) / (1 + Z)**1.2)
+    #     EMRI_THRESHOLD = 20
+
+    #     # TDE MODEL
+    #     tde_lum = np.exp(-((logM - 6.0)**2) / 1.2)
+    #     hills_cutoff = 1 / (1 + np.exp((logM - 7.7) * 12))
+    #     distance_factor = np.exp(-Z / 0.35)
+
+    #     tde_signal = tde_lum * hills_cutoff * distance_factor
+
+    #     ztf_snr = 100 * tde_signal
+    #     lsst_snr = 500 * tde_signal
+
+    #     TDE_THRESHOLD = 5
+
+    #     ztf_detect = ztf_snr >= TDE_THRESHOLD
+    #     lsst_detect = lsst_snr >= TDE_THRESHOLD
+
+    #     fig, axes = plt.subplots(2, 1, figsize=(8, 10), sharex=True)
+
+    #     # TOP: EMRI POPULATION
+
+    #     ax = axes[0]
+
+    #     pcm = ax.pcolormesh(X, Y, H_emri, cmap='magma', shading='auto',
+    #         norm=LogNorm(
+    #             vmin=max(np.nanmin(H_emri[H_emri > 0]), 1e-3),
+    #             vmax=np.nanmax(H_emri)
+    #         )
+    #     )
+
+    #     levels = [20, 30, 50, 100, 200]
+
+    #     cs = ax.contour(X, Y, snr_emri, levels=levels, colors='white', linewidths=1.2, alpha=0.9)
+
+    #     ax.clabel(cs, inline=True, fontsize=9, fmt='%d', colors='white')
+
+    #     # EMRI threshold (muted cyan)
+    #     ax.contour(X, Y, snr_emri, levels=[EMRI_THRESHOLD],
+    #         colors=['#4cc9f0'], linewidths=2.2
+    #     )
+
+    #     ax.text(
+    #         4.3,
+    #         3.8,
+    #         r'EMRI SNR threshold',
+    #         color='#4cc9f0',
+    #         fontsize=11
+    #     )
+
+    #     ax.set_title(
+    #         rf'EMRI Population ($N={np.sum(generated_EMRIs):.0f}$)',
+    #         fontsize=15
+    #     )
+
+    #     ax.set_ylabel('Redshift $z$')
+
+    #     cbar1 = fig.colorbar(pcm, ax=ax, pad=0.02)
+    #     cbar1.set_label('Generated EMRI Events')
+
+    #     # BOTTOM: TDE POPULATION
+    #     ax2 = axes[1]
+
+    #     pcm2 = ax2.pcolormesh(
+    #         X,
+    #         Y,
+    #         H_tde,
+    #         cmap='magma',
+    #         shading='auto',
+    #         norm=LogNorm(
+    #             vmin=max(np.nanmin(H_tde[H_tde > 0]), 1e-3),
+    #             vmax=np.nanmax(H_tde)
+    #         )
+    #     )
+
+    #     # ZTF (amber contour)
+    #     ax2.contour(
+    #         X,
+    #         Y,
+    #         ztf_detect,
+    #         levels=[0.5],
+    #         colors=['#ffb703'],
+    #         linewidths=2
+    #     )
+
+    #     # LSST (red contour)
+    #     ax2.contour(
+    #         X,
+    #         Y,
+    #         lsst_detect,
+    #         levels=[0.5],
+    #         colors=['#d62828'],
+    #         linewidths=2.5
+    #     )
+
+    #     ax2.text(
+    #         4.3,
+    #         0.35,
+    #         'ZTF',
+    #         color='#ffb703',
+    #         fontsize=12,
+    #         weight='bold'
+    #     )
+
+    #     ax2.text(
+    #         5.0,
+    #         1.2,
+    #         'LSST',
+    #         color='#d62828',
+    #         fontsize=12,
+    #         weight='bold'
+    #     )
+
+    #     ax2.set_title(
+    #         rf'TDE Population ($N={np.sum(generated_TDEs):.0f}$)',
+    #         fontsize=15
+    #     )
+
+    #     ax2.set_xlabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
+    #     ax2.set_ylabel('Redshift $z$')
+
+    #     cbar2 = fig.colorbar(pcm2, ax=ax2, pad=0.02)
+    #     cbar2.set_label('Generated TDE Events')
+
+    #     # ============================================================
+    #     # FINAL FORMATTING
+    #     # ============================================================
+
+    #     for a in axes:
+    #         a.set_xlim(4.0, 8.5)
+    #         a.set_ylim(0, 8)
+    #         a.grid(True, linestyle='--', alpha=0.25)
+
+    #     plt.tight_layout()
+
+    #     plt.savefig(filename, dpi=300)
+    
     @staticmethod
-    def plot_event_rates_hist_2d_waterfall(lgMBH, z_gal, generated_EMRIs, generated_TDEs, T_obs, filename):
+    def plot_event_rates_hist_2d_waterfall(lgMBH_EMRI, z_EMRI, lgMBH_TDE, z_TDE, T_obs, filename):
         from matplotlib.colors import LogNorm
         from scipy.ndimage import gaussian_filter
 
         plt.style.use("dark_background")
 
-        # plt.rcParams.update({
-        #     "font.size": 13,
-        #     "axes.linewidth": 1.2,
-        #     "xtick.direction": "in",
-        #     "ytick.direction": "in",
-        #     "xtick.top": True,
-        #     "ytick.right": True,
-        #     "axes.facecolor": "#0d0d0d",
-        #     "figure.facecolor": "#0d0d0d",
-        #     })
+        # Shared grid built from the COMBINED mass/z range of both catalogs,
+        # so EMRI and TDE panels are directly comparable cell-for-cell.
+        all_lgMBH = np.concatenate([lgMBH_EMRI, lgMBH_TDE])
+        all_z = np.concatenate([z_EMRI, z_TDE])
 
-        mass_bins = np.linspace(np.min(lgMBH), np.max(lgMBH), 400)
-        z_bins = np.linspace(np.min(z_gal), np.max(z_gal), 1000)
+        mass_bins = np.linspace(all_lgMBH.min(), all_lgMBH.max(), 400)
+        z_bins = np.linspace(all_z.min(), all_z.max(), 1000)
 
+        # No `weights=` needed anymore -- each row is already one event,
+        # so histogram2d's default (count per cell) IS the event count.
+        H_emri, xedges, yedges = np.histogram2d(lgMBH_EMRI, z_EMRI, bins=[mass_bins, z_bins])
+        H_tde, _, _ = np.histogram2d(lgMBH_TDE, z_TDE, bins=[mass_bins, z_bins])
 
-        H_emri, xedges, yedges = np.histogram2d(lgMBH, z_gal,
-            bins=[mass_bins, z_bins],
-            weights=generated_EMRIs,
-        )
-
-        H_tde, _, _ = np.histogram2d(lgMBH, z_gal,
-            bins=[mass_bins, z_bins],
-            weights=generated_TDEs,
-        )
-
-        # Smooth for visualization
         H_emri = gaussian_filter(H_emri, sigma=1.2)
         H_tde = gaussian_filter(H_tde, sigma=1.2)
 
@@ -690,112 +727,49 @@ class Plotting:
         fig, axes = plt.subplots(2, 1, figsize=(8, 10), sharex=True)
 
         # TOP: EMRI POPULATION
-
         ax = axes[0]
 
         pcm = ax.pcolormesh(X, Y, H_emri, cmap='magma', shading='auto',
             norm=LogNorm(
-                vmin=max(np.nanmin(H_emri[H_emri > 0]), 1e-3),
-                vmax=np.nanmax(H_emri)
+                vmin=max(np.nanmin(H_emri[H_emri > 0]), 1e-3) if np.any(H_emri > 0) else 1e-3,
+                vmax=np.nanmax(H_emri) if np.any(H_emri > 0) else 1.0
             )
         )
 
         levels = [20, 30, 50, 100, 200]
-
         cs = ax.contour(X, Y, snr_emri, levels=levels, colors='white', linewidths=1.2, alpha=0.9)
-
         ax.clabel(cs, inline=True, fontsize=9, fmt='%d', colors='white')
 
-        # EMRI threshold (muted cyan)
-        ax.contour(X, Y, snr_emri, levels=[EMRI_THRESHOLD],
-            colors=['#4cc9f0'], linewidths=2.2
-        )
+        ax.contour(X, Y, snr_emri, levels=[EMRI_THRESHOLD], colors=['#4cc9f0'], linewidths=2.2)
+        ax.text(4.3, 3.8, r'EMRI SNR threshold', color='#4cc9f0', fontsize=11)
 
-        ax.text(
-            4.3,
-            3.8,
-            r'EMRI SNR threshold',
-            color='#4cc9f0',
-            fontsize=11
-        )
-
-        ax.set_title(
-            rf'EMRI Population ($N={np.sum(generated_EMRIs):.0f}$)',
-            fontsize=15
-        )
-
+        ax.set_title(rf'EMRI Population ($N={len(z_EMRI)}$)', fontsize=15)
         ax.set_ylabel('Redshift $z$')
 
         cbar1 = fig.colorbar(pcm, ax=ax, pad=0.02)
-        cbar1.set_label('Generated EMRI Events')
+        cbar1.set_label('EMRI events per cell')
 
         # BOTTOM: TDE POPULATION
         ax2 = axes[1]
 
-        pcm2 = ax2.pcolormesh(
-            X,
-            Y,
-            H_tde,
-            cmap='magma',
-            shading='auto',
+        pcm2 = ax2.pcolormesh(X, Y, H_tde, cmap='magma', shading='auto',
             norm=LogNorm(
-                vmin=max(np.nanmin(H_tde[H_tde > 0]), 1e-3),
-                vmax=np.nanmax(H_tde)
+                vmin=max(np.nanmin(H_tde[H_tde > 0]), 1e-3) if np.any(H_tde > 0) else 1e-3,
+                vmax=np.nanmax(H_tde) if np.any(H_tde > 0) else 1.0
             )
         )
 
-        # ZTF (amber contour)
-        ax2.contour(
-            X,
-            Y,
-            ztf_detect,
-            levels=[0.5],
-            colors=['#ffb703'],
-            linewidths=2
-        )
+        ax2.contour(X, Y, ztf_detect, levels=[0.5], colors=['#ffb703'], linewidths=2)
+        ax2.contour(X, Y, lsst_detect, levels=[0.5], colors=['#d62828'], linewidths=2.5)
+        ax2.text(4.3, 0.35, 'ZTF', color='#ffb703', fontsize=12, weight='bold')
+        ax2.text(5.0, 1.2, 'LSST', color='#d62828', fontsize=12, weight='bold')
 
-        # LSST (red contour)
-        ax2.contour(
-            X,
-            Y,
-            lsst_detect,
-            levels=[0.5],
-            colors=['#d62828'],
-            linewidths=2.5
-        )
-
-        ax2.text(
-            4.3,
-            0.35,
-            'ZTF',
-            color='#ffb703',
-            fontsize=12,
-            weight='bold'
-        )
-
-        ax2.text(
-            5.0,
-            1.2,
-            'LSST',
-            color='#d62828',
-            fontsize=12,
-            weight='bold'
-        )
-
-        ax2.set_title(
-            rf'TDE Population ($N={np.sum(generated_TDEs):.0f}$)',
-            fontsize=15
-        )
-
+        ax2.set_title(rf'TDE Population ($N={len(z_TDE)}$)', fontsize=15)
         ax2.set_xlabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
         ax2.set_ylabel('Redshift $z$')
 
         cbar2 = fig.colorbar(pcm2, ax=ax2, pad=0.02)
-        cbar2.set_label('Generated TDE Events')
-
-        # ============================================================
-        # FINAL FORMATTING
-        # ============================================================
+        cbar2.set_label('TDE events per cell')
 
         for a in axes:
             a.set_xlim(4.0, 8.5)
@@ -803,8 +777,8 @@ class Plotting:
             a.grid(True, linestyle='--', alpha=0.25)
 
         plt.tight_layout()
-
         plt.savefig(filename, dpi=300)
+        plt.close(fig)
 
     @staticmethod
     def plot_MBH_vs_waterfall(lgMBH, z_gal, generated_EMRIs, generated_TDEs, T_obs, filename):

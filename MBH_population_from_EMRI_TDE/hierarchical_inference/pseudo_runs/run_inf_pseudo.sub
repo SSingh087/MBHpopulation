@@ -1,6 +1,6 @@
 
 # Executable and arguments
-executable      = run_inf_pseudo.sh
+executable      = ./pseudo_runs/run_inf_pseudo.sh
 getenv          = true
 arguments       = $(SOURCE) $(POPULATION) $(SURVEY)
 
@@ -15,4 +15,11 @@ output          = run_inference_$(SOURCE)_$(POPULATION)_$(SURVEY).out
 request_cpus    = 4
 request_memory  = 16GB
 
-queue 1
+queue SOURCE, POPULATION, SURVEY from (
+    EMRI, A, None
+    EMRI, B, None
+    TDE, A, ZTF
+    TDE, B, ZTF
+    EMRI_TDE, A, ZTF
+    EMRI_TDE, B, ZTF
+)

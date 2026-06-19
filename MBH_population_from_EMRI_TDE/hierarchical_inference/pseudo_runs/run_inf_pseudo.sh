@@ -1,6 +1,6 @@
 #!/bin/sh
 
-export GALAXIES=100
+export GALAXIES=1000
 export UNIVERSE_MODEL=0
 export Z_MAX=10.0
 export SEED=42
@@ -68,10 +68,8 @@ A_PRIOR_WEIGHT_COmass_LOW=0.001
 A_PRIOR_WEIGHT_COmass_HIGH=0.999
 
 # Z_GAL DIST (BETA DIST)
-A_PRIOR_Z_GAL_ALPHA_LOW=0.5
-A_PRIOR_Z_GAL_ALPHA_HIGH=5.0
-A_PRIOR_Z_GAL_BETA_LOW=5
-A_PRIOR_Z_GAL_BETA_HIGH=10
+A_PRIOR_Z_GAL_LAM_LOW=-5.0
+A_PRIOR_Z_GAL_LAM_HIGH=-1.01
 
 
 # ============================================================
@@ -120,10 +118,8 @@ B_PRIOR_WEIGHT_COmass_LOW=0.001
 B_PRIOR_WEIGHT_COmass_HIGH=0.999
 
 # Z_GAL DIST (BETA DIST)
-B_PRIOR_Z_GAL_ALPHA_LOW=0.5
-B_PRIOR_Z_GAL_ALPHA_HIGH=5.0
-B_PRIOR_Z_GAL_BETA_LOW=5
-B_PRIOR_Z_GAL_BETA_HIGH=10
+B_PRIOR_Z_GAL_LAM_LOW=-5.0
+B_PRIOR_Z_GAL_LAM_HIGH=-1.01
 
 # ============================================================
 # PRIORS for population MIX hyper-parameters
@@ -163,8 +159,7 @@ if [ "$POPULATION" = "A" ]; then
         --mu_star         $A_PRIOR_MU_STAR_LOW          $A_PRIOR_MU_STAR_HIGH         \
         --sigma_star      $A_PRIOR_SIGMA_STAR_LOW       $A_PRIOR_SIGMA_STAR_HIGH      \
         --weight_COmass   $A_PRIOR_WEIGHT_COmass_LOW    $A_PRIOR_WEIGHT_COmass_HIGH   \
-        --z_gal_alpha     $A_PRIOR_Z_GAL_ALPHA_LOW      $A_PRIOR_Z_GAL_ALPHA_HIGH      \
-        --z_gal_beta      $A_PRIOR_Z_GAL_BETA_LOW       $A_PRIOR_Z_GAL_BETA_HIGH       \
+        --lam_z_gal       $A_PRIOR_Z_GAL_LAM_LOW        $A_PRIOR_Z_GAL_LAM_HIGH
 
 elif [ "$POPULATION" = "B" ]; then
     python hierarchical_inference_B.py \
@@ -187,8 +182,7 @@ elif [ "$POPULATION" = "B" ]; then
         --mu_star         $B_PRIOR_MU_STAR_LOW           $B_PRIOR_MU_STAR_HIGH         \
         --sigma_star      $B_PRIOR_SIGMA_STAR_LOW        $B_PRIOR_SIGMA_STAR_HIGH      \
         --weight_COmass   $B_PRIOR_WEIGHT_COmass_LOW     $B_PRIOR_WEIGHT_COmass_HIGH \
-        --z_gal_alpha     $B_PRIOR_Z_GAL_ALPHA_LOW      $B_PRIOR_Z_GAL_ALPHA_HIGH      \
-        --z_gal_beta      $B_PRIOR_Z_GAL_BETA_LOW       $B_PRIOR_Z_GAL_BETA_HIGH
+        --lam_z_gal       $B_PRIOR_Z_GAL_LAM_LOW         $B_PRIOR_Z_GAL_LAM_HIGH
 
 else
     echo "Unknown POPULATION: $POPULATION"

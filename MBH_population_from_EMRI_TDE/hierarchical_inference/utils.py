@@ -16,7 +16,7 @@ def make_dist(pop):
                 "MBHspin" : DoubleBetaDistribution([0.01, 0.99], device=device),
                 "CO_mass" : DoubleGaussianDistribution([0.1, 15], device=device),
                 "e_pl" : DoubleBetaDistribution([0.01, 0.99], device=device),
-                "z_gal" : FixedLimitTruncatedBetaDistribution([0.01, 10.0], device=device)
+                "z_gal" : FixedLimitsPowerLaw([0.01, 10.0], device=device)
             }   
         return PopulationDistribution(distributions=DIST, data=None)
 
@@ -26,7 +26,7 @@ def make_dist(pop):
                 "MBHspin" : DoubleGaussianDistribution([0.01, 0.99], device=device),
                 "CO_mass" : DoubleGaussianDistribution([0.1, 15], device=device),
                 "e_pl" : DoubleGaussianDistribution([0.01, 0.99], device=device),
-                "z_gal" : FixedLimitTruncatedBetaDistribution([0.01, 10.0], device=device)
+                "z_gal" : FixedLimitsPowerLaw([0.01, 10.0], device=device)
             }
         return PopulationDistribution(distributions=DIST, data=None)
 
@@ -46,7 +46,7 @@ def get_true_x(pop):
                 "MBHspin": {'alpha_1': 2.5, 'alpha_2': 9.5, 'beta_1': 5.0, 'beta_2': 5.0, 'weight': 0.7},
                 "CO_mass": {"mu_1": 1.0, "sigma_1": 0.5, "mu_2": 10.0, "sigma_2": 0.5, "weight": 0.5},
                 "e_pl": {'alpha_1': 2.0, 'alpha_2': 9.0, 'beta_1': 5.0, 'beta_2': 5.0, 'weight': 0.65},
-                "z_gal": {"alpha": 0.01, "beta": 1}
+                "z_gal": {"lam": -3}
             }
 
     if pop == "B":
@@ -55,7 +55,7 @@ def get_true_x(pop):
                 "MBHspin": {'mu_1': 0.3, 'sigma_1': 0.1, 'mu_2': 0.7, 'sigma_2': 0.1, 'weight': 0.7},
                 "CO_mass": {"mu_1": 1.0, "sigma_1": 0.5, "mu_2": 10.0, "sigma_2": 0.5, "weight": 0.5},
                 "e_pl": {'mu_1': 0.2, 'sigma_1': 0.1, 'mu_2': 0.8, 'sigma_2': 0.1, 'weight': 0.65},
-                "z_gal": {'alpha': 0.01, 'beta': 1}
+                "z_gal": {"lam": -3}
             }
 
     if pop == "MIX":
@@ -90,8 +90,7 @@ def get_posterior_samples(pop, hf):
                 "sigma_star": np.array(hf.get('posterior_samples')['sigma_star']),
                 "weight_COmass": np.array(hf.get('posterior_samples')['weight_COmass']),
                
-                "alpha_z_gal": np.array(hf.get('posterior_samples')['alpha_z_gal']),
-                "beta_z_gal": np.array(hf.get('posterior_samples')['beta_z_gal'])
+                "lam_z_gal": np.array(hf.get('posterior_samples')['lam_z_gal'])
             }
 
     if pop == "B":
@@ -116,8 +115,7 @@ def get_posterior_samples(pop, hf):
                 "sigma_star": np.array(hf.get('posterior_samples')['sigma_star']),
                 "weight_COmass": np.array(hf.get('posterior_samples')['weight_COmass']),
                 
-                "alpha_z_gal": np.array(hf.get('posterior_samples')['alpha_z_gal']),
-                "beta_z_gal": np.array(hf.get('posterior_samples')['beta_z_gal'])
+                "lam_z_gal": np.array(hf.get('posterior_samples')['lam_z_gal'])
                 }
 
     if pop == "MIX":
@@ -150,8 +148,7 @@ def get_latex_labels(pop):
             "sigma_star": r"$\sigma_{\star}$",
             "weight_COmass": r"$w_{\rm CO}$",
 
-            "alpha_z_gal": r"$\alpha_z$",
-            "beta_z_gal": r"$\beta_z$"
+            "lam_z_gal": r"$\lambda_z$"
         }
 
     if pop == "B":
@@ -176,8 +173,7 @@ def get_latex_labels(pop):
             "sigma_star": r"$\sigma_{\star}$",
             "weight_COmass": r"$w_{\rm CO}$",
 
-            "alpha_z_gal": r"$\alpha_z$",
-            "beta_z_gal": r"$\beta_z$"
+            "lam_z_gal": r"$\lambda_z$"
         }
 
     if pop == "MIX":
@@ -210,8 +206,7 @@ def get_true_x_flat(pop):
             "sigma_star":    tx["CO_mass"]["sigma_1"],
             "weight_COmass": tx["CO_mass"]["weight"],
 
-            "alpha_z_gal": tx["z_gal"]["alpha"],
-            "beta_z_gal":  tx["z_gal"]["beta"]
+            "lam_z_gal": tx["z_gal"]["lam"]
         }
 
     if pop == "B":
@@ -236,8 +231,7 @@ def get_true_x_flat(pop):
             "sigma_star":    tx["CO_mass"]["sigma_1"],
             "weight_COmass": tx["CO_mass"]["weight"],
 
-            "alpha_z_gal": tx["z_gal"]["alpha"],
-            "beta_z_gal":  tx["z_gal"]["beta"]
+            "lam_z_gal": tx["z_gal"]["lam"]
         }
 
     if pop == "MIX":

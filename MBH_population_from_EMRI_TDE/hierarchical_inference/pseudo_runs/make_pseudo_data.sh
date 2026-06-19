@@ -1,6 +1,6 @@
 #!/bin/bash
 
-GALAXIES=100
+GALAXIES=1000
 
 python prep_pseudo_data.py \
     --GALAXIES $GALAXIES \
@@ -13,11 +13,11 @@ python prep_pseudo_data.py \
 
 # MAKE PLOTS 
 
-# python plotting_pseudo_data.py \
-#     --GALAXIES $GALAXIES \
-#     --POPULATION A
+python plotting_pseudo_data.py \
+    --GALAXIES $GALAXIES \
+    --POPULATION A
 
-# python plotting_pseudo_data.py \
-#     --GALAXIES $GALAXIES \
-#     --POPULATION B
+python plotting_pseudo_data.py \
+    --GALAXIES $GALAXIES \
+    --POPULATION B
         

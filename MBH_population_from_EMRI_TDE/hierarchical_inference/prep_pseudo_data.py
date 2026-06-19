@@ -12,7 +12,7 @@ parser.add_argument("--GALAXIES", type=int, required=True)
 parser.add_argument("--POPULATION",      type=str, default="A", choices=["A", "B", "MIX"])
 args = parser.parse_args()
 
-N_POSTERIOR      = 10
+N_POSTERIOR      = 1000
 SIGMA_POSTERIOR  = 1e-3
 Z_MIN, Z_MAX     = 0.01, 2.0
 
@@ -101,8 +101,8 @@ def internal_to_raw(data: dict) -> dict:
 
 tde_internal = {k: cat[k] for k in tde_keys_internal}
 tde_raw      = internal_to_raw(tde_internal)
-tde_post_raw      = make_posteriors(tde_raw,      N_POSTERIOR, SIGMA_POSTERIOR)  # for h5 (raw keys)
-tde_post_internal = make_posteriors(tde_internal, N_POSTERIOR, SIGMA_POSTERIOR)  # for .pt (internal keys)
+tde_post_raw      = make_posteriors(tde_raw,      N_POSTERIOR, SIGMA_POSTERIOR * 1E2)  # for h5 (raw keys)
+tde_post_internal = make_posteriors(tde_internal, N_POSTERIOR, SIGMA_POSTERIOR * 1E2)  # for .pt (internal keys)
 
 for survey in ["ZTF", "LSST"]:
     save_h5(
@@ -127,7 +127,7 @@ print("\n[SUMMARY]")
 print(f"  Population  : {args.POPULATION}")
 print(f"  EMRI events : {args.GALAXIES}")
 print(f"  TDE events  : {args.GALAXIES}  (ZTF and LSST identical, no selection yet)")
-print(f"  Post. samps : {N_POSTERIOR} per event  (σ = {SIGMA_POSTERIOR})")
+print(f"  Post. samps : {N_POSTERIOR} per event  (σ = {SIGMA_POSTERIOR * 1E2:.1e} for TDE, σ = {SIGMA_POSTERIOR:.1e} for EMRI)")
 print(f"  Saved to    : {loc}")
 print(f"\n[SHAPES]")
 for k, v in emri_post.items():

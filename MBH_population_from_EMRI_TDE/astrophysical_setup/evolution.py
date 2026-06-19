@@ -3,7 +3,7 @@ import numpy as np
 from config import (kappa_cusp)
 from nsc import NSC, CompactObject
 from relaxation import RelaxationModel
-from rate import RateModel, UniversalRate
+from rate import RateModel, UniversalRate, ConstantRate
 from cosmology import LastMajorMerger
 
 from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
@@ -58,6 +58,9 @@ class CuspEvolution:
         return np.maximum(0.0, self.t_obs_at_z_obs - t_on)
 
     def t_EMRI(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
+        """
+        Calculate the time to peak EMRI rate in Gyr
+        """
         return self.rate_model.time_to_peak_EMRI_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
     
     def Gamma_hat(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, kind: str = 'EMRI'):
@@ -76,72 +79,6 @@ class CuspEvolution:
 
         return T_c_array / t_EMRI_array
     
-    # def expected_objects_in_time(self, T_obs, kvir: float = 1.0, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
-    #     """
-    #     Integrates the rate over the observation period from t=0 to t=T_obs.
-        
-    #     N_expected = (1 / (1+z)) * integral from 0 to T_obs of:
-    #         Gamma_hat * R(tau(t)) * dt
-        
-    #     where:
-    #     - tau(t) = T_c(t) / t_EMRI evolves as the cusp ages
-    #     - Gamma_hat is in units of [year^-1]
-    #     - T_obs is in [Gyr] = 10^9 [years]
-    #     - dt is in [Gyr] units, automatically converted to [years] for integration
-        
-    #     Uses numerical integration (trapezoidal rule) over a grid.
-    #     The factor of (1+z) accounts for time dilation in an expanding universe.
-    #     """
-    #     # Create time grid from 0 to T_obs (in Gyr)
-        
-    #     t_grid = np.linspace(0, T_obs, n_grid)
-        
-    #     # For each time step, compute the cusp age at that time
-    #     # We need to recalculate cusp_turn_on_time once (same LMM for all times)
-    #     t_on = self.cusp_turn_on_time(kvir=kvir)
-        
-    #     # Cusp age at each time in the grid
-    #     T_c_grid = np.maximum(0.0, t_grid[None, :] - t_on[:, None])  # Shape: (N_gal, n_grid)
-        
-    #     # Get t_EMRI (constant for each galaxy)
-    #     t_EMRI_array = self.t_EMRI(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)  # Shape: (N_gal,)
-        
-    #     # Compute tau(t) at each grid point
-    #     tau_grid = T_c_grid / t_EMRI_array[:, None]  # Shape: (N_gal, n_grid)
-        
-    #     # Get Gamma_hat (in units of [year^-1])
-    #     Gamma_hat = self.Gamma_hat(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind)  # Shape: (N_gal,)
-        
-    #     # Compute rate at each grid point (normalized, dimensionless)
-    #     if kind.upper() == 'EMRI':
-    #         rate_grid = UniversalRate.EMRI_rate(tau_grid)
-    #     elif kind.upper() == 'TDE':
-    #         rate_grid = UniversalRate.TDE_rate(tau_grid)
-    #     else:
-    #         raise ValueError(f"Unknown kind: {kind}")
-        
-    #     # Integrate using trapezoidal rule
-    #     # integrand = Gamma_hat [yr^-1] * rate_grid [dimensionless]
-    #     # dt = [Gyr] = 10^9 [years]
-    #     # integral = [yr^-1] * [yr] = [dimensionless count]
-    #     integrand = Gamma_hat[:, None] * rate_grid  # Shape: (N_gal, n_grid), units: [yr^-1]
-        
-    #     # Trapezoidal rule integration with dt in Gyr = 10^9 years
-    #     dt_gyr = T_obs / (n_grid - 1)
-    #     dt_yr = dt_gyr * 1e9  # Convert Gyr to years
-    #     integral = np.trapezoid(integrand, dx=dt_yr, axis=1)  # Shape: (N_gal,), units: [dimensionless count]
-        
-    #     # Apply redshift factor (observation time is dilated by (1+z))
-    #     return integral / (1 + self.nsc.gal.z_gal)
-
-    # def number_of_objects_in_time(self, T_obs, kvir: float = 1.0, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
-
-    #     N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, n_grid=n_grid, kind=kind)
-        
-
-    #     return np.random.poisson(N_expected)
-
-
     def expected_objects_in_time_full_integration(self, T_obs, kvir: float = 1.0, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
         """
         Calculate the expected number of objects in the observation time and do a full integration over the rate evolution, instead of assuming a constant rate.
@@ -224,6 +161,28 @@ class CuspEvolution:
 
         # N_expected = self.expected_objects_in_time_full_integration(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, n_grid=n_grid, kind=kind)
 
-        N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind) * 1E8 if kind.upper() == 'EMRI' else self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind) * 1E8
+        N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind) * 1E7 if kind.upper() == 'EMRI' else self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind) * 1E6
 
+        return np.random.poisson(N_expected)
+
+    def expected_objects_in_time_constant_rate(self, T_obs_yr, kvir: float = 1.0, kind: str = 'EMRI', RateModel: ConstantRate = None):
+            """
+            Constant ('top-hat') rate model:
+                rate_x(T_c) = (N_x / t_f)(M_BH, sigma) * Theta(t_rlx - T_c)
+            N_x/t_f comes from self.constant_rate_model (Table 1 interpolation).
+            T_c is the cusp age; t_rlx is the relaxation time at r_infl.
+            T_obs_yr is the observation duration in years (e.g. 4-6 for LISA).
+            """
+            T_c_Gyr   = np.atleast_1d(self.cusp_age(kvir=kvir))
+            t_rlx_Gyr = self.relaxation.t_relax_at_rinfl(kvir=kvir, unit='Gyr')
+            active    = (T_c_Gyr < t_rlx_Gyr).astype(float)            # Theta(t_rlx - T_c)
+
+            rate_Gyr_inv = RateModel.constant_rate(kind=kind)   # 1/Gyr
+
+            T_obs_Gyr = T_obs_yr * 1e-9
+            return rate_Gyr_inv * T_obs_Gyr * active / (1.0 + self.nsc.gal.z_gal)
+
+    def number_of_objects_in_time_constant_rate(self, T_obs_yr, kvir: float = 1.0, kind: str = 'EMRI', RateModel: ConstantRate = None):
+        N_expected = self.expected_objects_in_time_constant_rate(T_obs_yr=T_obs_yr, kvir=kvir, kind=kind, RateModel=RateModel)
+        breakpoint()
         return np.random.poisson(N_expected)
