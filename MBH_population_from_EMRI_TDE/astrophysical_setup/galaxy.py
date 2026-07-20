@@ -47,22 +47,12 @@ import warnings
 
 from config import *
 
-# NUCLEATION FRACTION MODELS
-# ─────────────────────────────────────────────────────────────────────────
-# These functions model the probability that a galaxy of stellar mass Mgal
-# hosts a nuclear star cluster.
-#
-# INPUTS: lgMgal (log10(M*/Msun))
-# OUTPUTS: probability in range [0, 1]
-#
-# REFERENCES:
-#   _f_NSC_Hannah_: arXiv:2407.10911 Fig 4
-#   _f_NSC_Neumayer_: arXiv:2001.03626 Fig 3
-#
-# The final nucleation probability is the maximum of the two models.
 
-_f_NSC_Hannah_   = lambda lgMgal: np.exp(-((lgMgal - 7.6)**4) / 400.0)  # arXiv:2407.10911 Fig 4
-_f_NSC_Neumayer_ = lambda lgMgal: np.exp(-((lgMgal - 9.0)**4) /  50.0)  # arXiv:2001.03626 Fig 3
+# _f_NSC_Hannah_   = lambda lgMgal: np.exp(-((lgMgal - 7.6)**4) / 400.0)  # arXiv:2407.10911 Fig 4
+# _f_NSC_Neumayer_ = lambda lgMgal: np.exp(-((lgMgal - 9.0)**4) /  50.0)  # arXiv:2001.03626 Fig 3
+
+_f_NSC_Hannah_   = lambda lgMgal: np.exp(-((lgMgal - 5.6)**4) / 1000.0)  # arXiv:2407.10911 Fig 4
+_f_NSC_Neumayer_ = lambda lgMgal: np.exp(-((lgMgal - 9.0)**2) /  30.0)**2  # arXiv:2001.03626 Fig 3
 
 class Galaxy:
     """
@@ -123,7 +113,7 @@ class Galaxy:
     Redshift: dimensionless
     """
 
-    def __init__(self, z_gal: np.ndarray, ra_deg: np.ndarray=None, dec_deg: np.ndarray=None, rng: Optional[np.random.Generator] = None, lgMgal: Optional[np.ndarray] = None, lgMBH: Optional[np.ndarray] = None, sigma_pc_yr: Optional[np.ndarray] = None, nucleation_occurs: bool = True):
+    def __init__(self, z_gal: np.ndarray, ra_deg: np.ndarray=None, dec_deg: np.ndarray=None, rng: Optional[np.random.Generator] = None, lgMgal: Optional[np.ndarray] = None, lgMBH: Optional[np.ndarray] = None, sigma_pc_yr: Optional[np.ndarray] = None, nucleation_occurs: bool = True, mbh_mass_method: str = 'use_sigma', nucleation_method: str = 'hannah'):
         """
         Initialize a Galaxy instance with stellar mass and derived properties.
 
@@ -174,6 +164,11 @@ class Galaxy:
             Random number generator for reproducibility
             DEFAULT: numpy.random.default_rng() (system entropy)
 
+        mbh_mass_method : str, optional
+            Method to compute MBH: use either 'use_sigma' (compute from sigma) or 'use_lgMgal' 
+        nucleation_method : str, optional
+            Method to determine nucleation fraction: 'hannah' or 'neumayer'
+
         INTERNAL DERIVATIONS
         ──────────────────────────────────────────────────────────────────────
         The class automatically:
@@ -192,6 +187,19 @@ class Galaxy:
         self.rng = rng if rng is not None else np.random.default_rng()
         self.z_gal = np.asarray(z_gal)
 
+        # Determine which M-sigma relation to use based on the method parameter
+        
+        if mbh_mass_method == 'use_sigma':
+            self.MBH_A = MBH_A_sigma
+            self.MBH_B = MBH_B_sigma
+            self.MBH_scatter = MBH_scatter_sigma
+        elif mbh_mass_method == 'use_lgMgal':
+            self.MBH_A = MBH_A_LGMGAL
+            self.MBH_B = MBH_B_LGMGAL
+            self.MBH_scatter = MBH_scatter_LGMGAL
+        else:
+            raise ValueError("Invalid method. Must be 'use_sigma' or 'use_lgMgal'.")
+
         if lgMgal is None and lgMBH is None:
             raise ValueError("Must specify either lgMgal or lgMBH. They are related by the M-sigma relation. Specify one or the other, or neither to compute lgMBH from lgMgal.")
 
@@ -204,8 +212,12 @@ class Galaxy:
             # No nucleation randomness in since we are conditioning on lgMBH which implies a nucleated galaxy. So we can set nucleation_occurs=True for all of them.
             self.nucleation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
 
+            self.sigma_pc_yr = np.asarray(sigma_pc_yr) if sigma_pc_yr is not None else self.sigma(unit='pc/year')
+            self.sigma_km_s = self.sigma_pc_yr * pc_to_cm / sec_per_year / 1e5  # convert to km/s
+
+
         # Case 2: Only lgMBH provided (inverse mode - MBH/sigma specified externally)
-        elif lgMBH is not None and lgMgal is None:
+        elif lgMBH is not None and lgMgal is None and mbh_mass_method == 'use_sigma':
             print("[INFO] : Only lgMBH is provided. This will compute lgMgal and sigma from lgMBH using the M-sigma relation.")
             self.lgMBH_mass = np.asarray(lgMBH)
             self.sigma_pc_yr = np.asarray(sigma_pc_yr)
@@ -214,39 +226,51 @@ class Galaxy:
 
             # All objects are nucleated in this mode since we are conditioning on lgMBH
             self.nucleation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
+        
+        elif lgMBH is not None and lgMgal is None and mbh_mass_method == 'use_lgMgal':
+            print("[INFO] Only lgMBH provided (use_Mstar relation): inverting the "
+                  "M_BH-M* relation to recover implied lgMgal, then running that "
+                  "through the standard size-mass + virial pipeline for sigma.")
+            self.lgMBH_mass = np.asarray(lgMBH)
+            self.nucleation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
+            self.lgMgal = (self.lgMBH_mass - self.MBH_A) / self.MBH_B + np.log10(MGAL0)
+ 
 
         # Case 3: Mgal → sigma, MBH (forward galaxy model)
         elif lgMgal is not None and lgMBH is None:
-            print("[INFO] : Mgal is provided. This will compute sigma and MBH from lgMgal using the M-sigma relation.")
+            print("[INFO] : Mgal is provided. This will compute sigma and MBH from lgMgal using the {} relation.".format(mbh_mass_method))
             self.lgMgal = np.array(lgMgal)
-
 
             # vectorized nucleation flags
             if nucleation_occurs is None:
-                self.nucleation_occurs = np.ones(self.lgMgal.shape[0], dtype=bool)
+                print("[INFO] : nuclating galaxies based on the {} nucleation fraction model.".format(nucleation_method))
+                nucleation_occurs = Galaxy.check_nucleation(self.lgMgal, method=nucleation_method, rng=self.rng)
             else:
-                self.nucleation_occurs = np.asarray(nucleation_occurs, dtype=bool)
+                print("[WARNING] : nucleation_occurs is provided. This will override the default nucleation fraction model and use the provided boolean mask. Ensure this is intended behavior.")
+                nucleation_occurs = np.asarray(nucleation_occurs, dtype=bool)
+            self.nucleation_occurs = nucleation_occurs
 
             # this ensures we use the same properties all the time and not apply scatter differently across different method calls. The scatter is applied once here in the constructor and then stored as an attribute for consistency.
 
             # we also here care for galaxies which are nucleated.
-            self.sigma_pc_yr = self.sigma(unit='pc/year')[self.nucleation_occurs]
+            self.lgMgal = self.lgMgal[self.nucleation_occurs]
+            self.sigma_pc_yr = self.sigma(unit='pc/year')
             self.sigma_km_s = self.sigma_pc_yr * pc_to_cm / sec_per_year / 1e5  # convert to km/s
-            self.lgMBH_mass = self.lgMBH(A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter)[self.nucleation_occurs]
+            self.lgMBH_mass = self.lgMBH(sigma_0=MBH_sigma0, unit='Msun', mbh_mass_method=mbh_mass_method)
             self.z_gal = self.z_gal[self.nucleation_occurs]
 
         if ra_deg is None and dec_deg is None:
-            self.ra_deg, self.dec_deg = self.sky_location()[self.nucleation_occurs].T
+            self.ra_deg, self.dec_deg = self.sky_location().T
         else:
             ra_deg = np.asarray(ra_deg)
             dec_deg = np.asarray(dec_deg)
-            self.ra_deg = ra_deg[self.nucleation_occurs]
-            self.dec_deg = dec_deg[self.nucleation_occurs]
+            self.ra_deg = ra_deg
+            self.dec_deg = dec_deg
         
         # print(f"Number of galaxies: {self.lgMgal.shape[0]} with nucleation_occurs={self.nucleation_occurs.sum()} out of {self.lgMgal.shape[0]} total.")
 
-    @classmethod
-    def check_nucleation(cls, lgMgal, z_gal):
+    @staticmethod
+    def check_nucleation(cls, lgMgal, nucleation_method='hannah'):
         """
         Determine which galaxies are nucleated based on stellar mass.
 
@@ -271,10 +295,9 @@ class Galaxy:
             DIMENSION: (N_gal,)
             UNITS: dex
 
-        z_gal : ndarray
-            Galaxy redshift (not currently used in nucleation model)
-            DIMENSION: (N_gal,)
-            UNITS: dimensionless
+        nucleation_method : str, optional
+            Method to determine nucleation fraction: 'hannah' or 'neumayer'
+            DEFAULT: 'hannah'
 
         OUTPUTS
         ────────────────────────────────────────────────────────────────────────
@@ -287,26 +310,25 @@ class Galaxy:
         ──────────────────────────────────────────────────────────────────────
         >>> lgMgal = np.array([9.0, 10.0, 11.0])
         >>> z_gal = np.array([0.1, 0.1, 0.1])
-        >>> mask = Galaxy.check_nucleation(lgMgal, z_gal)
-        >>> print(f"Nucleated: {mask.sum()}/{len(mask)}")
+        >>> gal = Galaxy(lgMgal=lgMgal, z_gal=z_gal)
+        >>> nucleated_mask = Galaxy.check_nucleation(lgMgal, nucleation_method='hannah')
+        >>> nucleated_lgMgal = lgMgal[nucleated_mask]
+        >>> nucleated_z_gal = z_gal[nucleated_mask]
+        >>> gal_nucleated = Galaxy(lgMgal=nucleated_lgMgal, z_gal=nucleated_z_gal)
         """
         lgMgal = np.array(lgMgal)
-        z_gal = np.array(z_gal)
-
-        # Compute nucleation probability from two independent models
-        p1 = _f_NSC_Hannah_(lgMgal)       # Hannah et al. model
-        p2 = _f_NSC_Neumayer_(lgMgal)     # Neumayer et al. model
-
-        # Use maximum (most conservative approach)
-        p = np.maximum(p1, p2)
 
         # Stochastic sampling: draw uniform random numbers
         f = np.random.uniform(0.0, 1.0, size=lgMgal.shape)
-
-        # Galaxy is nucleated if f < p_NSC(Mgal)
+        if nucleation_method == 'hannah':
+            p = _f_NSC_Hannah_(lgMgal)
+        elif nucleation_method == 'neumayer':
+            p = _f_NSC_Neumayer_(lgMgal)
+        else:
+            raise ValueError("Invalid method. Must be 'hannah' or 'neumayer'.")
+        
         mask = f < p
         return mask
-
 
     def R_eff(self, lg_A=0.82, B=0.24, Re_scatter=0.20, unit='kpc'):
         """
@@ -432,7 +454,7 @@ class Galaxy:
         else:
             raise ValueError("Invalid unit. Must be 'km/s' or 'pc/year'")
 
-    def lgMBH(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, unit='Msun'):
+    def lgMBH(self, sigma_0=MBH_sigma0, unit='Msun', mbh_mass_method='use_sigma'):
         """
         Compute black hole mass from M-sigma scaling relation.
 
@@ -479,6 +501,11 @@ class Galaxy:
             Output unit (currently only 'Msun' supported)
             DEFAULT: 'Msun'
 
+        mbh_mass_method : str, required
+            Method to compute MBH:
+              'use_sigma' → compute MBH from sigma derived from lgMgal
+              'use_lgMgal' → use provided lgMgal directly (no computation)
+
         OUTPUTS
         ────────────────────────────────────────────────────────────────────────
         lgMBH : ndarray
@@ -505,13 +532,23 @@ class Galaxy:
           1. R_eff (size-mass relation)
           2. Virial relation with stellar mass
         """
-        sigma = self.sigma(unit='km/s')
-        lgMBH = A + B * np.log10(sigma / sigma_0)
-        lgMBH += np.random.normal(0.0, MBH_scatter, size=sigma.shape)
-        return lgMBH
+        if mbh_mass_method == 'use_sigma':
+            print("[INFO] : Computing lgMBH from sigma using the M-sigma relation.")
+            sigma = self.sigma(unit='km/s')
+            lgMBH = self.MBH_A + self.MBH_B * np.log10(sigma / MBH_sigma0)
+            lgMBH += np.random.normal(0.0, self.MBH_scatter, size=sigma.shape)
+            return lgMBH
+        elif mbh_mass_method == 'use_lgMgal':
+            print("[INFO] : Using provided lgMgal directly without computing from sigma.")
+            lgMBH = self.MBH_A + self.MBH_B * np.log10(10**self.lgMgal / MGAL0)
+            lgMBH += np.random.normal(0.0, self.MBH_scatter, size=self.lgMgal.shape)
+            return lgMBH
+        else:
+            raise ValueError("Invalid method. Must be 'use_sigma' or 'use_lgMgal'.")
 
+    
     @staticmethod
-    def lgMBH_from_Mgal(lgMgal, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0):
+    def lgMBH_from_Mgal(lgMgal, A, B, sigma_0=MBH_sigma0):
         """
         Compute MBH for an arbitrary galaxy mass (log Mgal).
         Skips the nucleation check and uses the same sigma-Mstar relation

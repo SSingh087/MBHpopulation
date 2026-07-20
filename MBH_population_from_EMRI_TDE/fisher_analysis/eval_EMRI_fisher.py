@@ -1,98 +1,200 @@
+#!/usr/bin/env python
+"""
+generate_emri_fisher_data.py
+
+Reads the FLAT EMRI parameter file produced by generate_EMRI_params.py
+(all datasets at HDF5 root level, one row per event), wraps Gaussian mock
+posteriors around every true value, and writes the flat HDF5 + PT files
+expected by prepare_data_with_posteriors.py.
+
+Input  (flat root-level datasets from doc-5 pipeline):
+    astrophysical_data/{GALAXIES}/all_galaxies_EMRI_events_{suffix}.h5
+        lgMBH_mass, MBHspin, z_gal, eccentricities_at_plunge,
+        e0, p0, qS, phiS, Y0, qK, phiK, Phi_phi0, Phi_theta0,
+        Phi_r0, T_SIGNAL_duration_years, distance_Gpc, sBH_mass
+
+Output (flat, ready for inference):
+    fisher_data/{GALAXIES}/true_data_EMRI_{suffix}.h5
+        true values  +  {key}_posterior arrays  (n_events × N_SAMPLES)
+    fisher_data/{GALAXIES}/true_data_EMRI_{suffix}.pt
+        posterior tensors only, internal keys
+
+Usage:
+    python generate_emri_fisher_data.py \
+        --GALAXIES 100000 \
+        --is_clustering 0 \
+        --OBSERVING_WINDOW 4.0 \
+        --N_SAMPLES 2000 \
+        --SIGMA 1e-3 \
+        --CO_MASS 10.0
+"""
+
 import argparse
 import os
 import h5py
 import numpy as np
+import torch
 
+# ── CLI ───────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
-parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galaxies")
-parser.add_argument("--OBSERVING_WINDOW", type=float, required=True)
-parser.add_argument("--BANDS", nargs="+", default=["ztfg", "ztfr", "ztfi"])
-parser.add_argument("--SURVEY", type=str, default="ztf")
-parser.add_argument("--is_clustering", type=int, default=0)
-parser.add_argument("--NPROC", type=int, default=8)
-parser.add_argument("--PLOT_FISHER", action="store_true")
-parser.add_argument("--PLOT_CORNER", action="store_true")
+parser.add_argument("--GALAXIES",         type=int,   required=True,
+                    help="Catalog size label (used for directory paths)")
+parser.add_argument("--OBSERVING_WINDOW", type=float, required=True,
+                    help="LISA observing window in years (stored as metadata)")
+parser.add_argument("--is_clustering",    type=int,   default=0,
+                    help="1 = clustered catalog, 0 = no clustering")
+parser.add_argument("--N_SAMPLES",        type=int,   default=2000,
+                    help="Posterior samples per event")
+parser.add_argument("--SIGMA",            type=float, default=1e-3,
+                    help="Gaussian σ for EMRI posteriors (parameter units)")
+parser.add_argument("--CO_MASS",          type=float, default=10.0,
+                    help="Fixed compact-object mass [Msun] injected for all events")
+# plot flags — reserved, no-op here
+parser.add_argument("--PLOT_FISHER",     action="store_true")
+parser.add_argument("--PLOT_CORNER",     action="store_true")
 parser.add_argument("--PLOT_COVARIANCE", action="store_true")
 parser.add_argument("--PLOT_HISTOGRAMS", action="store_true")
 args = parser.parse_args()
 
-loc = f'./data/fisher_data/{args.GALAXIES}'
-if not os.path.exists(loc):
-    os.makedirs(loc)
+# ── Paths ─────────────────────────────────────────────────────────────────
+BASE    = "./data"
+suffix  = "clustering" if args.is_clustering else "no_clustering"
 
-N_SAMPLES_PER_THETA = 2000
-OBSERVING_WINDOW = args.OBSERVING_WINDOW
-BANDS = args.BANDS
+# Input: flat file produced by generate_EMRI_params.py (doc 5)
+CATALOG_PATH = (f"{BASE}/astrophysical_data/{args.GALAXIES}/"
+                f"all_galaxies_EMRI_events_{suffix}.h5")
 
-PLOT_FISHER = args.PLOT_FISHER
-PLOT_CORNER = args.PLOT_CORNER
-PLOT_COVARIANCE = args.PLOT_COVARIANCE
-PLOT_HISTOGRAMS = args.PLOT_HISTOGRAMS
+# Output: fisher_data dir consumed by prepare_data_with_posteriors.py
+OUT_DIR = f"{BASE}/fisher_data/{args.GALAXIES}"
+os.makedirs(OUT_DIR, exist_ok=True)
 
-print("Plotting options:    ")
-print(f"  - Fisher: {PLOT_FISHER}")
-print(f"  - Corner: {PLOT_CORNER}")
-print(f"  - Covariance: {PLOT_COVARIANCE}")
-print(f"  - Histograms: {PLOT_HISTOGRAMS}")
+OUT_H5 = os.path.join(OUT_DIR, f"true_data_EMRI_{suffix}.h5")
+OUT_PT = os.path.join(OUT_DIR, f"true_data_EMRI_{suffix}.pt")
 
-# WE will need to add EMRI SNRs here for now we assume all EMRIs will be detected
-# with h5py.File(f'../data_generation/DATA/all_galaxies_EMRI_SNR_results.h5', 'r') as hf:
-#     galaxy_to_events = {g: hf[g]["event_index"][:] for g in hf}
-with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_EMRI_events_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r') as hf:
-    all_galaxies = {g: {k: hf[g][k][()] for k in hf[g]} for g in hf}
+# ── Key definitions ───────────────────────────────────────────────────────
+# Keys to READ from the flat catalog (names as saved by doc 5 / generate_EMRI_params.py)
+# eccentricities_at_plunge is the doc-5 name; we rename it to e_pl on load.
+CATALOG_KEYS = ["lgMBH_mass", "MBHspin", "z_gal", "eccentricities_at_plunge"]
 
-true_data = []
-noisy_data = []
+# Internal key names expected by prepare_data_with_posteriors.py
+# CO_mass is injected below — it is not stored in the catalog.
+OUTPUT_KEYS = ["lgMBH_mass", "MBHspin", "CO_mass", "z_gal", "e_pl"]
 
-if not os.path.exists(loc):
-    os.makedirs(loc)
+# ── Helpers ───────────────────────────────────────────────────────────────
+def make_posteriors(data: dict, n_samples: int, sigma: float) -> dict:
+    """Gaussian posteriors centred on true values. Shape: (n_events, n_samples)."""
+    return {
+        k: np.random.normal(v[:, None], sigma, (len(v), n_samples)).astype(np.float32)
+        for k, v in data.items()
+    }
 
-with h5py.File(f'{loc}/true_data_EMRI_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w') as hf_true_data, \
-     h5py.File(f'{loc}/noisy_data_EMRI_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w') as hf_noisy_data:
 
-    for gal in all_galaxies:
-        num_events = len(all_galaxies[gal]['e0'])
-        print(f"\n[GALAXY] {gal} - {num_events} events")
-        
-        theta0 = {}
+def save_h5(path: str, datasets: dict, label: str = "", **attrs):
+    with h5py.File(path, "w") as hf:
+        for key, arr in datasets.items():
+            hf.create_dataset(key, data=arr, compression="gzip")
+        for attr_key, attr_val in attrs.items():
+            hf.attrs[attr_key] = attr_val
+    print(f"[SAVED] {label:50s} → {path}")
 
-        for k, v in all_galaxies[gal].items():
-            if isinstance(v, (np.ndarray, list)):  # For array-like variables
-                theta0[k] = v[:num_events]  # Direct slicing instead of per-indexing
-            else:  # Scalar variables
-                theta0[k] = np.full((num_events,), v)  # Replicate scalar for all events if needed
-        
-        catalogue_true_all = {
-            param: np.random.normal(
-                loc=theta0[param][:, None],   # shape (num_events, 1)
-                scale=1e-3,
-                size=(num_events, N_SAMPLES_PER_THETA)
-            )
-            for param in theta0
-        }
-        
-        # Add CO_mass as a separate parameter with fixed true value of 10
-        # sampled with small scatter around that value
-        catalogue_true_all["CO_mass"] = np.random.normal(
-            loc=10.0,  # True CO mass value
-            scale=1e-3,  # Same small scatter as other parameters
-            size=(num_events, N_SAMPLES_PER_THETA)
+
+def save_pt(path: str, datasets: dict, label: str = ""):
+    torch.save(
+        {k: torch.from_numpy(np.asarray(arr, dtype=np.float32))
+         for k, arr in datasets.items()},
+        path,
+    )
+    print(f"[SAVED] {label:50s} → {path}")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 1.  Load FLAT catalog
+#     The file has all datasets at the HDF5 root (no sub-groups).
+#     Iterating hf gives dataset names, not galaxy IDs.
+# ══════════════════════════════════════════════════════════════════════════
+print(f"\n[INFO] Loading flat EMRI catalog:\n       {CATALOG_PATH}")
+with h5py.File(CATALOG_PATH, "r") as hf:
+    available = list(hf.keys())
+    print(f"  Datasets in file : {available}")
+
+    missing = [k for k in CATALOG_KEYS if k not in hf]
+    if missing:
+        raise KeyError(
+            f"Expected keys {missing} not found.\n"
+            f"Available: {available}"
         )
 
-        for event_idx in range(num_events):
-            catalogue_true = {param: catalogue_true_all[param][event_idx] for param in catalogue_true_all}
-            true_data.append(catalogue_true)
+    raw: dict[str, np.ndarray] = {
+        k: np.asarray(hf[k][()], dtype=np.float32) for k in CATALOG_KEYS
+    }
 
-    # Save all parameters (including CO_mass which was added)
-    all_params = set()
-    for entry in true_data:
-        all_params.update(entry.keys())
-
-    breakpoint()
-    
-    for key in all_params:
-        true_data_array = np.array([entry[key] for entry in true_data])
-        hf_true_data.create_dataset(key, data=true_data_array, compression="gzip")
-        print(f"[SAVING] '{key}' to HDF5 dataset of size {true_data_array.shape}...")
+n_events = len(raw["lgMBH_mass"])
+print(f"  Events loaded    : {n_events}")
+for k, v in raw.items():
+    print(f"  {k:30s}  min={v.min():.4f}  max={v.max():.4f}")
 
 
+# ── Rename eccentricities_at_plunge → e_pl ────────────────────────────────
+emri_data: dict[str, np.ndarray] = {
+    "lgMBH_mass" : raw["lgMBH_mass"],
+    "MBHspin"    : raw["MBHspin"],
+    "z_gal"      : raw["z_gal"],
+    "e_pl"       : raw["eccentricities_at_plunge"],   # ← rename here
+}
+
+# ── Inject CO_mass (fixed physical value, absent from catalog) ────────────
+emri_data["CO_mass"] = np.full(n_events, args.CO_MASS, dtype=np.float32)
+print(f"\n  CO_mass injected : {args.CO_MASS} Msun  (fixed for all {n_events} events)")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 2.  Build Gaussian posteriors around every true value
+# ══════════════════════════════════════════════════════════════════════════
+print(f"\n[INFO] Building posteriors  "
+      f"(N_SAMPLES={args.N_SAMPLES}, σ={args.SIGMA:.1e}) ...")
+
+emri_post = make_posteriors(emri_data, args.N_SAMPLES, args.SIGMA)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 3.  Save
+# ══════════════════════════════════════════════════════════════════════════
+# HDF5: true values + posterior arrays side by side
+save_h5(
+    OUT_H5,
+    {**emri_data,
+     **{f"{k}_posterior": emri_post[k] for k in OUTPUT_KEYS}},
+    label="EMRI (H5 — true + posteriors)",
+    n_events=int(n_events),
+    n_samples=args.N_SAMPLES,
+    sigma=args.SIGMA,
+    observing_window_years=args.OBSERVING_WINDOW,
+    is_clustering=int(args.is_clustering),
+)
+
+# PT: posterior tensors only with internal key names
+save_pt(
+    OUT_PT,
+    emri_post,
+    label="EMRI (PT — posteriors, internal keys)",
+)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 4.  Summary
+# ══════════════════════════════════════════════════════════════════════════
+print("\n" + "=" * 60)
+print("[SUMMARY]")
+print(f"  Input catalog    : {CATALOG_PATH}")
+print(f"  Suffix           : {suffix}")
+print(f"  Events           : {n_events}")
+print(f"  Observing window : {args.OBSERVING_WINDOW} yr  (metadata only)")
+print(f"  N_SAMPLES        : {args.N_SAMPLES}")
+print(f"  σ (all params)   : {args.SIGMA:.1e}")
+print(f"  CO_mass          : {args.CO_MASS} Msun  (fixed)")
+print(f"  Output dir       : {OUT_DIR}")
+print("\n[POSTERIOR SHAPES]")
+for k, v in emri_post.items():
+    print(f"  {k:20s}  {v.shape}  →  (n_events, n_samples)")
+print("=" * 60)
+print("[DONE]")

@@ -11,7 +11,7 @@ import argparse
 from utils import *
 import numpy as np
 import torch
-torch.set_num_threads(1)          # each worker uses 1 thread — parallelism comes from the pool, not from within each call
+torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 from nessai.flowsampler import FlowSampler
@@ -103,25 +103,25 @@ def load_torch(path):
 
 # This will be needed when we  use the real simulation. 
 # For now, we can directly load the pseudo data.
-# emri_torch = load_torch(f'{base}/true_data_EMRI_no_clustering_torch.pt')
+# emri_torch = load_torch(f'{base}/true_data_EMRI_torch.pt')
 
 # if args.SURVEY in ['ZTF', 'LSST']:
-#     tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_no_clustering_torch.pt')
+#     tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_torch.pt')
 #     data_TDE  = tde_torch
 # elif args.SURVEY == 'ALL':
-#     ztf  = load_torch(f'{base}/true_data_TDE_ZTF_no_clustering_torch.pt')
-#     lsst = load_torch(f'{base}/true_data_TDE_LSST_no_clustering_torch.pt')
+#     ztf  = load_torch(f'{base}/true_data_TDE_ZTF_torch.pt')
+#     lsst = load_torch(f'{base}/true_data_TDE_LSST_torch.pt')
 #     data_TDE = {k: torch.cat([ztf[k], lsst[k]], dim=0) for k in ztf}
 
 
-emri_torch = load_torch(f'{base}/true_data_EMRI_no_clustering_pseudo_data_A.pt')
+emri_torch = load_torch(f'{base}/true_data_EMRI_pseudo_data_A.pt')
 
 if args.SURVEY in ['ZTF', 'LSST']:
-    tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_no_clustering_pseudo_data_A.pt')
+    tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_pseudo_data_A.pt')
     data_TDE  = tde_torch
 elif args.SURVEY == 'ALL':
-    ztf  = load_torch(f'{base}/true_data_TDE_ZTF_no_clustering_pseudo_data_A.pt')
-    lsst = load_torch(f'{base}/true_data_TDE_LSST_no_clustering_pseudo_data_A.pt')
+    ztf  = load_torch(f'{base}/true_data_TDE_ZTF_pseudo_data_A.pt')
+    lsst = load_torch(f'{base}/true_data_TDE_LSST_pseudo_data_A.pt')
     data_TDE = {k: torch.cat([ztf[k], lsst[k]], dim=0) for k in ztf}
 
 data_EMRI = emri_torch
@@ -136,7 +136,8 @@ def get_data(source):
 
 popdist.data, has_EMRI, has_TDE = get_data(args.SOURCE)
 
-output = f"{base}/{args.SOURCE}_pop_A"
+
+output = f"{base}/{args.SOURCE}_pop_A_{args.SURVEY}"
 logger = setup_logger(output=output)
 
 # print(f"[DEBUG] {args.SOURCE} keys: {popdist.data[args.SOURCE].keys()}")
@@ -234,8 +235,11 @@ class PopulationModel(Model):
             self.emri_data['z_gal'],
             lam=x["lam_z_gal"]
         )
+
+        alpha_EMRI = torch.tensor(1.0, dtype=torch.float32)
+        # poisson_rate_EMRI = - EMRI_RATE * alpha_EMRI + Ndet_NN * torch.log(EMRI_RATE * alpha_EMRI)
         logL = torch.sum(torch.log(
-            torch.nanmean(pdf_mass * pdf_spin * pdf_CO * pdf_e_pl * pdf_z_gal, dim=1) + 1e-10
+            torch.nanmean(pdf_mass * pdf_spin * pdf_CO * pdf_e_pl * pdf_z_gal, dim=1) - torch.log(alpha_EMRI) + 1e-10# + poisson_rate_EMRI
         ))
         return logL.item()
 
@@ -255,32 +259,58 @@ class PopulationModel(Model):
             self.tde_data['z_gal'],
             lam=x["lam_z_gal"]
         )
-        logL = torch.sum(torch.log(torch.nanmean(pdf_mass * pdf_CO * pdf_z_gal, dim=1) + 1e-10))
+        
+        alpha_TDE = torch.tensor(1.0, dtype=torch.float32)
+        # poisson_rate_TDE = - TDE_RATE * alpha_TDE + Ndet_NN * torch.log(TDE_RATE * alpha_TDE)
+        logL = torch.sum(torch.log(
+            torch.nanmean(pdf_mass * pdf_CO * pdf_z_gal, dim=1) - torch.log(alpha_TDE) + 1e-10 # + poisson_rate_TDE
+        ))
         return logL.item()
-
+    
     @torch.inference_mode()
     def log_likelihood(self, x):
         if isinstance(x, (np.void, np.ndarray)):
             x = {n: np.ascontiguousarray(x[n], dtype=np.float32) for n in x.dtype.names}
         x = {k: torch.from_numpy(np.ascontiguousarray(v, dtype=np.float32))
              for k, v in x.items()}
-        return self.EMRI_likelihood(x) + self.TDE_likelihood(x)
+        return self.EMRI_likelihood(x) + self.TDE_likelihood(x) 
 
 
 # ── Run sampler ───────────────────────────────────────────────────────────
 fs = FlowSampler(
     PopulationModel(popdist=popdist),
-    output=output, resume=False, seed=123123, nlive=1000, n_pool=4
+    output=output, resume=False, seed=123123, nlive=1000, n_pool=12
 )
 fs.run()
 
 # ── Corner plot ───────────────────────────────────────────────────────────
 with h5py.File(f'{output}/result.hdf5', 'r') as hf:
-    post = get_posterior_samples("A", hf)
+    post = load_posterior_samples_dynamic(hf)
 
-posterior_samples = np.vstack(list(post.values())).T
-truths = [v for params in get_true_x("A").values() for v in params.values()]
-labels = list(get_latex_labels("A").values())
+# posterior_samples = np.vstack(list(post.values())).T
+# truths = [v for params in get_true_x("A").values() for v in params.values()]
+# labels = list(get_latex_labels("A").values())
+
+# print("Truths:", truths)
+# print("Labels:", labels)
+
+# figure = corner.corner(
+#     posterior_samples, labels=labels,
+#     title_kwargs={"fontsize": 18}, show_titles=True,
+#     title_fmt=".3f", quantiles=[0.16, 0.5, 0.84],
+#     label_kwargs={"fontsize": 18},
+#     color='blue', 
+#     # truth_color='red', truths=truths,
+# )
+
+labels_dict = get_latex_labels("A")   # or "B"
+truths_dict = get_true_x_flat("A")    # or "B"
+
+keys = [k for k in labels_dict if k in post]   # only params actually sampled this run
+
+posterior_samples = np.vstack([post[k] for k in keys]).T
+truths = [truths_dict[k] for k in keys]
+labels = [labels_dict[k] for k in keys]
 
 print("Truths:", truths)
 print("Labels:", labels)
@@ -290,7 +320,8 @@ figure = corner.corner(
     title_kwargs={"fontsize": 18}, show_titles=True,
     title_fmt=".3f", quantiles=[0.16, 0.5, 0.84],
     label_kwargs={"fontsize": 18},
-    color='blue', 
-    # truth_color='red', truths=truths,
+    color='blue',
 )
+
 plt.savefig(f'{output}/hyperposterior.png', dpi=200)
+

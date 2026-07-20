@@ -6,8 +6,6 @@ from relaxation import RelaxationModel
 from rate import RateModel, UniversalRate, ConstantRate
 from cosmology import LastMajorMerger
 
-from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter)
-
 class CuspEvolution:
     """
     Encapsulates cusp formation time and cusp age calculations.
@@ -30,7 +28,7 @@ class CuspEvolution:
         # self.t_obs = self.cosmo_model.age_Gyr(z_obs_array=self.nsc.gal.z_gal)
         
 
-    def cusp_turn_on_time(self, kvir: float = 1.0):
+    def cusp_turn_on_time(self, kvir: float = 1.0, force_resample=False):
         """
         t_on = t_LMM + kappa * t_relax_at_rinf
             - t_LMM is the lookback time to the last major merger, sampled from cosmology (in Gyr)
@@ -40,11 +38,11 @@ class CuspEvolution:
         Returns:
             t_on in Gyr
         """
-        self.z_LMM, self.t_LMM, self.t_obs_at_z_obs = self.LastMajorMerger.sample_LMM_times(z_obs_array=self.nsc.gal.z_gal, size=1)
-
-        t_relax_rinf = self.relaxation.t_relax_at_rinfl(kvir=kvir, unit='Gyr')
-
-        return self.t_LMM + self.kappa * t_relax_rinf
+        if force_resample or not hasattr(self, '_t_on_cache'):
+            self.z_LMM, self.t_LMM, self.t_obs_at_z_obs = self.LastMajorMerger.sample_LMM_times(z_obs_array=self.nsc.gal.z_gal, size=1)
+            t_relax_rinf = self.relaxation.t_relax_at_rinfl(kvir=kvir, unit='Gyr')
+            self._t_on_cache = self.t_LMM + self.kappa * t_relax_rinf
+        return self._t_on_cache
 
     def cusp_age(self, kvir: float = 1.0):
         """
@@ -57,29 +55,29 @@ class CuspEvolution:
         
         return np.maximum(0.0, self.t_obs_at_z_obs - t_on)
 
-    def t_EMRI(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
+    def t_EMRI(self):
         """
         Calculate the time to peak EMRI rate in Gyr
         """
-        return self.rate_model.time_to_peak_EMRI_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+        return self.rate_model.time_to_peak_EMRI_rate()
     
-    def Gamma_hat(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, kind: str = 'EMRI'):
+    def Gamma_hat(self, kind: str = 'EMRI'):
         if kind.upper() == 'EMRI':
-            return self.rate_model.peak_EMRI_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+            return self.rate_model.peak_EMRI_rate()
         elif kind.upper() == 'TDE':
-            return self.rate_model.peak_TDE_rate(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+            return self.rate_model.peak_TDE_rate()
         else:
             raise ValueError(f"Unknown kind: {kind}")
 
-    def evaluate_tau(self, kvir, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
+    def evaluate_tau(self, kvir):
+
         
         T_c_array = self.cusp_age(kvir=kvir)
 
-        t_EMRI_array = self.t_EMRI(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
-
+        t_EMRI_array = self.t_EMRI()
         return T_c_array / t_EMRI_array
     
-    def expected_objects_in_time_full_integration(self, T_obs, kvir: float = 1.0, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
+    def expected_objects_in_time_full_integration(self, T_obs, kvir: float = 1.0, n_grid: int = 4096, kind: str = 'EMRI'):
         """
         Calculate the expected number of objects in the observation time and do a full integration over the rate evolution, instead of assuming a constant rate.
          - T_obs is the observation time in Gyr (e.g., 4 Gyr for LISA)
@@ -98,10 +96,10 @@ class CuspEvolution:
 
         N_gal = len(T_c_obs_yr)
 
-        t_EMRI_Gyr = self.t_EMRI(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
+        t_EMRI_Gyr = self.t_EMRI()
         t_EMRI_yr = t_EMRI_Gyr * 1e9                                        # (N_gal,) yr
         tau_obs   = T_c_obs_yr / t_EMRI_yr                                  # (N_gal,)
-        tau_upper = tau_obs + T_obs / t_EMRI_yr                             # (N_gal,)
+        tau_upper = tau_obs + t_obs_Gyr / t_EMRI_yr                             # (N_gal,)
         s = np.linspace(0.0, 1.0, n_grid)                           # (n_grid,)
         tau_grid = (tau_obs[:, None] + s[None, :] * (tau_upper - tau_obs)[:, None])# (N_gal, n_grid)
 
@@ -113,7 +111,7 @@ class CuspEvolution:
             raise ValueError(f"Unknown kind: {kind}")
 
 
-        Gamma_hat = self.Gamma_hat(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind)
+        Gamma_hat = self.Gamma_hat(kind=kind)
         integrand = Gamma_hat[:, None] * rate_grid
         integral_over_tau = np.trapezoid(integrand, x=tau_grid, axis=1)    # (N_gal,) yr^-1
         integral = t_EMRI_yr * integral_over_tau                            # (N_gal,) dimensionless
@@ -122,10 +120,10 @@ class CuspEvolution:
 
         return N_expected
 
-    def expected_objects_in_time(self, T_obs, kvir: float = 1.0, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, kind: str = 'EMRI'):
+    def expected_objects_in_time(self, T_obs, kvir: float = 1.0, kind: str = 'EMRI'):
         """
         Calculate the expected number of objects in the observation time. See expected_objects_in_time_full_integration for details. Now here we assume that the rate is constant at the peak value (Gamma_hat) during the observation time, which is a good approximation if T_obs << t_EMRI, but can be inaccurate if T_obs ~ t_EMRI or larger. The full integration method should be used for more accurate results in those cases.
-         - T_obs is the observation time in Gyr (e.g., 4 Gyr for LISA)
+         - T_obs is the observation time in yr (e.g., 4 yr for LISA)
          - kind is either 'EMRI' or 'TDE' to specify which rate evolution to use
          - returns N_expected, the expected number of objects in the observation    
         """
@@ -135,8 +133,8 @@ class CuspEvolution:
         T_c_obs_Gyr   = np.maximum(0.0, t_obs_Gyr - t_on_Gyr)              # (N_gal,) Gyr
 
 
-        t_EMRI_Gyr = self.t_EMRI(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter)
-        Gamma_hat = self.Gamma_hat(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind)
+        t_EMRI_Gyr = self.t_EMRI()
+        Gamma_hat = self.Gamma_hat(kind=kind)
 
         tau_obs = T_c_obs_Gyr / t_EMRI_Gyr  # (N_gal,)
 
@@ -149,7 +147,7 @@ class CuspEvolution:
         
         # print(f"Rate grid (first 10): {rate_grid[:10]}")
         # print(f"Tau obs (first 10): {tau_obs[:10]}")
-        # print(f"Gamma_hat (first 10): {self.Gamma_hat(A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind)[:10]}")
+        # print(f"Gamma_hat (first 10): {self.Gamma_hat(kind=kind)[:10]}")
 
         N_expected = np.sum(rate_grid * T_obs * Gamma_hat / (1.0 + self.nsc.gal.z_gal))
 
@@ -157,11 +155,11 @@ class CuspEvolution:
 
         return rate_grid * T_obs * Gamma_hat / (1.0 + self.nsc.gal.z_gal)                 # (N_gal,)
 
-    def number_of_objects_in_time(self, T_obs, kvir: float = 1.0, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter, n_grid: int = 4096, kind: str = 'EMRI'):
+    def number_of_objects_in_time(self, T_obs, kvir: float = 1.0, kind: str = 'EMRI', n_grid: int = 4096):
 
         # N_expected = self.expected_objects_in_time_full_integration(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, n_grid=n_grid, kind=kind)
 
-        N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind) * 1E7 if kind.upper() == 'EMRI' else self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, kind=kind) * 1E6
+        N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, kind=kind) 
 
         return np.random.poisson(N_expected)
 
@@ -184,5 +182,5 @@ class CuspEvolution:
 
     def number_of_objects_in_time_constant_rate(self, T_obs_yr, kvir: float = 1.0, kind: str = 'EMRI', RateModel: ConstantRate = None):
         N_expected = self.expected_objects_in_time_constant_rate(T_obs_yr=T_obs_yr, kvir=kvir, kind=kind, RateModel=RateModel)
-        breakpoint()
+        # breakpoint()
         return np.random.poisson(N_expected)

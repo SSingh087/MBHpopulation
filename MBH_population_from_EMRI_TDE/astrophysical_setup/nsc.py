@@ -123,7 +123,6 @@ class CompactObject:
     #     else:
     #         raise NotImplementedError("Random mass sampling for COs is not implemented yet. Please use 'same_mass' for now.")
 
-
 class MBH_properties:
     def __init__(self, nsc, A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53):
         self.nsc = nsc

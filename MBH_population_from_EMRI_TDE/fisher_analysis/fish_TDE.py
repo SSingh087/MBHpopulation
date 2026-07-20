@@ -18,9 +18,9 @@ PARAM_INFO = {
 def choose_simulator(survey):
     su = survey.upper()
     if su == "ZTF":
-        return SimulateOpticalTransient.simulate_transient_in_ztf, "ztf", 58288
+        return SimulateOpticalTransient.simulate_transient_in_ztf, "ztf"
     elif su == "LSST":
-        return SimulateOpticalTransient.simulate_transient_in_rubin, "Rubin_10yr_baseline", 60000
+        return SimulateOpticalTransient.simulate_transient_in_rubin, "Rubin_10yr_baseline"
     else:
         raise ValueError(f"Unsupported survey {survey}")
 

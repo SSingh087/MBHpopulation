@@ -1,313 +1,228 @@
-import argparse
-import h5py
+#!/usr/bin/env python
+"""
+Processes a contiguous slice [START_IDX, END_IDX) of the detection-passed
+TDE catalog (output of the SNR/classifier step) and writes one Fisher
+result file per batch. Designed to be called by an HTCondor DAGMan node,
+one node per batch of BATCH_SIZE events.
+
+Input catalog: TDE_SNRs_{SURVEY}_{suffix}.h5
+    -- already flat (one row = one event), already filtered to
+       detection_prob > threshold. No galaxy grouping, no event_index
+       mapping needed -- START_IDX/END_IDX index directly into these
+       arrays.
+    -- t0_mjd_transient is a single generic field (survey window cut was
+       already applied upstream in doc 3); no more t0_mjd_transient_ZTF /
+       t0_mjd_transient_LSST split.
+
+Optional plotting (--PLOT_CORNER / --PLOT_FISHER / --PLOT_COVARIANCE):
+    per event, saves corner/heatmap PNGs for BOTH the true (F1/C1) and
+    noisy (F2/C2) draws under {loc}/plots/batch_{BATCH_ID}/event_{i}_*.png.
+    Off by default -- a full production run over thousands of events
+    should not silently try to render thousands of corner plots.
+"""
+
+import os, sys, argparse
 import numpy as np
-from multiprocessing import Pool, set_start_method
+import h5py
+
+sys.path.insert(0, os.path.abspath('./'))
+from utils import ASTROPHYSICAL_DATA_DIR, FISHER_DATA_DIR
 from fish_TDE import *
 from utils_fisher import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galaxies")
+parser.add_argument("--GALAXIES",       type=int, required=True)
+parser.add_argument("--SURVEY",         type=str, default="ztf")
+parser.add_argument("--BANDS",          nargs="+", default=["ztfg", "ztfr", "ztfi"])
 parser.add_argument("--OBSERVING_WINDOW", type=float, required=True)
-parser.add_argument("--BANDS", nargs="+", default=["ztfg", "ztfr", "ztfi"])
-parser.add_argument("--SURVEY", type=str, default="ztf")
-parser.add_argument("--is_clustering", type=int, default=0)
-parser.add_argument("--NPROC", type=int, default=8)
-parser.add_argument("--PLOT_FISHER", action="store_true")
-parser.add_argument("--PLOT_CORNER", action="store_true")
-parser.add_argument("--PLOT_COVARIANCE", action="store_true")
-parser.add_argument("--PLOT_HISTOGRAMS", action="store_true")
+parser.add_argument("--START_IDX",      type=int, required=True, help="inclusive start row in detection-passed catalog")
+parser.add_argument("--END_IDX",        type=int, required=True, help="exclusive end row")
+parser.add_argument("--BATCH_ID",       type=int, required=True)
+parser.add_argument("--PLOT_CORNER",     type=int, default=0, choices=[0, 1], help="1=save true+noisy corner plots per event, 0=skip")
+parser.add_argument("--PLOT_FISHER",     type=int, default=0, choices=[0, 1], help="1=save true+noisy Fisher-matrix heatmaps per event, 0=skip")
+parser.add_argument("--PLOT_COVARIANCE", type=int, default=0, choices=[0, 1], help="1=save true+noisy covariance-matrix heatmaps per event, 0=skip")
 args = parser.parse_args()
+args.PLOT_CORNER     = bool(args.PLOT_CORNER)
+args.PLOT_FISHER     = bool(args.PLOT_FISHER)
+args.PLOT_COVARIANCE = bool(args.PLOT_COVARIANCE)
 
-loc = f'./data/fisher_data/{args.GALAXIES}'
-if not os.path.exists(loc):
-    os.makedirs(loc)
+loc      = f"{FISHER_DATA_DIR}/{args.GALAXIES}"
+os.makedirs(f"{loc}/batches", exist_ok=True)
+
+ANY_PLOTTING = args.PLOT_CORNER or args.PLOT_FISHER or args.PLOT_COVARIANCE
+if ANY_PLOTTING:
+    plot_dir = f"{loc}/plots/batch_{args.BATCH_ID:05d}"
+    os.makedirs(plot_dir, exist_ok=True)
+
+SNR_PATH = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/TDE_SNRs_{args.SURVEY.upper()}.h5"
 
 N_SAMPLES_PER_THETA = 2000
-OBSERVING_WINDOW = args.OBSERVING_WINDOW
-BANDS = args.BANDS
-
-PLOT_FISHER = args.PLOT_FISHER
-PLOT_CORNER = args.PLOT_CORNER
-PLOT_COVARIANCE = args.PLOT_COVARIANCE
-PLOT_HISTOGRAMS = args.PLOT_HISTOGRAMS
-
-print("Plotting options:    ")
-print(f"  - Fisher: {PLOT_FISHER}")
-print(f"  - Corner: {PLOT_CORNER}")
-print(f"  - Covariance: {PLOT_COVARIANCE}")
-print(f"  - Histograms: {PLOT_HISTOGRAMS}")
-
-SIM_FN, SURVEY_STR, t0_mjd = choose_simulator(args.SURVEY)
+SIM_FN, SURVEY_STR = choose_simulator(args.SURVEY)
 PARAMS = list(PARAM_INFO.keys())
 
-with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_events_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r') as hf:
-    all_galaxies = {g: {k: hf[g][k][()] for k in hf[g]} for g in hf}
+with h5py.File(SNR_PATH, "r") as f:
+    n_total = f["z_gal"].shape[0]
+    end = min(args.END_IDX, n_total)
+    sl = slice(args.START_IDX, end)
 
-################ THIS NEEDS TO BE CHANGED TO MATCH IS_CLUSTERING FLAG IN THE ABOVE FILE ################
-# with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_SNR_results_{args.SURVEY.upper()}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r') as hf:
-####################################################################################################
+    catalog = {
+        "z_gal":            f["z_gal"][sl],
+        "lgMBH_mass":       f["lgMBH_mass"][sl],
+        "star_mass":        f["star_mass"][sl],
+        "eta":              f["eta"][sl],
+        "alpha":            f["alpha"][sl],
+        "beta":             f["beta"][sl],
+        "ra_rad":           f["ra_rad"][sl],
+        "dec_rad":          f["dec_rad"][sl],
+        "t0_mjd_transient": f["t0_mjd_transient"][sl],
+    }
 
-with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_SNR_results_{args.SURVEY.upper()}.h5', 'r') as hf:
-    galaxy_to_events = {g: hf[g]["event_index"][:] for g in hf}
+n_events = len(catalog["z_gal"])
+print(f"[BATCH {args.BATCH_ID}] rows [{args.START_IDX}:{end}) -> {n_events} events")
 
-EVENT_TASKS = []
-for gal, events in galaxy_to_events.items():
-    for eidx in events:
-        EVENT_TASKS.append((gal, int(eidx)))
+if n_events == 0:
+    print(f"[BATCH {args.BATCH_ID}] empty slice, nothing to do -- exiting cleanly.")
+    sys.exit(0)
 
 
 def sample_truncated_gaussian(mean, cov, n_target, n_draw=50000):
     samples = np.random.multivariate_normal(mean, cov, size=n_draw)
-    
-    # print(f"{PARAMS[0]}:", samples[:, 0].min(), samples[:, 0].max())
-    # print(f"{PARAMS[1]}:", samples[:, 1].min(), samples[:, 1].max())
-    # print(f"{PARAMS[2]}:", samples[:, 2].min(), samples[:, 2].max())
-    # print(f"{PARAMS[3]}:", samples[:, 3].min(), samples[:, 3].max())
-    # print(f"{PARAMS[4]}:", samples[:, 4].min(), samples[:, 4].max())
-    # print(f"{PARAMS[5]}:", samples[:, 5].min(), samples[:, 5].max())
-
     mask = (
-        (0.001 <= samples[:, 0]) & (samples[:, 0] <= 10) &
-        (-2 <= samples[:, 1])    & (samples[:, 1] <= 4) &
+        (0.001 <= samples[:, 0]) & (samples[:, 0] <= 8) &
+        (-2 <= samples[:, 1])    & (samples[:, 1] <= 1) &
         (0.001 <= samples[:, 2]) & (samples[:, 2] <= 5) &
         (0.001 <= samples[:, 3]) & (samples[:, 3] <= 0.1) &
         (0.01 <= samples[:, 4])  & (samples[:, 4] <= 0.1) &
         (1.001 <= samples[:, 5]) & (samples[:, 5] <= 30)
     )
-
     valid = samples[mask]
-
     if len(valid) == 0:
         raise RuntimeError("No samples inside prior")
-
     if len(valid) >= n_target:
         return valid[:n_target]
-
-    # Resample with replacement
     idx = np.random.choice(len(valid), size=n_target, replace=True)
     return valid[idx]
 
 
-def process_event(task):
-    gal, eidx = task
+def save_event_plots(global_i, truths1, C1, true_samples, truths2, C2, noisy_samples):
+    """Saves corner/Fisher/covariance PNGs for both the true and noisy draws.
+    Wrapped in try/except per-plot so a plotting failure (e.g. a singular
+    covariance slipping through) never takes down the whole batch -- the
+    Fisher results themselves are already written to the .h5 regardless."""
+    tag = f"event_{global_i}"
+
+    if args.PLOT_CORNER:
+        for label, samples, truths in [("true", true_samples, truths1), ("noisy", noisy_samples, truths2)]:
+            try:
+                plot_corner(
+                    samples=samples, truths=truths, params=PARAMS,
+                    filename=f"{plot_dir}/{tag}_corner_{label}.png",
+                    title=f"{label.capitalize()} Fisher -- event {global_i}",
+                )
+            except Exception as e:
+                print(f"[BATCH {args.BATCH_ID}] event {global_i} corner-plot ({label}) failed: {type(e).__name__}: {e}")
+
+    if args.PLOT_FISHER:
+        for label, C in [("true", C1), ("noisy", C2)]:
+            try:
+                F = np.linalg.inv(C)
+                plot_fisher_matrix(
+                    F=F, params=PARAMS,
+                    filename=f"{plot_dir}/{tag}_fisher_{label}.png",
+                    title=f"{label.capitalize()} Fisher matrix -- event {global_i}",
+                )
+            except Exception as e:
+                print(f"[BATCH {args.BATCH_ID}] event {global_i} fisher-plot ({label}) failed: {type(e).__name__}: {e}")
+
+    if args.PLOT_COVARIANCE:
+        for label, C in [("true", C1), ("noisy", C2)]:
+            try:
+                plot_covariance_matrix(
+                    C=C, params=PARAMS,
+                    filename=f"{plot_dir}/{tag}_covariance_{label}.png",
+                    title=f"{label.capitalize()} covariance matrix -- event {global_i}",
+                )
+            except Exception as e:
+                print(f"[BATCH {args.BATCH_ID}] event {global_i} covariance-plot ({label}) failed: {type(e).__name__}: {e}")
+
+
+def process_event(local_i, global_i):
     try:
-        data_gal = all_galaxies[gal]
-        galaxy_events = galaxy_to_events[gal]
-
-        local_idx = np.where(galaxy_events == eidx)[0][0]
-
-        print(f"[WORKER] Galaxy {gal} event {eidx}")
-
         theta0 = {
-            "redshift": float(data_gal["z_gal"]),
-            "mbh_6": float(data_gal["lgMBH_mass"] - 6),
-            "stellar_mass": float(data_gal["star_mass"]),
-            
-            "eta": float(data_gal["eta"][local_idx]),
-            "alpha": float(data_gal["alpha"][local_idx]),
-            "beta": float(data_gal["beta"][local_idx]),
-
-            "t0_mjd_transient": float(data_gal["t0_mjd_transient_" + args.SURVEY.upper()][local_idx]),
-            "t0": float(data_gal["t0_mjd_transient_" + args.SURVEY.upper()][local_idx]),
-            "ra": float(data_gal["ra_rad"]),
-            "dec": float(data_gal["dec_rad"]),
+            "redshift":     float(catalog["z_gal"][local_i]),
+            "mbh_6":        float(catalog["lgMBH_mass"][local_i] - 6),
+            "stellar_mass": float(catalog["star_mass"][local_i]),
+            "eta":          float(catalog["eta"][local_i]),
+            "alpha":        float(catalog["alpha"][local_i]),
+            "beta":         float(catalog["beta"][local_i]),
+            "t0_mjd_transient": float(catalog["t0_mjd_transient"][local_i]),
+            "t0":           float(catalog["t0_mjd_transient"][local_i]),
+            "ra":           float(catalog["ra_rad"][local_i]),
+            "dec":          float(catalog["dec_rad"][local_i]),
         }
 
-        # print(f"[WORKER] Simulating for Galaxy {gal} event {eidx} with parameters: {theta0}")
-        # simulate
-        df = run_telescope_simulator(theta0, SIM_FN, SURVEY_STR, OBSERVING_WINDOW)
-        data_by_band = extract_observed_data_by_band(df, BANDS)
+        df = run_telescope_simulator(theta0, SIM_FN, SURVEY_STR, args.OBSERVING_WINDOW)
+        data_by_band = extract_observed_data_by_band(df, args.BANDS)
         times_by_band, bands = extract_times_by_band(data_by_band)
-        
-        # Fisher 1
-        F1, C1, derivs1 = compute_fisher(theta0, times_by_band, bands)
+
+        F1, C1, _ = compute_fisher(theta0, times_by_band, bands)
         truths1 = [theta0[p] for p in PARAMS]
+        true_samples = sample_truncated_gaussian(np.array(truths1), C1, N_SAMPLES_PER_THETA)
 
-        true_samples = sample_truncated_gaussian(mean=np.array(truths1), cov=C1, n_target=N_SAMPLES_PER_THETA)
-
-        # Fisher 2 - with retry logic and fallback
         F2, C2, truths2, noisy_samples = None, None, None, None
         max_attempts = 10
-        
         for attempt in range(max_attempts):
             try:
-                # sample a *small* batch from F1 to get a valid theta_new
-                theta_candidates = sample_truncated_gaussian(mean=np.array(truths1), cov=C1, n_target=50,n_draw=10000)
-
-                theta_new_vec = theta_candidates[0]
-                theta_new = {p: theta_new_vec[i] for i, p in enumerate(PARAMS)}
-
-
-                # Try to compute Fisher matrix
-                F2, C2, derivs2 = compute_fisher(theta_new, times_by_band, bands)
+                cand = sample_truncated_gaussian(np.array(truths1), C1, 50, n_draw=10000)
+                theta_new = {p: cand[0][i] for i, p in enumerate(PARAMS)}
+                F2, C2, _ = compute_fisher(theta_new, times_by_band, bands)
                 truths2 = [theta_new[p] for p in PARAMS]
-                
-                # Sample from F2 covariance with bounds
-                noisy_samples = sample_truncated_gaussian(mean=np.array(truths2), cov=C2, n_target=N_SAMPLES_PER_THETA)
-                print(f"[SUCCESS] Galaxy {gal} event {eidx}: F2 computed on attempt {attempt+1}")
-                break  
-                
+                noisy_samples = sample_truncated_gaussian(np.array(truths2), C2, N_SAMPLES_PER_THETA)
+                break
             except (ValueError, np.linalg.LinAlgError, TypeError) as e:
-                print(f"[ATTEMPT {attempt+1} FAILED] Galaxy {gal} event {eidx}: {type(e).__name__}")
+                print(f"[BATCH {args.BATCH_ID}] event {global_i} F2 attempt {attempt+1} failed: {type(e).__name__}")
                 if attempt == max_attempts - 1:
-                    # All attempts exhausted - use F1 as fallback
-                    print(f"[FALLBACK] Galaxy {gal} event {eidx}: Using F1/C1 (all F2 attempts failed)")
-                    F2, C2 = F1, C1
-                    truths2 = truths1
-                    
-                    noisy_samples = true_samples.copy()
-                    truths2 = truths1.copy()
+                    F2, C2, truths2, noisy_samples = F1, C1, truths1, true_samples.copy()
 
-                continue
-        
-        return (gal, eidx, F1, C1, truths1, F2, C2, truths2, true_samples, noisy_samples)
-    
+        if ANY_PLOTTING:
+            save_event_plots(global_i, truths1, C1, true_samples, truths2, C2, noisy_samples)
+
+        return dict(global_idx=global_i, F1=F1, C1=C1, truths1=truths1,
+                    F2=F2, C2=C2, truths2=truths2,
+                    true_samples=true_samples, noisy_samples=noisy_samples)
     except Exception as e:
-        print(f"[CRITICAL ERROR] Galaxy {gal} event {eidx}: {type(e).__name__}: {e}")
+        print(f"[CRITICAL] event {global_i} failed: {type(e).__name__}: {e}")
         return None
 
 
-if __name__ == "__main__":
+results = []
+for local_i in range(n_events):
+    global_i = args.START_IDX + local_i
+    r = process_event(local_i, global_i)
+    if r is not None:
+        results.append(r)
 
-    set_start_method("spawn", force=True)
+out_path = f"{loc}/batches/fisher_batch_{args.BATCH_ID:05d}.h5"
+with h5py.File(out_path, "w") as hf:
+    hf.attrs["batch_id"]  = args.BATCH_ID
+    hf.attrs["start_idx"] = args.START_IDX
+    hf.attrs["end_idx"]   = end
+    hf.attrs["n_events_in_batch"] = n_events
+    hf.attrs["n_events_ok"] = len(results)
 
-    corner_dir = f"./data/fisher_data/{args.GALAXIES}/corners_{args.SURVEY.upper()}_{ 'clustering' if args.is_clustering else 'no_clustering' }"
-    if PLOT_CORNER and not os.path.exists(corner_dir):
-        os.makedirs(corner_dir, exist_ok=True)
+    for r in results:
+        g = hf.create_group(f"event_{r['global_idx']}")
+        g.create_dataset("fisher_matrix", data=r["F1"])
+        g.create_dataset("covariance_matrix", data=r["C1"])
+        g.create_dataset("errors", data=np.sqrt(np.diag(r["C1"])))
+        g.create_dataset("truths", data=r["truths1"])
+        g.create_dataset("fisher_matrix_new", data=r["F2"])
+        g.create_dataset("covariance_matrix_new", data=r["C2"])
+        g.create_dataset("errors_new", data=np.sqrt(np.diag(r["C2"])))
+        g.create_dataset("truths_new", data=r["truths2"])
+        g.create_dataset("true_samples", data=r["true_samples"], compression="gzip")
+        g.create_dataset("noisy_samples", data=r["noisy_samples"], compression="gzip")
 
-    hf_fisher = h5py.File(f'./data/fisher_data/{args.GALAXIES}/fisher_results_TDE_{args.SURVEY.upper()}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w')
-    hf_true   = h5py.File(f'./data/fisher_data/{args.GALAXIES}/true_data_TDE_{args.SURVEY.upper()}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w')
-    hf_noisy  = h5py.File(f'./data/fisher_data/{args.GALAXIES}/noisy_data_TDE_{args.SURVEY.upper()}_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'w')
-
-    true_samples_list = []
-    noisy_samples_list = []
-
-    event_results = []
-
-    # check with for loop first to debug and ensure it works for a few events before parallelizing
-    # for i, task in enumerate(EVENT_TASKS):
-    #     result = process_event(task)
-    #     if result is None:
-    #         print(f"[SKIPPED] Event {i} returned None (critical failure)")
-    #         continue
-        
-    #     (
-    #         gal, eidx,
-    #         F1, C1, truths1,
-    #         F2, C2, truths2,
-    #         true_samples, noisy_samples
-    #     ) = result
-
-    # Parallel processing over events since events >> number of galaxies, and each event is independent.
-    with Pool(args.NPROC) as pool:
-        for result in pool.imap_unordered(process_event, EVENT_TASKS):
-            # Skip failed events (returns None)
-            if result is None:
-                print("[SKIPPED] Event returned None (critical failure)")
-                continue
-            
-            (
-                gal, eidx,
-                F1, C1, truths1,
-                F2, C2, truths2,
-                true_samples, noisy_samples
-            ) = result
-
-            true_samples_list.append(true_samples)
-            noisy_samples_list.append(noisy_samples)
-
-            event_results.append(( gal, eidx, truths1, truths2, true_samples, noisy_samples))
-
-            if gal not in hf_fisher:
-                gal_group = hf_fisher.create_group(gal)
-
-                gal_group.attrs["z_gal"] = float(all_galaxies[gal]["z_gal"])
-                gal_group.attrs["stellar_mass"] = float(all_galaxies[gal]["star_mass"])
-                gal_group.attrs["ra_rad"] = float(all_galaxies[gal]["ra_rad"])
-                gal_group.attrs["dec_rad"] = float(all_galaxies[gal]["dec_rad"])
-            else:
-                gal_group = hf_fisher[gal]
-
-            egrp = gal_group.create_group(f"event_{eidx}")
-            egrp.create_dataset("fisher_matrix", data=F1)
-            egrp.create_dataset("covariance_matrix", data=C1)
-            egrp.create_dataset("errors", data=np.sqrt(np.diag(C1)))
-            egrp.create_dataset("truths", data=truths1)
-            egrp.create_dataset("fisher_matrix_new", data=F2)
-            egrp.create_dataset("covariance_matrix_new", data=C2)
-            egrp.create_dataset("errors_new", data=np.sqrt(np.diag(C2)))
-            egrp.create_dataset("truths_new", data=truths2)
-
-    
-    for i, key in enumerate(PARAMS):    
-        true_data_array = np.vstack([arr[:, i] for arr in true_samples_list])
-        noisy_data_array = np.vstack([arr[:, i] for arr in noisy_samples_list])
-
-        hf_true.create_dataset(key, data=true_data_array, compression="gzip")
-        hf_noisy.create_dataset(key, data=noisy_data_array, compression="gzip")
-        print(f"[SAVED] Samples for parameter '{key}' with shape {true_data_array.shape} (true) and {noisy_data_array.shape} (noisy)")
-
-    hf_fisher.close()
-    hf_true.close()
-    hf_noisy.close()
-
-    print("\nFISHER DONE FOR {} \n".format(args.SURVEY.upper()))
-    
-    # ---------- PLOTS ----------
-    if PLOT_CORNER:
-        for gal, eidx, truths1, truths2, true_samples, noisy_samples in event_results:
-            print(f"[PLOTTING] Generating corner plot for {gal} event {eidx}...")
-            plot_corner(
-                samples=true_samples,
-                truths=truths1,
-                params=PARAMS,
-                filename=f"{corner_dir}/corner_true_{gal}_event_{eidx}.png",
-                title=f"True Fisher – {gal}, event {eidx}",
-            )
-
-            plot_corner(
-                samples=noisy_samples,
-                truths=truths2,
-                params=PARAMS,
-                filename=f"{corner_dir}/corner_noisy_{gal}_event_{eidx}.png",
-                title=f"Noisy Fisher – {gal}, event {eidx}",
-            )
-
-    if PLOT_FISHER:
-        for gal, eidx, truths1, truths2, true_samples, noisy_samples in event_results:
-            print(f"[PLOTTING] Generating Fisher plot for {gal} event {eidx}...")
-            plot_fisher_matrices(
-                F1=np.linalg.inv(C1),
-                F2=np.linalg.inv(C2),
-                params=PARAMS,
-                filename=f"{loc}/fisher_{gal}_event_{eidx}.png",
-                title=f"Fisher Matrices – {gal}, event {eidx}",
-            )
-
-    if PLOT_COVARIANCE:
-        for gal, eidx, truths1, truths2, true_samples, noisy_samples in event_results:
-            print(f"[PLOTTING] Generating covariance plot for {gal} event {eidx}...")
-            plot_covariance_matrices(
-                C1=C1,
-                C2=C2,
-                params=PARAMS,
-                filename=f"{loc}/covariance_{gal}_event_{eidx}.png",
-                title=f"Covariance Matrices – {gal}, event {eidx}",
-            )
-
-    if PLOT_HISTOGRAMS:
-        for gal, eidx, truths1, truths2, true_samples, noisy_samples in event_results:
-            print(f"[PLOTTING] Generating histograms for {gal} event {eidx}...")
-            plot_parameter_histograms(
-                samples=true_samples,
-                params=PARAMS,
-                filename=f"{loc}/histograms_true_{gal}_event_{eidx}.png",
-                title=f"True Samples – {gal}, event {eidx}",
-            )
-
-            plot_parameter_histograms(
-                samples=noisy_samples,
-                params=PARAMS,
-                filename=f"{loc}/histograms_noisy_{gal}_event_{eidx}.png",
-                title=f"Noisy Samples – {gal}, event {eidx}",
-            )
+print(f"[BATCH {args.BATCH_ID}] wrote {len(results)}/{n_events} events -> {out_path}")
+if ANY_PLOTTING:
+    print(f"[BATCH {args.BATCH_ID}] wrote plots -> {plot_dir}")

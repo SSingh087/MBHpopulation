@@ -1,4 +1,0 @@
-Doing inference for source EMRI and survey None assuming POPULATION A
-Using device: cpu
-Truths: [5.5, 10.0, 2.5, 9.5, 5.0, 5.0, 0.7, 1.0, 0.5, 10.0, 0.5, 0.5, 2.0, 9.0, 5.0, 5.0, 0.65, -3]
-Labels: ['$x_c$', '$\\lambda_{x_c}$', '$\\alpha_{1,a}$', '$\\alpha_{2,a}$', '$\\beta_{1,a}$', '$\\beta_{2,a}$', '$w_a$', '$\\alpha_{1,e}$', '$\\alpha_{2,e}$', '$\\beta_{1,e}$', '$\\beta_{2,e}$', '$w_e$', '$\\mu_{\\rm sBH}$', '$\\mu_{\\star}$', '$\\sigma_{\\rm sBH}$', '$\\sigma_{\\star}$', '$w_{\\rm CO}$', '$\\lambda_z$']

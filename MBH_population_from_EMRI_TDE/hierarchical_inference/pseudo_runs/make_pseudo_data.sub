@@ -1,0 +1,17 @@
+# Executable and arguments
+executable      = ./pseudo_runs/make_pseudo_data.sh
+getenv          = true
+arguments       = $(INCLUDE_LSST)
+
+# Logs
+log             = LOG_FILES/make_pseudo_data_$(INCLUDE_LSST).log
+error           = ERROR_FILES/make_pseudo_data_$(INCLUDE_LSST).err
+output          = OUTPUT_FILES/make_pseudo_data_$(INCLUDE_LSST).out
+
+# Notifications
+
+# Resources
+request_cpus    = 1
+request_memory  = 16GB
+
+queue

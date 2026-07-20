@@ -1,6 +1,6 @@
 import numpy as np
 
-from config import (MBH_A, MBH_B, MBH_sigma0, MBH_scatter, BROGGI_SIGMA0, BROGGI_MBH_PIVOT, BROGGI_INV_SLOPE)
+from config import (MBH_sigma0, BROGGI_SIGMA0, BROGGI_MBH_PIVOT, BROGGI_INV_SLOPE)
 from nsc import NSC
 from scipy.stats import beta, norm
 from dataclasses import dataclass
@@ -9,8 +9,12 @@ from scipy.interpolate import RegularGridInterpolator
 class RateModel:
     def __init__(self, nsc: NSC):
         self.nsc = nsc
+        self.gal = nsc.gal
+        self.MBH_A = nsc.gal.MBH_A
+        self.MBH_B = nsc.gal.MBH_B
+        self.MBH_scatter = nsc.gal.MBH_scatter
 
-    def peak_EMRI_rate(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
+    def peak_EMRI_rate(self):
         """
         $\hat{\Gamma}_\mathrm{EMRI}
         """
@@ -19,9 +23,9 @@ class RateModel:
         MBH = 10.0**lgMBH
         a, b, c = 6.2e-6, -0.25, 3.09 
 
-        return a * (MBH)**b * (sigma/sigma_0)**c 
+        return a * (MBH)**b * (sigma/MBH_sigma0)**c 
 
-    def time_to_peak_EMRI_rate(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
+    def time_to_peak_EMRI_rate(self):
         """
         $t_\mathrm{EMRI}
         """
@@ -30,10 +34,10 @@ class RateModel:
         MBH = 10.0**lgMBH
         a, b, c = 6.4e-9, 1.29, -2.97
         
-        return a * (MBH)**b * (sigma/sigma_0)**c 
+        return a * (MBH)**b * (sigma/MBH_sigma0)**c 
 
 
-    def peak_TDE_rate(self, A=MBH_A, B=MBH_B, sigma_0=MBH_sigma0, MBH_scatter=MBH_scatter):
+    def peak_TDE_rate(self):
         """
         $\hat{\Gamma}_\mathrm{TDE}
         """
@@ -42,7 +46,7 @@ class RateModel:
         MBH = 10.0**lgMBH
         a, b, c = 1.6e-4, -0.22, 1.16 
 
-        return a * (MBH)**b * (sigma/sigma_0)**c
+        return a * (MBH)**b * (sigma/MBH_sigma0)**c
 
 class UniversalRate:
     """
@@ -131,7 +135,7 @@ class ConstantRate:
         [2.4,    41,     810,    2800],    # 1e7
     ])
 
-    # N_T -- screenshot-only source, lower confidence, double check against source
+    # N_T
     _N_T = np.array([
         [6.7e3,  7.3e3,  7.5e3,  7.9e3],
         [2.1e4,  2.2e4,  2.3e4,  2.4e4],
@@ -142,7 +146,7 @@ class ConstantRate:
         [2.0e5,  6.0e5,  1.8e6,  4.6e6],
     ])
 
-    # t_E [Gyr], used only to derive t_f = min(10*t_E, 10 Gyr) -- matches every tabulated tau
+    # t_E [Gyr], used only to derive t_f = min(10*t_E, 10 Gyr)
     _t_E = np.array([
         [0.089,  0.0029, 0.00092, 0.00030],
         [0.037,  0.012,  0.0038,  0.0012],
@@ -174,22 +178,23 @@ class ConstantRate:
 
     def constant_rate(self, kind: str = 'EMRI'):
         MBH = 10.0 ** np.atleast_1d(self.nsc.gal.lgMBH_mass)
+        in_range = (MBH >= 1e4) & (MBH <= 1e7)
+
         sigma_0_broggi = self.broggi_sigma0(MBH)
         sigma_ratio = np.atleast_1d(self.nsc.gal.sigma_km_s) / sigma_0_broggi
 
-        log10_MBH   = np.clip(np.log10(MBH), self._log10_MBH_grid.min(), self._log10_MBH_grid.max())
-        log10_sigma = np.clip(np.log10(sigma_ratio), self._log10_sigma_ratio_grid.min(), self._log10_sigma_ratio_grid.max())
+        # Clip both axes so the interpolator never extrapolates
+        # out-of-range rows get zeroed by np.where anyway, but unclipped
+        # inputs can still produce NaN/inf from fill_value=None extrapolation.
+        log10_MBH = np.clip(np.log10(MBH),
+                            self._log10_MBH_grid.min(),
+                            self._log10_MBH_grid.max())
+        log10_sigma = np.clip(np.log10(sigma_ratio),
+                            self._log10_sigma_ratio_grid.min(),
+                            self._log10_sigma_ratio_grid.max())
+
         pts = np.column_stack([log10_MBH, log10_sigma])
+        interp = self._interp_EMRI if kind.upper() == 'EMRI' else self._interp_TDE
+        rate = 10.0 ** interp(pts)
 
-        if kind.upper() == 'EMRI':
-            rate = 10.0 ** self._interp_EMRI(pts)
-        elif kind.upper() == 'TDE':
-            rate = 10.0 ** self._interp_TDE(pts)
-        else:
-            raise ValueError(f"Unknown kind: {kind}")
-
-        # Outside Broggi's simulated MBH range there's no calibration, and
-        # physically LISA-band EMRIs only exist for M_BH ~ 1e4-1e7 anyway --
-        # zero rather than extrapolate or pin to the edge.
-        in_range = (MBH >= 1e4) & (MBH <= 1e7)
         return np.where(in_range, rate, 0.0)

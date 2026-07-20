@@ -1,0 +1,87 @@
+
+# ============= MAKE DATA ==========================
+
+JOB make_pseudo_data ./pseudo_runs/make_pseudo_data.sub
+VARS make_pseudo_data INCLUDE_LSST="1"
+
+# ================ INFERENCE JOBS ==========================
+
+
+# -- EMRI only POP A 
+JOB infer_EMRI_A ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_EMRI_A SOURCE="EMRI" POPULATION="A" SURVEY="None"
+ 
+#-- EMRI only POP B
+JOB infer_EMRI_B ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_EMRI_B SOURCE="EMRI" POPULATION="B" SURVEY="None"
+
+# -- TDE only POP A ZTF
+JOB infer_TDE_A_ZTF ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_TDE_A_ZTF SOURCE="TDE" POPULATION="A" SURVEY="ZTF"
+
+# -- TDE only POP B ZTF
+JOB infer_TDE_B_ZTF ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_TDE_B_ZTF SOURCE="TDE" POPULATION="B" SURVEY="ZTF"
+
+# -- EMRI+TDE POP A ZTF
+JOB infer_EMRI_TDE_A_ZTF ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_EMRI_TDE_A_ZTF SOURCE="EMRI_TDE" POPULATION="A" SURVEY="ZTF"
+
+# -- EMRI+TDE POP B ZTF
+JOB infer_EMRI_TDE_B_ZTF ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_EMRI_TDE_B_ZTF SOURCE="EMRI_TDE" POPULATION="B" SURVEY="ZTF"
+
+# -- TDE only POP A LSST
+JOB infer_TDE_A_LSST ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_TDE_A_LSST SOURCE="TDE" POPULATION="A" SURVEY="LSST"
+
+# -- TDE only POP B LSST
+JOB infer_TDE_B_LSST ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_TDE_B_LSST SOURCE="TDE" POPULATION="B" SURVEY="LSST"
+
+# -- EMRI+TDE POP A LSST
+JOB infer_EMRI_TDE_A_LSST ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_EMRI_TDE_A_LSST SOURCE="EMRI_TDE" POPULATION="A" SURVEY="LSST"
+
+# -- EMRI+TDE POP B LSST
+JOB infer_EMRI_TDE_B_LSST ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_EMRI_TDE_B_LSST SOURCE="EMRI_TDE" POPULATION="B" SURVEY="LSST"
+
+# -- TDE only POP A ALL
+JOB infer_TDE_A_ALL ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_TDE_A_ALL SOURCE="TDE" POPULATION="A" SURVEY="ALL"
+
+# -- TDE only POP B ALL
+JOB infer_TDE_B_ALL ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_TDE_B_ALL SOURCE="TDE" POPULATION="B" SURVEY="ALL"
+
+# -- EMRI+TDE POP A ALL
+JOB infer_EMRI_TDE_A_ALL ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_EMRI_TDE_A_ALL SOURCE="EMRI_TDE" POPULATION="A" SURVEY="ALL"
+
+# -- EMRI+TDE POP B ALL
+JOB infer_EMRI_TDE_B_ALL ./pseudo_runs/run_inf_pseudo.sub
+VARS infer_EMRI_TDE_B_ALL SOURCE="EMRI_TDE" POPULATION="B" SURVEY="ALL"
+
+
+# ----------------- 1D posterior plotting jobs (per population) -----------------
+JOB oneD_A   ./pseudo_runs/make_posterior_plots.sub
+VARS oneD_A   POPULATION="A"
+
+JOB oneD_B   ./pseudo_runs/make_posterior_plots.sub
+VARS oneD_B   POPULATION="B"
+
+# ----------------- PPD plotting jobs -----------------
+
+JOB ppd_A ./pseudo_runs/make_PPD.sub
+VARS ppd_A POPULATION="A"
+
+JOB ppd_B ./pseudo_runs/make_PPD.sub
+VARS ppd_B POPULATION="B"
+
+
+PARENT make_pseudo_data CHILD infer_EMRI_A infer_EMRI_B infer_TDE_A_ZTF infer_TDE_B_ZTF infer_EMRI_TDE_A_ZTF infer_EMRI_TDE_B_ZTF infer_TDE_A_LSST infer_TDE_B_LSST infer_EMRI_TDE_A_LSST infer_EMRI_TDE_B_LSST infer_TDE_A_ALL infer_TDE_B_ALL infer_EMRI_TDE_A_ALL infer_EMRI_TDE_B_ALL
+
+PARENT infer_EMRI_A infer_TDE_A_ZTF infer_EMRI_TDE_A_ZTF infer_TDE_A_LSST infer_EMRI_TDE_A_LSST infer_TDE_A_ALL infer_EMRI_TDE_A_ALL CHILD oneD_A ppd_A
+
+PARENT infer_EMRI_B infer_TDE_B_ZTF infer_EMRI_TDE_B_ZTF infer_TDE_B_LSST infer_EMRI_TDE_B_LSST infer_TDE_B_ALL infer_EMRI_TDE_B_ALL CHILD oneD_B ppd_B

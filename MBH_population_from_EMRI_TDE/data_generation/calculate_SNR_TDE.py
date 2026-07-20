@@ -1,170 +1,208 @@
-import logging
+#!/usr/bin/env python
 
-logging.getLogger('bilby').disabled = True
-logging.getLogger('redback').disabled = True
-
-import argparse
+import os, sys, pickle, argparse
 import numpy as np
 import h5py
-from multiprocessing import Pool
-from redback.simulate_transients import SimulateOpticalTransient
+import torch
 
-parser = argparse.ArgumentParser(description="Calculate SNR for TDE events.")
+sys.path.insert(0, os.path.abspath('../poplar'))
+sys.path.insert(0, os.path.abspath('./'))
+from utils import ASTROPHYSICAL_DATA_DIR, TDE_DATA_FILE_NAME, TRAIN_DIR_TDE
 
-parser.add_argument("--GALAXIES", type=int, required=True, help="Number of galaxies")
-parser.add_argument("--OBSERVING_WINDOW", type=float, required=True)
-parser.add_argument("--MIN_DETECTIONS", type=int, required=True)
-parser.add_argument("--BANDS", nargs="+", default=["ztfg", "ztfr", "ztfi"], help="Bands to check for detections (e.g., 'ztfg ztfr ztfi' for ZTF)")
-parser.add_argument("--SURVEY", type=str, default="ztf", help="Survey to simulate (e.g., 'ztf' or 'lsst')")
-parser.add_argument("--is_clustering", type=int, required=True, help="Whether to use clustering")
-
+# ─────────────────────────────────────────────────────────────
+parser = argparse.ArgumentParser()
+parser.add_argument("--GALAXIES",      type=int, required=True)
+parser.add_argument("--SURVEY",        type=str, default="ZTF", choices=["ZTF", "LSST"])
+parser.add_argument("--Z_GAL_MIN",    type=float, default=0.0)
+parser.add_argument("--Z_GAL_MAX",    type=float, default=10.0)
+parser.add_argument("--batch_size",    type=int, default=4096)
 args = parser.parse_args()
 
-OBSERVING_WINDOW = args.OBSERVING_WINDOW
-MIN_DETECTIONS = args.MIN_DETECTIONS
+MODEL_PATH      = f"{TRAIN_DIR_TDE}/1E6_events/TDE_DETECT_BCE_no_rescaler_512_4_10_{args.SURVEY}/best_final_model/model/model.pth"
+TRAIN_H5_PATH   = f"{TRAIN_DIR_TDE}/1E6_events/TDE_params_1E6_{args.SURVEY}.h5"
+TRAIN_NPY_PATH  = f"{TRAIN_DIR_TDE}/1E6_events/TDE_params_scaled_1E6_{args.SURVEY}.npy"
 
-SURVEY = args.SURVEY
-BANDS = args.BANDS
-
-# # ZTF-safe window
-# t0_mjd_transient = np.random.uniform(58200, 59550)
-# # Rubin 10yr baseline, with buffers
-# t0_mjd_transient = np.random.uniform(60100, 63500)
-
-if SURVEY == "ZTF":
-    SIMULATE_FN = SimulateOpticalTransient.simulate_transient_in_ztf
-    SURVEY = "ztf"
-    # t0_mjd_transient = 58288 # MJD for ZTF (can be adjusted)
-elif SURVEY == "LSST":
-    SIMULATE_FN = SimulateOpticalTransient.simulate_transient_in_rubin
-    SURVEY = "Rubin_10yr_baseline"
-    # t0_mjd_transient = 60000 # MJD for Rubin (can be adjusted)
-else:
-    raise ValueError(f"Unsupported survey: {SURVEY}")
-
-MODEL_NAME = "cooling_envelope"
-
-def run_telescope_simulator(theta):
-
-    sim = SIMULATE_FN(
-        model=MODEL_NAME,
-        survey=SURVEY,
-        parameters=theta,
-        model_kwargs={},
-        end_transient_time=OBSERVING_WINDOW,
-        snr_threshold=5.0,
-        add_source_noise=False
-    )
-    
-    cols = ['time (days)', 'magnitude', 'e_magnitude', 'band', 'detected']
-    return sim.observations[cols]
+DATA_PATH = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/{TDE_DATA_FILE_NAME}.h5"
+OUT_PATH  = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/TDE_SNRs_{args.SURVEY}.h5"
 
 
-def extract_observed_data_by_band(df):
-    """Vectorised band-group extraction."""
-    grouped = df.groupby("band")
-
-    return {
-        band: {
-            "time": g["time (days)"].to_numpy(float),
-            "magnitude": g["magnitude"].to_numpy(float),
-            "e_magnitude": g["e_magnitude"].to_numpy(float),
-            "detected": g["detected"].to_numpy(bool),
-        }
-        for band, g in grouped
-        if band in BANDS
-    }
+PARAM_ORDER = ['alpha', 'beta', 'dec_rad', 'eta', 'lgMBH', 'ra_rad', 't0_mjd_transient', 'z_gal']
 
 
-def if_detected_per_band(data_by_band):
-    """Check detection threshold per band."""
-    detected_bands = [
-        b for b, d in data_by_band.items()
-        if d["detected"].sum() >= MIN_DETECTIONS
-    ]
+SCALING = {}
+with h5py.File(TRAIN_H5_PATH, "r") as f:
+    for k in PARAM_ORDER:
+        data = f[k][:]
+        SCALING[k] = ('linear', data.min(), data.max(), 0.0, 1.0)
 
-    times_by_band = {b: data_by_band[b]["time"] for b in detected_bands}
-    return times_by_band, detected_bands
+print(SCALING)
 
-def process_one_galaxy(gal, dat):
-    print(f"\n[GALAXY] Processing {gal} at z={dat['z_gal']} with lgMBH={dat['lgMBH_mass']} and star_mass={dat['star_mass']}")
+# Map: training key → catalog key
+KEY_MAP = {
+    'alpha':   'alpha',
+    'beta':    'beta',
+    'dec_rad': 'dec_rad',
+    'eta':     'eta',
+    'lgMBH':   'lgMBH_mass',
+    'ra_rad':  'ra_rad',
+    't0_mjd_transient': 't0_mjd_transient',
+    'z_gal':   'z_gal',
+}
 
-    z_gal = float(dat["z_gal"])
-    ra_rad = float(dat["ra_rad"])
-    dec_rad = float(dat["dec_rad"])
-    mbh6 = float(dat["lgMBH_mass"] - 6)
-    stellar_mass = float(dat["star_mass"])
+def rescale_between(x, x_min, x_max, t_min, t_max):
+    """Exact replica of the training script rescale_between()."""
+    if x_max == x_min:
+        return np.full_like(x, t_min, dtype=float)
+    return (x - x_min) / (x_max - x_min) * (t_max - t_min) + t_min
 
-    alpha = dat["alpha"]
-    beta = dat["beta"]
-    eta = dat["eta"]
-    t0_mjd_transient = dat["t0_mjd_transient_" + args.SURVEY.upper()]
+# ─────────────────────────────────────────────────────────────
+# Load catalog
+# ─────────────────────────────────────────────────────────────
+print(f"Loading catalog: {DATA_PATH}")
+with h5py.File(DATA_PATH, "r") as f:
+    catalog = {k: f[k][:] for k in f.keys()}
+n_events = len(catalog["z_gal"])
+print(f"  {n_events} events")
 
-    thetas = [{
-        "redshift": z_gal,
-        "mbh_6": mbh6,
-        "stellar_mass": stellar_mass,
-        # "eta": 0.1, #float(eta[i]),
-        # "alpha": 0.1, #float(alpha[i]),
-        # "beta": 0.9, #float(beta[i]),
-        "eta": float(eta[i]),
-        "alpha": float(alpha[i]),
-        "beta": float(beta[i]),
-        "t0_mjd_transient": t0_mjd_transient[i],
-        "t0": t0_mjd_transient[i],
-        "ra": ra_rad,
-        "dec": dec_rad,
-    } for i in range(len(alpha))]
+# ── Survey observing windows (MJD) ────────────────────────────
+SURVEY_WINDOWS = {
+    "ZTF":  (58178, 61396),   # 1 Mar 2018 → Dec 2026
+    "LSST": (60827, 64423),   # Jun 2025   → Jun 2035
+}
 
-    print(f"[INFO] Running {len(thetas)} transient simulations...")
-    with Pool(processes=16) as pool:
-        sims = pool.map(run_telescope_simulator, thetas)
+# ── 1. Redshift cut ───────────────────────────────────────────
+z = catalog["z_gal"]
+z_mask = (z >= args.Z_GAL_MIN) & (z <= args.Z_GAL_MAX)
 
-    results = []
-    for i, df in enumerate(sims):
-        data_by_band = extract_observed_data_by_band(df)
-        times_by_band, detected_bands = if_detected_per_band(data_by_band)
+# ── 2. Survey time window cut ─────────────────────────────────
+t0_min, t0_max = SURVEY_WINDOWS[args.SURVEY]
+t0 = catalog['t0_mjd_transient']
+t0_mask = (t0 >= t0_min) & (t0 <= t0_max)
 
-        results.append({
-            "event_index": i,
-            "detected_bands": detected_bands,
-            "times_by_band": times_by_band
-        })
-    return results
+# ── 3. Combined mask ──────────────────────────────────────────
+combined_mask = z_mask & t0_mask
+catalog = {k: v[combined_mask] for k, v in catalog.items()}
+n_events = len(catalog["z_gal"])
+
+print(f"  After Z_CUTOFF [{args.Z_GAL_MIN}, {args.Z_GAL_MAX}]: "
+      f"{z_mask.sum()} events")
+print(f"  After t0_CUTOFF [{t0_min}, {t0_max}] MJD ({args.SURVEY}): "
+      f"{t0_mask.sum()} events")
+print(f"  After combined cut: {n_events} events "
+      f"({combined_mask.sum() / len(z) * 100:.1f}% of original)")
+
+# ─────────────────────────────────────────────────────────────
+# Build scaled input matrix
+# ─────────────────────────────────────────────────────────────
+X = np.zeros((n_events, len(PARAM_ORDER)), dtype=np.float32)
+
+for col, train_key in enumerate(PARAM_ORDER):
+    cat_key = KEY_MAP[train_key]
+    raw = catalog[cat_key].astype(float)
+
+    scale_type, x_min, x_max, t_min, t_max = SCALING[train_key]
+    vals = np.log10(raw) if scale_type == 'log10' else raw
+
+    # log10 min/max must also be in log space
+    if scale_type == 'log10':
+        x_min, x_max = np.log10(x_min), np.log10(x_max)
+
+    X[:, col] = rescale_between(vals, x_min, x_max, t_min, t_max)
+
+    # Warn about out-of-training-range events
+    n_out = ((X[:, col] < t_min) | (X[:, col] > t_max)).sum()
+    if n_out > 0:
+        print(f"  [WARN] {train_key}: {n_out} events ({n_out/n_events:.1%}) "
+              f"outside training range — model extrapolates")
+
+print(f"Input matrix: {X.shape}  min={X.min():.3f}  max={X.max():.3f}")
+
+# ─────────────────────────────────────────────────────────────
+# Load model (pickle — not torch.load)
+# ─────────────────────────────────────────────────────────────
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Loading model on {device}")
+
+with open(MODEL_PATH, 'rb') as f:
+    model = pickle.load(f)
+model.to(device)
+model.eval()
+
+# ─────────────────────────────────────────────────────────────
+# Batched inference
+# ─────────────────────────────────────────────────────────────
+X_tensor   = torch.tensor(X, dtype=torch.float32)
+probs_list = []
+
+with torch.no_grad():
+    for i in range(0, n_events, args.batch_size):
+        batch  = X_tensor[i : i + args.batch_size].to(device)
+        logits = model(batch)
+        probs  = torch.sigmoid(logits).squeeze(-1).cpu().numpy()
+        probs_list.append(probs)
+
+detection_prob = np.concatenate(probs_list).astype(np.float32)
+
+print(f"\nDetected (p>0.5): {(detection_prob > 0.5).sum()} / {n_events} "
+      f"({(detection_prob > 0.5).mean():.2%})")
+print(f"Prob range      : [{detection_prob.min():.4f}, {detection_prob.max():.4f}]")
+
+# ─────────────────────────────────────────────────────────────
+# Select events passing the detection-probability threshold
+# ─────────────────────────────────────────────────────────────
+DETECTION_THRESHOLD = 0.5
+events_idx = np.where(detection_prob > DETECTION_THRESHOLD)[0]
+print(f"{len(events_idx)}/{n_events} events pass detection threshold "
+      f"p > {DETECTION_THRESHOLD}")
+
+if len(events_idx) == 0:
+    print("WARNING: no events pass the detection threshold -- writing an "
+          "empty file (downstream scripts should handle n_events=0, or "
+          "check this print statement before running them).")
+
+# ─────────────────────────────────────────────────────────────
+# Save -- filtered to detection-passing events only
+# ─────────────────────────────────────────────────────────────
+with h5py.File(OUT_PATH, "w") as f:
+    f.attrs["survey"]         = args.SURVEY
+    f.attrs["n_events_total"] = n_events
+    f.attrs["n_events_passed"] = len(events_idx)
+    f.attrs["detection_threshold"] = DETECTION_THRESHOLD
+    f.attrs["param_order"]    = str(PARAM_ORDER)
+    f.create_dataset("detection_prob", data=detection_prob[events_idx], compression="gzip")
+    for k in ["z_gal", "lgMBH_mass", "distance_Gpc", "eta", "alpha", "beta", "star_mass",
+              "initial_MBHspin", "ra_rad", "dec_rad", "t0_mjd_transient"]:
+        if k in catalog:
+            f.create_dataset(k, data=catalog[k][events_idx], compression="gzip")
+
+print(f"Saved {len(events_idx)}/{n_events} detection-passing TDE rows to {OUT_PATH}")
 
 
-if __name__ == "__main__":
-    
-    print("[INFO] Loading HDF5 file...")
-    with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_events_{ "clustering" if args.is_clustering else "no_clustering" }.h5', 'r') as hf:
-        data = {
-            gal: {k: np.array(hf[gal][k]) for k in hf[gal].keys()}
-            for gal in hf.keys()
-        }
+# plot cummutlative plot for detections with t_mjd_transient_LSST 
+import matplotlib.pyplot as plt
 
-    all_results = {}
-    count = 0
-    print(f"[IMPORTANT SURVEY INFO] Checking detectability with {args.SURVEY.upper()} for {len(data)} galaxies...")
-    with h5py.File(f'./data/astrophysical_data/{args.GALAXIES}/all_galaxies_TDE_SNR_results_{args.SURVEY.upper()}.h5', 'w') as hf_out:
+t = catalog["t0_mjd_transient"]
+mask = detection_prob > 0.5
 
-        for gal, dat in data.items():
-            if data[gal]['z_gal'] > 2.0:
-                print(f"[WARNING] Skipping {gal} due to high redshift (z={data[gal]['z_gal']})")
-                continue
+t_detected = t[mask]
 
-            print(f"\n[INFO] Starting processing for {gal} with z={dat['z_gal']}")
-            results = process_one_galaxy(gal, dat)
-            detected_events = [r["event_index"] for r in results if r["detected_bands"]]
-            count += len(detected_events)
+# Convert MJD → fractional year
+year = 2000 + (t_detected - 51544.5) / 365.25   # standard MJD→year conversion
 
-            if len(detected_events) == 0:
-                print(f"[{gal}] No detections in any event.\n")
-                continue
-            
-            gal_group = hf_out.create_group(gal)
-            gal_group.create_dataset("event_index", data=np.array(detected_events, dtype=int))
+# Define bins (integer years)
+year_min = int(np.floor(year.min()))
+year_max = int(np.ceil(year.max()))
+bins = np.arange(year_min, year_max + 1)
 
-            print(f"[{gal}] Saved detected event indices: {detected_events}")
+counts, edges = np.histogram(year, bins=bins)
 
-    print("\n[DONE] All galaxies processed.")
-    print(f"[SUMMARY] Total detected events for {SURVEY.upper()}: {count}")
+cumulative_counts = np.cumsum(counts)
+
+plt.figure(figsize=(8, 6))
+plt.step(edges[:-1], cumulative_counts, where='mid')
+plt.xlabel("Year")
+plt.ylabel("Cumulative detections")
+plt.title(f"{args.SURVEY} cumulative detections")
+plt.grid()
+
+plt.savefig(f"{ASTROPHYSICAL_DATA_DIR}/cumulative_detections_{args.SURVEY}.png")
