@@ -15,17 +15,20 @@ from evolution import CuspEvolution
 from cosmology import LastMajorMerger, CosmologyModel, GalaxyStellarMassFunction, MBHMassFunction
 import h5py
 
-rng = np.random.default_rng(seed=42)
-
 parser = argparse.ArgumentParser()
+parser.add_argument("--UNIVERSE_MODEL", type=int, required=True, help="Universe model index")
 parser.add_argument("--GALAXIES", type=int, required=True,
                      help="Monte Carlo sample size (NOT the literal real galaxy count)")
 parser.add_argument("--Z_MAX", type=float, required=False, default=10.0, help="Maximum redshift")
 parser.add_argument("--T_OBS_EMRI", type=float, required=True)
 parser.add_argument("--T_OBS_TDE",  type=float, required=True)
-parser.add_argument("--mbh_mass_method", type=str, required=False, default="M_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
 parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--SEED", type=int, required=False, default=42, help="Random seed for reproducibility")
+
 args = parser.parse_args()
+
+rng = np.random.default_rng(seed=args.SEED)
 
 cosmo_model = CosmologyModel()
 
@@ -46,7 +49,7 @@ GSMF = GalaxyStellarMassFunction()
 # mass-integrated density n(z) needed for importance weights.
 # Built once, reused everywhere -- avoids redundant integration.
 # ============================================================
-def build_density_tables(gsmf, z_min, z_max, n_z=300, n_points_mass=1000):
+def build_density_tables(gsmf, z_min, z_max, n_z=600, n_points_mass=5000):
     z_table = np.linspace(z_min, z_max, n_z)
     lgM_grid, log10phi_grid = gsmf.get_gsmf(z_table, n_points_mass=n_points_mass)
     phi_grid = np.nan_to_num(10.0 ** log10phi_grid, nan=0.0, posinf=0.0, neginf=0.0)
@@ -70,7 +73,7 @@ def build_density_tables(gsmf, z_min, z_max, n_z=300, n_points_mass=1000):
 # The main run then concentrates all N_objs_sim samples in the
 # productive lgMgal band, boosting N_eff by ~60x.
 # ============================================================
-def find_lgMgal_rate_range(GSMF, cosmo_model, Rmin, Rmax, rng, lgMBH_min=4.0, lgMBH_max=7.0, N_pilot=20000):
+def find_lgMgal_rate_range(GSMF, cosmo_model, Rmin, Rmax, rng, lgMBH_min=4.0, lgMBH_max=7.0, N_pilot=100000):
     """
     Returns (lgM_low, lgM_high): the lgMgal sampling range that
     maps to lgMBH ∈ [lgMBH_min, lgMBH_max] under the M-sigma
@@ -101,8 +104,8 @@ def find_lgMgal_rate_range(GSMF, cosmo_model, Rmin, Rmax, rng, lgMBH_min=4.0, lg
             f"Increase N_pilot (currently {N_pilot}).")
 
     # Percentiles rather than min/max — robust against scatter outliers
-    lgM_low  = np.percentile(lgMgal_nuc_p[in_range], 0.05)
-    lgM_high = np.percentile(lgMgal_nuc_p[in_range], 99.95)
+    lgM_low  = np.percentile(lgMgal_nuc_p[in_range], 0.01)
+    lgM_high = np.percentile(lgMgal_nuc_p[in_range], 99.99)
 
     print(f"[Pilot] lgMBH ∈ [{lgMBH_min}, {lgMBH_max}] maps to "
           f"lgMgal ∈ [{lgM_low:.3f}, {lgM_high:.3f}]  "
@@ -136,7 +139,7 @@ lgM_min_full = GSMF.lgMgal_data.min()
 lgM_max_full = GSMF.lgMgal_data.max()
 
 lgM_low, lgM_high = find_lgMgal_rate_range(GSMF, cosmo_model, Rmin, Rmax, rng,
-                lgMBH_min=4.0, lgMBH_max=7.0, N_pilot=20000)
+                lgMBH_min=4.0, lgMBH_max=7.0, N_pilot=100000)
 
 lgMgal_samples = rng.uniform(lgM_low, lgM_high, size=N_objs_sim)
 q_lgM = 1.0 / (lgM_high - lgM_low)    # updated proposal density assuming uniform sampling over the restricted band
@@ -205,32 +208,6 @@ print(f"Lambda_TDE after  active mask: {np.sum(Gamma_TDE_i * mc_weight_i_nuc):.1
 print(f"Lambda_EMRI before active mask: {np.sum(rate_EMRI_Gyr * T_obs_EMRI_Gyr * mc_weight_i_nuc / (1.0 + z_gal)):.1f}")
 print(f"Lambda_EMRI after  active mask: {np.sum(Gamma_EMRI_i * mc_weight_i_nuc):.1f}")
 
-# ΛEMRI​=∫∫ΓEMRI​(M,z)⋅ϕ(M,z)⋅dz/dVc * ​​dz * dlogM
-# ΓEMRI​(M,z) - expected EMRIs from one galaxy of mass M at redshift z during T\mathrm{obs}
-# ϕ(M,z)\phi(M, z) - GSMF: how many such galaxies exist per unit volume per unit log⁡M\log M
-# dVc​/dz — how much comoving volume sits at redshift z
-
-
-# ΛEMRI​≈i∑​Gamma_EMRI_iΓEMRI,i​​​×mc_weight_iϕ(Mi​,zi​)⋅Vtot​⋅ΔlogM/N​
-# np.sum(combined_EMRI_weight)
-
-
-# # Also check the top contributors
-# top_idx = np.argsort(Gamma_TDE_i * mc_weight_i_nuc)[-10:]
-# print("Top 10 TDE weight contributors:")
-# for i in top_idx:
-#     print(f"  lgMBH={gal_obj.lgMBH_mass[i]:.2f}, z={z_nuc[i]:.3f}, "
-#           f"weight={mc_weight_i_nuc[i]:.2e}, Gamma={Gamma_TDE_i[i]:.2e}, "
-#           f"product={Gamma_TDE_i[i]*mc_weight_i_nuc[i]:.2e}, active={active[i]:.0f}")
-
-
-
-# print(f"Fraction of nucleated galaxies with lgMBH > 4: {MBH_MASK.mean():.3f}")
-# print(f"Fraction of weighted mass in lgMBH > 4: "
-#       f"{(mc_weight_i_nuc[MBH_MASK]).sum() / mc_weight_i_nuc.sum():.3f}")
-
-
-
 # ============================================================
 # Combined weights (importance weight * rate) and N_eff check
 # ============================================================
@@ -289,7 +266,7 @@ idx_TDE = pps_resample(combined_TDE_weight, N_TDE_events, rng)
 print(f"Resampled EMRI catalog size: {len(idx_EMRI)}")
 print(f"Resampled TDE catalog size: {len(idx_TDE)}")
 
- 
+
 # ============================================================
 # Save output
 # ============================================================
@@ -297,7 +274,7 @@ loc = f'{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}'
 if not os.path.exists(loc):
     os.makedirs(loc)
  
-hf = h5py.File(f'{loc}/{MOCK_GALAXY_CATALOG_DATA}_{args.mbh_mass_method}_{args.nucleation_method}.h5', 'w')
+hf = h5py.File(f'{loc}/{MOCK_GALAXY_CATALOG_DATA}_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.h5', 'w')
  
 hf.attrs['N_gal_true'] = N_gal_true
 hf.attrs['N_objs_sim'] = N_objs_sim
@@ -311,34 +288,6 @@ hf.attrs['n_eff_TDE'] = n_eff_TDE
 hf.attrs['sBH_mass'] = CO_objs.masses['sBH']
 hf.attrs['star_mass'] = CO_objs.masses['star']
  
-# ============================================================
-# Build FRESH host-galaxy realizations for the resampled catalog rows.
-#
-# Why: idx_EMRI / idx_TDE come from PPS resampling WITH REPLACEMENT, so
-# the same proxy-pool index can appear multiple times. Slicing directly
-# into gal_obj.*/MBH_obj.* would give those repeated rows IDENTICAL
-# sigma_km_s, lgMBH, ra_deg, dec_deg, spin -- as if several real events
-# came from the exact same point in the sky with the exact same BH mass.
-# In reality each repeat almost always represents a DIFFERENT real
-# galaxy that happens to share the same (z, lgMgal) patch.
-#
-# Fix: only (z, lgMgal) -- the rate-determining variables tied to the
-# weighting -- stay fixed to the resampled values. Everything that's
-# genuinely independent per real galaxy (the M-sigma/size-mass scatter,
-# sky position, spin) is re-drawn fresh by constructing a NEW Galaxy/
-# NSC/MBH_properties instance from the resampled (z, lgMgal) pairs --
-# Galaxy.__init__ draws independent scatter/sky-location per array
-# element, even for repeated (z, lgMgal) inputs.
-#
-# NOTE: Galaxy.R_eff() and Galaxy.lgMBH() draw their scatter via the
-# global np.random (not the rng object passed into the constructor) --
-# only sky_location() respects the passed-in rng. So this step is
-# reproducible only insofar as the GLOBAL numpy random state is fixed
-# (e.g. via np.random.seed(...)) -- worth knowing if you need exact
-# reproducibility, since `rng` here is the local Generator instance and
-# won't control those two draws.
-# ============================================================
-
 def build_event_catalog(idx, rng):
     if len(idx) == 0:
         return None, None
@@ -355,10 +304,6 @@ def build_event_catalog(idx, rng):
  
 emri_gal, emri_mbh = build_event_catalog(idx_EMRI, rng)
 tde_gal, tde_mbh = build_event_catalog(idx_TDE, rng)
-
-# reapply the MBH mass cut to the resampled catalogs, since the PPS resampling can draw some low-mass galaxies that were originally filtered out
-
-# This cutoff needs to be consistent iwth the training model. This also needs to be changed to MBH mass to 4.
 
 emri_mask = (emri_gal.lgMBH_mass > 4.0) & (emri_gal.lgMBH_mass <= 7.0) if emri_gal is not None else np.array([], dtype=bool) 
 tde_mask = (tde_gal.lgMBH_mass > 4.0) & (tde_gal.lgMBH_mass <= 7.0) if tde_gal is not None else np.array([], dtype=bool)
@@ -424,12 +369,6 @@ if tde_gal is not None:
     grp_tde.create_dataset('initial_MBHspin', data=tde_mbh.initial_MBHspin[tde_mask])
     grp_tde.create_dataset('star_mass', data=CO_objs.masses['star'] * np.ones(np.sum(tde_mask)))
     grp_tde.create_dataset('sBH', data=CO_objs.masses['sBH'] * np.ones(np.sum(tde_mask)))
-    # also save for t0_MJD for all the TDE events, since this is needed for the transient model
-    # this should account for ZTF to LSST observation dates which is 
-    # 1 Mar 2018 (MJD 58178) → Dec 2026 (MJD 61396) for ZTF
-    # 1 Jan 2023 (MJD 59953) → 31 Dec 2025 (MJD 61396) for LSST
-    # giving a total of 58200 to 64423 for the transient model to sample from
-    
     grp_tde.create_dataset('t0_mjd_transient', data=np.random.uniform(58200, 64423, size=np.sum(tde_mask)))
 else:
     for name in ['lgMgal', 'z_gal', 'lgMBH', 'sigma_km_s', 'ra_deg', 'dec_deg', 'initial_MBHspin', 'star_mass', 'sBH', 't0_mjd_transient']:
@@ -439,255 +378,40 @@ hf.close()
 
 print(f"After resampling and mass cutoff (4.0 < log10(M_BH/Msun) < 7.0 ), EMRI catalog size: {np.sum(emri_mask)}")
 print(f"After resampling and mass cutoff (4.0 < log10(M_BH/Msun) < 7.0), TDE catalog size: {np.sum(tde_mask)}")
-print(f"Saved catalog to {loc}/data_cusp_evolution_{args.mbh_mass_method}_{args.nucleation_method}.h5")
 
-
-
-# Plot histograms of the EMRI and TDE catalogs and all the parameters that are saved in the h5 file. This is to check if the distributions are reasonable and to check if the resampling is working correctly.
-import matplotlib.pyplot as plt
-import numpy as np
 
 import matplotlib.pyplot as plt
 
-# All parameters saved per catalog, with axis labels
-EMRI_PARAMS = {
-    "lgMBH_mass"              : r"$\log_{10}(M_{\rm BH}/M_\odot)$",
-    "z_gal"                   : r"$z$",
-    "initial_MBHspin"         : r"$a$",
-    "sigma_km_s"              : r"$\sigma\ [\rm km/s]$",
-    "ra_deg"                  : r"RA [deg]",
-    "dec_deg"                 : r"Dec [deg]",
-    "lgMgal"                  : r"$\log_{10}(M_{\rm gal}/M_\odot)$",
-    "eccentricities_at_plunge": r"$e_{\rm plunge}$",
-    "star_mass"               : r"$m_\star\ [M_\odot]$",
-    "sBH"                     : r"$m_{\rm sBH}\ [M_\odot]$",
-}
-TDE_PARAMS = {
-    "lgMBH_mass"      : r"$\log_{10}(M_{\rm BH}/M_\odot)$",
-    "z_gal"           : r"$z$",
-    "initial_MBHspin" : r"$a$",
-    "sigma_km_s"      : r"$\sigma\ [\rm km/s]$",
-    "ra_deg"          : r"RA [deg]",
-    "dec_deg"         : r"Dec [deg]",
-    "lgMgal"          : r"$\log_{10}(M_{\rm gal}/M_\odot)$",
-    "t0_mjd_transient": r"$t_0\ [\rm MJD]$",
-    "star_mass"        : r"$m_\star\ [M_\odot]$",
-    "sBH"             : r"$m_{\rm sBH}\ [M_\odot]$",
-}
+if emri_gal is not None and np.sum(emri_mask) > 0:
+    fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+    axs[0, 0].hist(emri_gal.lgMBH_mass[emri_mask], bins=30, alpha=0.5, color='blue', density=True, label='MBH Mass')
+    axs[0, 1].hist(emri_gal.z_gal[emri_mask], bins=30, alpha=0.5, color='blue', density=True, label='Redshift')
+    axs[1, 0].hist(emri_mbh.initial_MBHspin[emri_mask], bins=30, alpha=0.5, color='blue', density=True, label='Initial BH Spin')
+    axs[1, 1].hist(eccentricities_at_plunge, bins=30, alpha=0.5, color='blue', density=True, label='Velocity Dispersion')
+    axs[0, 0].set_xlabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
+    axs[0, 1].set_xlabel(r'$z$')
+    axs[1, 0].set_xlabel(r'$a$')
+    axs[1, 1].set_xlabel(r'$e_{\rm plunge}$')
+    plt.suptitle(f'EMRI generated = {np.sum(emri_mask)}')
+    plt.savefig(f'{loc}/emri_catalog_histograms_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.png')
+    plt.close()
+else:
+    print(f"[WARN] EMRI catalog is empty (0 events after resampling+mass cut) -- "
+          f"skipping EMRI diagnostic plot. Check Lambda_EMRI_tot printed above: "
+          f"if that's already << 1, the shortfall is in the RATE, not detection.")
 
-# Build data dicts — only non-empty catalogs
-emri_vals = {}
-if emri_gal is not None and emri_mask.sum() > 0:
-    emri_vals = {
-        "lgMBH_mass"              : emri_gal.lgMBH_mass[emri_mask],
-        "z_gal"                   : emri_gal.z_gal[emri_mask],
-        "initial_MBHspin"         : emri_mbh.initial_MBHspin[emri_mask],
-        "sigma_km_s"              : emri_gal.sigma_km_s[emri_mask],
-        "ra_deg"                  : emri_gal.ra_deg[emri_mask],
-        "dec_deg"                 : emri_gal.dec_deg[emri_mask],
-        "lgMgal"                  : emri_gal.lgMgal[emri_mask],
-        "eccentricities_at_plunge": eccentricities_at_plunge,
-        "star_mass"               : CO_objs.masses['star'] * np.ones(emri_mask.sum()),
-        "sBH"                     : CO_objs.masses['sBH']  * np.ones(emri_mask.sum()),
-    }
-
-tde_vals = {}
-if tde_gal is not None and tde_mask.sum() > 0:
-    tde_vals = {
-        "lgMBH_mass"      : tde_gal.lgMBH_mass[tde_mask],
-        "z_gal"           : tde_gal.z_gal[tde_mask],
-        "initial_MBHspin" : tde_mbh.initial_MBHspin[tde_mask],
-        "sigma_km_s"      : tde_gal.sigma_km_s[tde_mask],
-        "ra_deg"          : tde_gal.ra_deg[tde_mask],
-        "dec_deg"         : tde_gal.dec_deg[tde_mask],
-        "lgMgal"          : tde_gal.lgMgal[tde_mask],
-        "t0_mjd_transient": np.random.uniform(58200, 64423, size=tde_mask.sum()),
-        "star_mass"        : CO_objs.masses['star'] * np.ones(tde_mask.sum()),
-        "sBH"             : CO_objs.masses['sBH']  * np.ones(tde_mask.sum()),
-    }
-
-# All unique params across both catalogs
-all_params = dict.fromkeys(list(EMRI_PARAMS.keys()) + list(TDE_PARAMS.keys()))
-n_params   = len(all_params)
-ncols      = 4
-nrows      = (n_params + ncols - 1) // ncols
-
-
-# ── Theoretical MF overlay ─────────────────────────────────────────────────
-# Marginalize MBHMF over z weighted by dVc/dz to get one smooth curve.
-# This is the "truth" line the catalog should track.
-# def compute_marginalized_mbhmf(MBHMF, cosmo_model, z_table, dVc_dz_table,
-#                                 lgMBH_range=(4.0, 7.0), n_points=200):
-#     """
-#     Returns (lgMBH_grid, phi_marginalised):
-#       phi_marginalised[j] = integral_z  phi_MBHMF(lgMBH_j, z) * dVc/dz  dz
-#     normalised so that the integral over lgMBH equals 1.
-#     """
-#     lgMBH_grid = np.linspace(lgMBH_range[0], lgMBH_range[1], n_points)
-#     phi_marg   = np.zeros(n_points)
-
-#     for iz, z in enumerate(z_table):
-#         lgMBH_z, phi_z = MBHMF.get_mbhmf(z_gal=np.array([z]), n_points_mass=n_points)
-#         # lgMBH_z shape: (1, n_points) or (n_points,) — squeeze
-#         lgMBH_z = lgMBH_z.squeeze()
-#         phi_z   = 10.0 ** phi_z.squeeze()       # log10(phi) → phi
-#         phi_z   = np.nan_to_num(phi_z, nan=0.0, posinf=0.0, neginf=0.0)
-
-#         # Interpolate onto common lgMBH_grid
-#         phi_interp = np.interp(lgMBH_grid, lgMBH_z, phi_z, left=0.0, right=0.0)
-#         phi_marg  += phi_interp * dVc_dz_table[iz]
-
-#     # Normalise to unit area (so it overlays a density=True histogram)
-#     norm = np.trapz(phi_marg, lgMBH_grid)
-#     if norm > 0:
-#         phi_marg /= norm
-#     return lgMBH_grid, phi_marg
-
-
-# ── Proxy pool overlays (consistency check against MC noise) ──────────────
-def _proxy_overlay(ax, proxy_lgMBH, weights, bins, color, label, ls='--'):
-    w = np.asarray(weights, float)
-    w = np.where(np.isfinite(w), w, 0.0)
-    if w.sum() <= 0:
-        return
-    # Normalise to density so it's comparable with density=True histogram
-    ax.hist(proxy_lgMBH, bins=bins, weights=w / w.sum(),
-            histtype='step', linewidth=1.4, linestyle=ls,
-            color=color, label=label, zorder=2)
-
-
-def _plot_one_catalog(catalog_name, params_dict, vals_dict, n_events,
-                      proxy_lgMBH, w_gsmf, w_rate, color, loc,
-                      lgMBH_theory=None, phi_theory=None):
-    keys  = list(params_dict.keys())
-    ncols = 4
-    nrows = (len(keys) + ncols - 1) // ncols
-    mbh_bins = np.linspace(4.0, 7.0, 31)
-
-    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 4, nrows * 3.2))
-    axes = axes.flatten()
-
-    for i, key in enumerate(keys):
-        ax    = axes[i]
-        label = params_dict[key]
-
-        if key not in vals_dict or len(vals_dict[key]) == 0:
-            ax.text(0.5, 0.5, 'no data', transform=ax.transAxes,
-                    ha='center', va='center', color='grey', fontsize=10)
-            ax.set_xlabel(label, fontsize=11)
-            continue
-
-        data = vals_dict[key]
-
-        if key == 'lgMBH_mass':
-            # ── Catalog histogram ──────────────────────────────────────────
-            ax.hist(data, bins=mbh_bins, histtype='stepfilled',
-                    color=color, alpha=0.35, density=True,
-                    label=f'{catalog_name} events (N={n_events})', zorder=3)
-            ax.hist(data, bins=mbh_bins, histtype='step',
-                    color=color, linewidth=1.8, density=True, zorder=4)
-
-            # ── Theoretical MBHMF (marginalised over z) ───────────────────
-            # if lgMBH_theory is not None:
-            #     ax.plot(lgMBH_theory, phi_theory,
-            #             color='black', linewidth=2.0, linestyle='-',
-            #             label=r'MBHMF  $\int \phi_{\rm BH}(M,z)\,\frac{dV_c}{dz}\,dz$',
-            #             zorder=6)
-
-            # ── Proxy pool overlays (MC diagnostic) ───────────────────────
-            _proxy_overlay(ax, proxy_lgMBH, w_gsmf, mbh_bins,
-                           'grey', r'MC proxy: GSMF weight  $\phi(M,z)$', '--')
-            _proxy_overlay(ax, proxy_lgMBH, w_rate, mbh_bins,
-                           'red',  r'MC proxy: rate weight  $\phi\times\Gamma$', '-.')
-
-            ax.set_yscale('log')
-            ax.set_xlim(4.0, 7.0)
-            ax.legend(fontsize=7, loc='upper left')
-            ax.set_title(
-                'Catalog should track black curve (theory)\n'
-                'Red MC proxy is finite-sample estimate of same',
-                fontsize=7.5, color='dimgrey')
-
-        elif key == 'lgMgal':
-            # ── Galaxy MF overlay on lgMgal panel ─────────────────────────
-            ax.hist(data, bins=30, histtype='stepfilled',
-                    color=color, alpha=0.5, density=True,
-                    label=f'N={n_events}')
-            ax.hist(data, bins=30, histtype='step',
-                    color=color, linewidth=1.5, density=True)
-            # Proxy GSMF overlay (normalised)
-            _proxy_overlay(ax, gal_obj.lgMgal, w_gsmf,
-                           np.linspace(data.min(), data.max(), 31),
-                           'grey', r'GSMF proxy weight', '--')
-            ax.set_yscale('log')
-            ax.set_ylim(bottom=1e-6)
-            ax.legend(fontsize=8)
-
-        else:
-            ax.hist(data, bins=30, histtype='stepfilled',
-                    color=color, alpha=0.5, label=f'N={n_events}')
-            ax.hist(data, bins=30, histtype='step',
-                    color=color, linewidth=1.5)
-            ax.set_yscale('log')
-            ax.set_ylim(bottom=0.5)
-            ax.legend(fontsize=8)
-
-        ax.set_xlabel(label, fontsize=11)
-        ax.set_ylabel('density  (log)' if key in ('lgMBH_mass','lgMgal') else 'N  (log)',
-                      fontsize=10)
-
-    for j in range(len(keys), len(axes)):
-        axes[j].set_visible(False)
-
-    fig.suptitle(f'{catalog_name} resampled catalog  —  {n_events} events',
-                 fontsize=13, y=1.01)
-    fig.tight_layout()
-    out = f'{loc}/catalog_histograms_{catalog_name}_{args.mbh_mass_method}_{args.nucleation_method}.png'
-    fig.savefig(out, dpi=150, bbox_inches='tight')
-    plt.close(fig)
-    print(f"[SAVED] {out}")
-
-
-# ── Compute theoretical MBHMF once, reuse for both catalogs ───────────────
-# z_table and dVc_dz_table are already in scope from the main script
-# lgMBH_theory, phi_theory = compute_marginalized_mbhmf(
-#     MBHMF       = MBHMassFunction(gsmf=GSMF),
-#     cosmo_model = cosmo_model,
-#     z_table     = z_table,
-#     dVc_dz_table= dVc_dz_table,
-# )
-
-# ── Proxy pool ────────────────────────────────────────────────────────────
-proxy_lgMBH = gal_obj.lgMBH_mass    # nucleated subset, shape (n_nuc,)
-
-# ── EMRI ──────────────────────────────────────────────────────────────────
-if emri_vals:
-    _plot_one_catalog(
-        catalog_name = 'EMRI',
-        params_dict  = EMRI_PARAMS,
-        vals_dict    = emri_vals,
-        n_events     = emri_mask.sum(),
-        proxy_lgMBH  = proxy_lgMBH,
-        w_gsmf       = mc_weight_i_nuc,
-        w_rate       = combined_EMRI_weight,
-        color        = 'steelblue',
-        loc          = loc,
-        # lgMBH_theory = lgMBH_theory,
-        # phi_theory   = phi_theory,
-    )
-
-# ── TDE ───────────────────────────────────────────────────────────────────
-if tde_vals:
-    _plot_one_catalog(
-        catalog_name = 'TDE',
-        params_dict  = TDE_PARAMS,
-        vals_dict    = tde_vals,
-        n_events     = tde_mask.sum(),
-        proxy_lgMBH  = proxy_lgMBH,
-        w_gsmf       = mc_weight_i_nuc,
-        w_rate       = combined_TDE_weight,
-        color        = 'darkorange',
-        loc          = loc,
-        # lgMBH_theory = lgMBH_theory,
-        # phi_theory   = phi_theory,
-    )
+if tde_gal is not None and np.sum(tde_mask) > 0:
+    fig, axs = plt.subplots(1, 3, figsize=(12, 10))
+    axs[0].hist(tde_gal.lgMBH_mass[tde_mask], bins=30, alpha=0.5, color='orange', density=True, label='MBH Mass')
+    axs[1].hist(tde_gal.z_gal[tde_mask], bins=30, alpha=0.5, color='orange', density=True, label='Redshift')
+    axs[2].hist(tde_mbh.initial_MBHspin[tde_mask], bins=30, alpha=0.5, color='orange', density=True, label='Initial BH Spin')
+    axs[0].set_xlabel(r'$\log_{10}(M_{\rm BH}/M_\odot)$')
+    axs[1].set_xlabel(r'$z$')
+    axs[2].set_xlabel(r'$a$')
+    plt.suptitle(f'TDEs generated = {np.sum(tde_mask)}')
+    plt.savefig(f'{loc}/tde_catalog_histograms_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.png')
+    plt.close()
+else:
+    print(f"[WARN] TDE catalog is empty (0 events after resampling+mass cut) -- "
+          f"skipping TDE diagnostic plot. Check Lambda_TDE_tot printed above: "
+          f"if that's already << 1, the shortfall is in the RATE, not detection.")

@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 parser = argparse.ArgumentParser()
 parser.add_argument("--GALAXIES", type=int, required=True)
 parser.add_argument("--POPULATION", type=str, default="A", choices=["A", "B", "MIX"])
+parser.add_argument("--mbh_mass_method", type=str, required=False, default="M_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
 args = parser.parse_args()
 
 loc = f'./data/pseudo_inference_data/{args.GALAXIES}'
@@ -19,9 +21,9 @@ def load_h5(path):
         return {k: hf[k][()] for k in hf.keys()}
 
 
-emri = load_h5(os.path.join(loc, f"true_data_EMRI_pseudo_data_{args.POPULATION}.h5"))
-ztf  = load_h5(os.path.join(loc, f"true_data_TDE_ZTF_pseudo_data_{args.POPULATION}.h5"))
-lsst = load_h5(os.path.join(loc, f"true_data_TDE_LSST_pseudo_data_{args.POPULATION}.h5"))
+emri = load_h5(os.path.join(loc, f"true_data_EMRI_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.h5"))
+ztf  = load_h5(os.path.join(loc, f"true_data_TDE_ZTF_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.h5"))
+lsst = load_h5(os.path.join(loc, f"true_data_TDE_LSST_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.h5"))
 
 print("[INFO] EMRI keys :", [k for k in emri if not k.endswith("_posterior")])
 print("[INFO] TDE  keys :", [k for k in ztf if not k.endswith("_posterior")])
@@ -97,6 +99,6 @@ for ax, panel in zip(axes, panels):
 
 plt.tight_layout()
 
-out = os.path.join(loc, f"catalogue_histograms_pop{args.POPULATION}.png")
+out = os.path.join(loc, f"catalogue_histograms_pop{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.png")
 plt.savefig(out, dpi=150, bbox_inches="tight")
 print(f"\n[SAVED] {out}")

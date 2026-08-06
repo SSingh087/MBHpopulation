@@ -1,0 +1,18 @@
+
+# Executable and arguments
+executable      = ./EXECUTABLES/prepare_data_for_inference.sh
+getenv          = true
+arguments       = $(MBH_MASS_METHODS) $(NUCLEATION_METHODS)
+
+# Logs
+log             = LOG_FILES/prepare_data_for_inference_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).log
+error           = ERROR_FILES/prepare_data_for_inference_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).err
+output          = OUTPUT_FILES/prepare_data_for_inference_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).out
+
+# Notifications
+
+# Resources
+request_cpus    = 1
+request_memory  = 8GB
+
+queue 1

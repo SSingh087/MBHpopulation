@@ -34,6 +34,8 @@ parser.add_argument('--SOURCE',          type=str, required=True,
                     choices=['EMRI', 'TDE', 'EMRI_TDE'])
 parser.add_argument('--SURVEY',          type=str, default='None',
                     choices=['ZTF', 'LSST', 'ALL', 'None'])
+parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
 
 # MBH mass (FixedLimitsPowerLaw)
 parser.add_argument('--lambda_M',        type=float, nargs=2)
@@ -59,7 +61,7 @@ parser.add_argument('--mu_star',         type=float, nargs=2)
 parser.add_argument('--sigma_star',      type=float, nargs=2)
 parser.add_argument('--weight_COmass',   type=float, nargs=2)
 
-# z_gal (BetaDistribution)
+# z_gal (FixedLimitsPowerLaw)
 parser.add_argument('--lam_z_gal',      type=float, nargs=2)
 
 args = parser.parse_args()
@@ -88,7 +90,7 @@ weight_CO_min,     weight_CO_max     = args.weight_COmass
 lam_z_gal_min,     lam_z_gal_max     = args.lam_z_gal
 
 # ── Population setup ──────────────────────────────────────────────────────
-true_x  = get_true_x("B")
+true_x  = get_true_x("B", args.mbh_mass_method, args.nucleation_method)
 popdist = make_dist("B")
 
 # ── Load data ─────────────────────────────────────────────────────────────
@@ -98,32 +100,53 @@ base = f'./data/pseudo_inference_data/{args.GALAXIES}'
 def load_torch(path):
     return torch.load(path, map_location='cpu')
 
-
-# This will be needed when we  use the real simulation. 
-# For now, we can directly load the pseudo data.
-# emri_torch = load_torch(f'{base}/true_data_EMRI_torch.pt')
-
-# if args.SURVEY in ['ZTF', 'LSST']:
-#     tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_torch.pt')
-#     data_TDE  = tde_torch
-# elif args.SURVEY == 'ALL':
-#     ztf  = load_torch(f'{base}/true_data_TDE_ZTF_torch.pt')
-#     lsst = load_torch(f'{base}/true_data_TDE_LSST_torch.pt')
-#     data_TDE = {k: torch.cat([ztf[k], lsst[k]], dim=0) for k in ztf}
-
-
-emri_torch = load_torch(f'{base}/true_data_EMRI_pseudo_data_B.pt')
-
+emri_torch = load_torch(f'{base}/true_data_EMRI_pseudo_data_B_{args.mbh_mass_method}_{args.nucleation_method}.pt')
 
 if args.SURVEY in ['ZTF', 'LSST']:
-    tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_pseudo_data_B.pt')
+    tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_pseudo_data_B_{args.mbh_mass_method}_{args.nucleation_method}.pt')
     data_TDE  = tde_torch
 elif args.SURVEY == 'ALL':
-    ztf  = load_torch(f'{base}/true_data_TDE_ZTF_pseudo_data_B.pt')
-    lsst = load_torch(f'{base}/true_data_TDE_LSST_pseudo_data_B.pt')
+    ztf  = load_torch(f'{base}/true_data_TDE_ZTF_pseudo_data_B_{args.mbh_mass_method}_{args.nucleation_method}.pt')
+    lsst = load_torch(f'{base}/true_data_TDE_LSST_pseudo_data_B_{args.mbh_mass_method}_{args.nucleation_method}.pt')
     data_TDE = {k: torch.cat([ztf[k], lsst[k]], dim=0) for k in ztf}
 
 data_EMRI = emri_torch
+
+def ensure_min_events(data, min_events=2, label=""):
+    """If a source has fewer than min_events rows, pad by repeating existing
+    rows until there are at least min_events. Also restores the event
+    dimension if it got squeezed to 1D (the case your manual check caught).
+    NOTE: repeated rows are NOT independent new information -- each
+    duplicate's log-likelihood term gets summed as if it were a separate
+    real event, which artificially sharpens the posterior. This avoids a
+    crash, it does not manufacture real statistical power."""
+    if data is None or len(data) == 0:
+        return data
+
+    for k in list(data.keys()):
+        if data[k].dim() == 1:
+            data[k] = data[k][None, :]
+
+    any_key = next(iter(data))
+    n_events = data[any_key].shape[0]
+
+    if n_events == 0:
+        print(f"[WARN] {label}: 0 events -- cannot pad, leaving empty.")
+        return data
+
+    if n_events < min_events:
+        reps = -(-min_events // n_events)  # ceil division
+        print(f"[WARN] {label}: only {n_events} event(s) -- duplicating to reach "
+              f"{min_events} (repeat {reps}x, trim to exactly {min_events}). "
+              f"Treat this run's posterior as diagnostic, not a real result -- "
+              f"see ensure_min_events() docstring.")
+        for k in list(data.keys()):
+            reps_shape = [1] * data[k].dim()
+            reps_shape[0] = reps
+            data[k] = data[k].repeat(*reps_shape)[:min_events]
+
+    return data
+
 
 def get_data(source):
     if source == 'TDE':
@@ -135,10 +158,19 @@ def get_data(source):
 
 popdist.data, has_EMRI, has_TDE = get_data(args.SOURCE)
 
-output = f"{base}/{args.SOURCE}_pop_B_{args.SURVEY}"
+if has_EMRI:
+    popdist.data['EMRI'] = ensure_min_events(
+        popdist.data['EMRI'], min_events=2,
+        label=f"EMRI ({args.mbh_mass_method}/{args.nucleation_method})"
+    )
+if has_TDE:
+    popdist.data['TDE'] = ensure_min_events(
+        popdist.data['TDE'], min_events=2,
+        label=f"TDE ({args.SURVEY}, {args.mbh_mass_method}/{args.nucleation_method})"
+    )
+    
+output = f"{base}/{args.SOURCE}_pop_B_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}"
 logger = setup_logger(output=output)
-
-# print(f"[DEBUG] {args.SOURCE} keys: {popdist.data[args.SOURCE].keys()}")
 
 # ── Model ─────────────────────────────────────────────────────────────────
 class PopulationModel(Model):
@@ -156,7 +188,6 @@ class PopulationModel(Model):
 
         if has_EMRI:
             self.emri_data = popdist.data['EMRI']
-            # print("[DEBUG] self.emri_data keys:", list(self.emri_data.keys()))  # ← add
         if has_TDE:
             self.tde_data  = popdist.data['TDE']
 
@@ -166,12 +197,12 @@ class PopulationModel(Model):
     def _param_names(self):
         # lgMBH + CO params shared by both EMRI and TDE
         shared = ["lambda_M",
-                  "mu_sBH", "sigma_sBH", "mu_star", "sigma_star", "weight_COmass", 
+                  "mu_sBH", "sigma_sBH", "mu_star", "sigma_star", "weight_COmass",
                   "lam_z_gal"]
         # spin only used by EMRI
         emri   = ["mu_1_MBHSpin", "sigma_1_MBHSpin", "mu_2_MBHSpin", "sigma_2_MBHSpin", "weight_MBHSpin",
                   "mu_1_e_pl", "sigma_1_e_pl", "mu_2_e_pl", "sigma_2_e_pl", "weight_e_pl"]
-        
+
         return shared + (emri if has_EMRI else [])
 
     def _bounds(self):
@@ -297,25 +328,10 @@ fs.run()
 with h5py.File(f'{output}/result.hdf5', 'r') as hf:
     post = load_posterior_samples_dynamic(hf)
 
-# posterior_samples = np.vstack(list(post.values())).T
-# truths = [v for params in get_true_x("B").values() for v in params.values()]
-# labels = list(get_latex_labels("B").values())
-
-# print("Truths:", truths)
-# print("Labels:", labels)
-
-# figure = corner.corner(
-#     posterior_samples, labels=labels,
-#     title_kwargs={"fontsize": 18}, show_titles=True,
-#     title_fmt=".3f", quantiles=[0.16, 0.5, 0.84],
-#     label_kwargs={"fontsize": 18},
-#     color='blue', 
-#     # truth_color='red', truths=truths,
-# )
-
-
-labels_dict = get_latex_labels("A")   # or "B"
-truths_dict = get_true_x_flat("A")    # or "B"
+# FIX: this used to hardcode "A" here -- a pop-B run was plotting against
+# pop-A's parameter names and truth values.
+labels_dict = get_latex_labels("B")
+truths_dict = get_true_x_flat("B", args.mbh_mass_method, args.nucleation_method)
 
 keys = [k for k in labels_dict if k in post]   # only params actually sampled this run
 
@@ -335,4 +351,3 @@ figure = corner.corner(
 )
 
 plt.savefig(f'{output}/hyperposterior.png', dpi=200)
-

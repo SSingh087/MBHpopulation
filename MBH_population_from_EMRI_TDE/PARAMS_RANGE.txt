@@ -1,0 +1,6 @@
+log_MBHMass = 4, 10
+MBHSpin = 0.1, 0.9
+z_gal = 0.0, 8.0
+z_gal_EMRI = 0.0, 8.0
+z_gal_TDE_LSST = 0.0, 8.0
+z_gal_TDE_ZTF = 0.0, 2.0

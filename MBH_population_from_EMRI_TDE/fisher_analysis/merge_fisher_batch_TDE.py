@@ -17,6 +17,8 @@ import h5py
 parser = argparse.ArgumentParser()
 parser.add_argument("--GALAXIES",      type=int, required=True)
 parser.add_argument("--SURVEY",        type=str, default="ztf")
+parser.add_argument("--mbh_mass_method", type=str, required=False, default="M_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
 args = parser.parse_args()
 
 loc      = f"{FISHER_DATA_DIR}/{args.GALAXIES}"
@@ -29,7 +31,7 @@ print(f"Merging {len(batch_files)} batch files...")
 
 PARAMS = ["redshift", "mbh_6", "stellar_mass", "eta", "alpha", "beta"]
 
-fisher_out = h5py.File(f"{loc}/fisher_results_TDE_{args.SURVEY.upper()}.h5", "w")
+fisher_out = h5py.File(f"{loc}/fisher_results_TDE_{args.SURVEY.upper()}_{args.mbh_mass_method}_{args.nucleation_method}.h5", "w")
 true_samples_by_param = {p: [] for p in PARAMS}
 noisy_samples_by_param = {p: [] for p in PARAMS}
 
@@ -57,8 +59,8 @@ fisher_out.attrs["n_events_total"] = n_events_total
 fisher_out.attrs["n_events_ok"]    = n_events_ok
 fisher_out.close()
 
-with h5py.File(f"{loc}/true_data_TDE_{args.SURVEY.upper()}.h5", "w") as hf_true, \
-     h5py.File(f"{loc}/noisy_data_TDE_{args.SURVEY.upper()}.h5", "w") as hf_noisy:
+with h5py.File(f"{loc}/true_data_TDE_{args.SURVEY.upper()}_{args.mbh_mass_method}_{args.nucleation_method}.h5", "w") as hf_true, \
+     h5py.File(f"{loc}/noisy_data_TDE_{args.SURVEY.upper()}_{args.mbh_mass_method}_{args.nucleation_method}.h5", "w") as hf_noisy:
     for p in PARAMS:
         true_arr = np.vstack(true_samples_by_param[p])
         noisy_arr = np.vstack(noisy_samples_by_param[p])

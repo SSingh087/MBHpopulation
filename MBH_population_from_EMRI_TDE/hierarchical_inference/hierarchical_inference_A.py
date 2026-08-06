@@ -35,6 +35,9 @@ parser.add_argument('--SOURCE',         type=str, required=True,
 parser.add_argument('--SURVEY',         type=str, default='None',
                     choices=['ZTF', 'LSST', 'ALL', 'None'])
 
+parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+
 # MBH mass (FixedLimitSchechterFunction)
 parser.add_argument('--xc',             type=float, nargs=2)
 parser.add_argument('--lam_schechter',  type=float, nargs=2)
@@ -46,7 +49,7 @@ parser.add_argument('--beta_1_MBHSpin',  type=float, nargs=2)
 parser.add_argument('--beta_2_MBHSpin',  type=float, nargs=2)
 parser.add_argument('--weight_MBHSpin',  type=float, nargs=2)
 
-# EMRI eccentricity (DoubleGaussianDistribution)
+# EMRI eccentricity (DoubleBetaDistribution)
 parser.add_argument('--alpha_1_e_pl',       type=float, nargs=2)
 parser.add_argument('--alpha_2_e_pl',       type=float, nargs=2)
 parser.add_argument('--beta_1_e_pl',        type=float, nargs=2)
@@ -60,7 +63,7 @@ parser.add_argument('--mu_star',        type=float, nargs=2)
 parser.add_argument('--sigma_star',     type=float, nargs=2)
 parser.add_argument('--weight_COmass',  type=float, nargs=2)
 
-# z_gal (BetaDistribution)
+# z_gal (FixedLimitsPowerLaw)
 parser.add_argument('--lam_z_gal',      type=float, nargs=2)
 
 args = parser.parse_args()
@@ -90,41 +93,65 @@ weight_CO_min,      weight_CO_max      = args.weight_COmass
 lam_z_gal_min,      lam_z_gal_max      = args.lam_z_gal
 
 # ── Population setup ──────────────────────────────────────────────────────
-true_x  = get_true_x("A")
+true_x  = get_true_x("A", args.mbh_mass_method, args.nucleation_method)
 popdist = make_dist("A")
 
 # ── Load data ─────────────────────────────────────────────────────────────
 data_EMRI, data_TDE = {}, {}
-# base = f'./data/inference_data/{args.GALAXIES}'
+
 base = f'./data/pseudo_inference_data/{args.GALAXIES}'
 
 def load_torch(path):
     return torch.load(path, map_location='cpu')
 
-# This will be needed when we  use the real simulation. 
-# For now, we can directly load the pseudo data.
-# emri_torch = load_torch(f'{base}/true_data_EMRI_torch.pt')
-
-# if args.SURVEY in ['ZTF', 'LSST']:
-#     tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_torch.pt')
-#     data_TDE  = tde_torch
-# elif args.SURVEY == 'ALL':
-#     ztf  = load_torch(f'{base}/true_data_TDE_ZTF_torch.pt')
-#     lsst = load_torch(f'{base}/true_data_TDE_LSST_torch.pt')
-#     data_TDE = {k: torch.cat([ztf[k], lsst[k]], dim=0) for k in ztf}
-
-
-emri_torch = load_torch(f'{base}/true_data_EMRI_pseudo_data_A.pt')
+emri_torch = load_torch(f'{base}/true_data_EMRI_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}.pt')
 
 if args.SURVEY in ['ZTF', 'LSST']:
-    tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_pseudo_data_A.pt')
+    tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}.pt')
     data_TDE  = tde_torch
 elif args.SURVEY == 'ALL':
-    ztf  = load_torch(f'{base}/true_data_TDE_ZTF_pseudo_data_A.pt')
-    lsst = load_torch(f'{base}/true_data_TDE_LSST_pseudo_data_A.pt')
+    ztf  = load_torch(f'{base}/true_data_TDE_ZTF_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}.pt')
+    lsst = load_torch(f'{base}/true_data_TDE_LSST_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}.pt')
     data_TDE = {k: torch.cat([ztf[k], lsst[k]], dim=0) for k in ztf}
 
 data_EMRI = emri_torch
+
+
+def ensure_min_events(data, min_events=2, label=""):
+    """If a source has fewer than min_events rows, pad by repeating existing
+    rows until there are at least min_events. Also restores the event
+    dimension if it got squeezed to 1D (the case your manual check caught).
+    NOTE: repeated rows are NOT independent new information -- each
+    duplicate's log-likelihood term gets summed as if it were a separate
+    real event, which artificially sharpens the posterior. This avoids a
+    crash, it does not manufacture real statistical power."""
+    if data is None or len(data) == 0:
+        return data
+
+    for k in list(data.keys()):
+        if data[k].dim() == 1:
+            data[k] = data[k][None, :]
+
+    any_key = next(iter(data))
+    n_events = data[any_key].shape[0]
+
+    if n_events == 0:
+        print(f"[WARN] {label}: 0 events -- cannot pad, leaving empty.")
+        return data
+
+    if n_events < min_events:
+        reps = -(-min_events // n_events)  # ceil division
+        print(f"[WARN] {label}: only {n_events} event(s) -- duplicating to reach "
+              f"{min_events} (repeat {reps}x, trim to exactly {min_events}). "
+              f"Treat this run's posterior as diagnostic, not a real result -- "
+              f"see ensure_min_events() docstring.")
+        for k in list(data.keys()):
+            reps_shape = [1] * data[k].dim()
+            reps_shape[0] = reps
+            data[k] = data[k].repeat(*reps_shape)[:min_events]
+
+    return data
+
 
 def get_data(source):
     if source == 'TDE':
@@ -136,11 +163,19 @@ def get_data(source):
 
 popdist.data, has_EMRI, has_TDE = get_data(args.SOURCE)
 
+if has_EMRI:
+    popdist.data['EMRI'] = ensure_min_events(
+        popdist.data['EMRI'], min_events=2,
+        label=f"EMRI ({args.mbh_mass_method}/{args.nucleation_method})"
+    )
+if has_TDE:
+    popdist.data['TDE'] = ensure_min_events(
+        popdist.data['TDE'], min_events=2,
+        label=f"TDE ({args.SURVEY}, {args.mbh_mass_method}/{args.nucleation_method})"
+    )
 
-output = f"{base}/{args.SOURCE}_pop_A_{args.SURVEY}"
+output = f"{base}/{args.SOURCE}_pop_A_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}"
 logger = setup_logger(output=output)
-
-# print(f"[DEBUG] {args.SOURCE} keys: {popdist.data[args.SOURCE].keys()}")
 
 # ── Model ─────────────────────────────────────────────────────────────────
 class PopulationModel(Model):
@@ -170,11 +205,11 @@ class PopulationModel(Model):
         shared = ["xc", "lam_schechter",
                   "mu_sBH", "sigma_sBH", "mu_star", "sigma_star", "weight_COmass",
                   "lam_z_gal"]
-        
+
         # EMRI-only (spin & eccentricity)
         emri   = ["alpha_1_MBHSpin", "alpha_2_MBHSpin", "beta_1_MBHSpin",  "beta_2_MBHSpin", "weight_MBHSpin",
                   "alpha_1_e_pl", "alpha_2_e_pl", "beta_1_e_pl",  "beta_2_e_pl", "weight_e_pl"]
-        
+
         return shared + (emri if has_EMRI else [])
 
     def _bounds(self):
@@ -237,9 +272,8 @@ class PopulationModel(Model):
         )
 
         alpha_EMRI = torch.tensor(1.0, dtype=torch.float32)
-        # poisson_rate_EMRI = - EMRI_RATE * alpha_EMRI + Ndet_NN * torch.log(EMRI_RATE * alpha_EMRI)
         logL = torch.sum(torch.log(
-            torch.nanmean(pdf_mass * pdf_spin * pdf_CO * pdf_e_pl * pdf_z_gal, dim=1) - torch.log(alpha_EMRI) + 1e-10# + poisson_rate_EMRI
+            torch.nanmean(pdf_mass * pdf_spin * pdf_CO * pdf_e_pl * pdf_z_gal, dim=1) - torch.log(alpha_EMRI) + 1e-10
         ))
         return logL.item()
 
@@ -255,25 +289,24 @@ class PopulationModel(Model):
             mu_1=x["mu_star"], sigma_1=x["sigma_star"],
             mu_2=x["mu_sBH"],  sigma_2=x["sigma_sBH"], weight=x["weight_COmass"]
         )
-        pdf_z_gal = self.dist_z_gal.pdf(    
+        pdf_z_gal = self.dist_z_gal.pdf(
             self.tde_data['z_gal'],
             lam=x["lam_z_gal"]
         )
-        
+
         alpha_TDE = torch.tensor(1.0, dtype=torch.float32)
-        # poisson_rate_TDE = - TDE_RATE * alpha_TDE + Ndet_NN * torch.log(TDE_RATE * alpha_TDE)
         logL = torch.sum(torch.log(
-            torch.nanmean(pdf_mass * pdf_CO * pdf_z_gal, dim=1) - torch.log(alpha_TDE) + 1e-10 # + poisson_rate_TDE
+            torch.nanmean(pdf_mass * pdf_CO * pdf_z_gal, dim=1) - torch.log(alpha_TDE) + 1e-10
         ))
         return logL.item()
-    
+
     @torch.inference_mode()
     def log_likelihood(self, x):
         if isinstance(x, (np.void, np.ndarray)):
             x = {n: np.ascontiguousarray(x[n], dtype=np.float32) for n in x.dtype.names}
         x = {k: torch.from_numpy(np.ascontiguousarray(v, dtype=np.float32))
              for k, v in x.items()}
-        return self.EMRI_likelihood(x) + self.TDE_likelihood(x) 
+        return self.EMRI_likelihood(x) + self.TDE_likelihood(x)
 
 
 # ── Run sampler ───────────────────────────────────────────────────────────
@@ -287,24 +320,8 @@ fs.run()
 with h5py.File(f'{output}/result.hdf5', 'r') as hf:
     post = load_posterior_samples_dynamic(hf)
 
-# posterior_samples = np.vstack(list(post.values())).T
-# truths = [v for params in get_true_x("A").values() for v in params.values()]
-# labels = list(get_latex_labels("A").values())
-
-# print("Truths:", truths)
-# print("Labels:", labels)
-
-# figure = corner.corner(
-#     posterior_samples, labels=labels,
-#     title_kwargs={"fontsize": 18}, show_titles=True,
-#     title_fmt=".3f", quantiles=[0.16, 0.5, 0.84],
-#     label_kwargs={"fontsize": 18},
-#     color='blue', 
-#     # truth_color='red', truths=truths,
-# )
-
-labels_dict = get_latex_labels("A")   # or "B"
-truths_dict = get_true_x_flat("A")    # or "B"
+labels_dict = get_latex_labels("A")
+truths_dict = get_true_x_flat("A", args.mbh_mass_method, args.nucleation_method)
 
 keys = [k for k in labels_dict if k in post]   # only params actually sampled this run
 
@@ -324,4 +341,3 @@ figure = corner.corner(
 )
 
 plt.savefig(f'{output}/hyperposterior.png', dpi=200)
-

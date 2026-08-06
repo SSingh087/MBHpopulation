@@ -41,6 +41,8 @@ parser.add_argument("--BATCH_ID",       type=int, required=True)
 parser.add_argument("--PLOT_CORNER",     type=int, default=0, choices=[0, 1], help="1=save true+noisy corner plots per event, 0=skip")
 parser.add_argument("--PLOT_FISHER",     type=int, default=0, choices=[0, 1], help="1=save true+noisy Fisher-matrix heatmaps per event, 0=skip")
 parser.add_argument("--PLOT_COVARIANCE", type=int, default=0, choices=[0, 1], help="1=save true+noisy covariance-matrix heatmaps per event, 0=skip")
+parser.add_argument("--mbh_mass_method", type=str, required=False, default="M_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
 args = parser.parse_args()
 args.PLOT_CORNER     = bool(args.PLOT_CORNER)
 args.PLOT_FISHER     = bool(args.PLOT_FISHER)
@@ -54,7 +56,7 @@ if ANY_PLOTTING:
     plot_dir = f"{loc}/plots/batch_{args.BATCH_ID:05d}"
     os.makedirs(plot_dir, exist_ok=True)
 
-SNR_PATH = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/TDE_SNRs_{args.SURVEY.upper()}.h5"
+SNR_PATH = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/TDE_SNRs_{args.SURVEY.upper()}_{args.mbh_mass_method}_{args.nucleation_method}.h5"
 
 N_SAMPLES_PER_THETA = 2000
 SIM_FN, SURVEY_STR = choose_simulator(args.SURVEY)
@@ -202,7 +204,7 @@ for local_i in range(n_events):
     if r is not None:
         results.append(r)
 
-out_path = f"{loc}/batches/fisher_batch_{args.BATCH_ID:05d}.h5"
+out_path = f"{loc}/batches/fisher_batch_{args.BATCH_ID:05d}_{args.mbh_mass_method}_{args.nucleation_method}.h5"
 with h5py.File(out_path, "w") as hf:
     hf.attrs["batch_id"]  = args.BATCH_ID
     hf.attrs["start_idx"] = args.START_IDX

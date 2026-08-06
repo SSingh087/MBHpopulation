@@ -27,6 +27,7 @@ parser.add_argument("--rescaler_flag", type=str, default="use_rescaler")
 parser.add_argument("--verbose", type=bool, required=True)
 parser.add_argument("--outdir", type=str, required=True)
 parser.add_argument("--device", type=str, required=True)
+parser.add_argument("--SURVEY", type=str, required=True)
 
 args = parser.parse_args()
 
@@ -97,7 +98,7 @@ train(
     verbose=args.verbose,
     save_best=True,
     scheduler=scheduler,
-    outdir=f'{output_dir}/{args.outdir}_{args.num_neurons}_{args.layers}_{args.n_batches}/',
+    outdir=f'{output_dir}/{args.outdir}_{args.num_neurons}_{args.layers}_{args.n_batches}_{args.SURVEY}/',
 )
 
 # check errors on the model
@@ -113,8 +114,8 @@ ypred = model.run_on_dataset(xtest)
 #     print(f"Binary Accuracy: {accuracy:.4f}")
     
 #     # Save predictions and ground truth
-#     np.save(f'{output_dir}/{args.outdir}_{args.num_neurons}_{args.layers}_{args.n_batches}/predictions.npy', ypred_sigmoid.cpu().detach().numpy())
-#     np.save(f'{output_dir}/{args.outdir}_{args.num_neurons}_{args.layers}_{args.n_batches}/ground_truth.npy', ytest.cpu().numpy())
+#     np.save(f'{output_dir}/{args.outdir}_{args.num_neurons}_{args.layers}_{args.n_batches}_{args.SURVEY}/predictions.npy', ypred_sigmoid.cpu().detach().numpy())
+#     np.save(f'{output_dir}/{args.outdir}_{args.num_neurons}_{args.layers}_{args.n_batches}_{args.SURVEY}/ground_truth.npy', ytest.cpu().numpy())
     
 #     # Plot ROC-like curve: prediction distribution by class
 #     plt.figure(figsize=(10, 6))
@@ -123,12 +124,12 @@ ypred = model.run_on_dataset(xtest)
 #     plt.xlabel('Predicted Probability')
 #     plt.ylabel('Frequency')
 #     plt.legend()
-#     plt.savefig(f'{output_dir}/{args.outdir}_{args.num_neurons}_{args.layers}_{args.n_batches}/prediction_distribution.png', dpi=200)
+#     plt.savefig(f'{output_dir}/{args.outdir}_{args.num_neurons}_{args.layers}_{args.n_batches}_{args.SURVEY}/prediction_distribution.png', dpi=200)
 #     plt.close()
 # else:
 #     plt.hist(np.log10(abs((1 - ypred/ytest).cpu().numpy())), bins='auto', density=True)
 #     plt.xlabel('log_10 percent error')
-#     plt.savefig(f'{output_dir}/{args.outdir}_{args.num_neurons}_{args.layers}_{args.n_batches}/percent_error.png', dpi=200)
+#     plt.savefig(f'{output_dir}/{args.outdir}_{args.num_neurons}_{args.layers}_{args.n_batches}_{args.SURVEY}/percent_error.png', dpi=200)
 #     plt.close()
 
 
@@ -141,7 +142,7 @@ from sklearn.metrics import (
 
 outpath = (
     f'{output_dir}/{args.outdir}_{args.num_neurons}'
-    f'_{args.layers}_{args.n_batches}/'
+    f'_{args.layers}_{args.n_batches}_{args.SURVEY}/'
 )
 os.makedirs(outpath, exist_ok=True)
 

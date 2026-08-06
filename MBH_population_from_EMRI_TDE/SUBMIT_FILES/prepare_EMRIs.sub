@@ -1,0 +1,19 @@
+
+# Executable and arguments
+executable      = ./EXECUTABLES/prepare_EMRIs.sh
+getenv          = true
+
+arguments  = $(UNIVERSE_MODEL) $(SEED) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) 
+
+# Logs
+log             = LOG_FILES/prepare_EMRIs_$(UNIVERSE_MODEL)_$(SEED)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).log
+error           = ERROR_FILES/prepare_EMRIs_$(UNIVERSE_MODEL)_$(SEED)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).err
+output          = OUTPUT_FILES/prepare_EMRIs_$(UNIVERSE_MODEL)_$(SEED)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).out
+
+# Notifications
+
+# Resources
+request_cpus    = 1
+request_memory  = 4GB
+
+queue 1

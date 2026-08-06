@@ -1,12 +1,12 @@
 # Executable and arguments
 executable      = ./pseudo_runs/make_PPD_plots.sh
 getenv          = true
-arguments       = $(POPULATION)
+arguments       = $(POPULATION) $(NUCLEATION_METHODS) $(MBH_MASS_METHODS)
 
 # Logs
-log             = LOG_FILES/make_PPD_$(POPULATION).log
-error           = ERROR_FILES/make_PPD_$(POPULATION).err
-output          = OUTPUT_FILES/make_PPD_$(POPULATION).out
+log             = LOG_FILES/make_PPD_$(POPULATION)_$(NUCLEATION_METHODS)_$(MBH_MASS_METHODS).log
+error           = ERROR_FILES/make_PPD_$(POPULATION)_$(NUCLEATION_METHODS)_$(MBH_MASS_METHODS).err
+output          = OUTPUT_FILES/make_PPD_$(POPULATION)_$(NUCLEATION_METHODS)_$(MBH_MASS_METHODS).out
 
 # Notifications
 

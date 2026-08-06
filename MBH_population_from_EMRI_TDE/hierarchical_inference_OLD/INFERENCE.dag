@@ -1,0 +1,9 @@
+
+# Fisher computations per source type
+JOB FISHER_10 SUBMIT_FILES/fisher.sub
+VARS FISHER_10 EVENTS="50"
+
+JOB INFER_10 SUBMIT_FILES/inference.sub
+VARS INFER_10 EVENTS="50"
+
+PARENT FISHER_10 CHILD INFER_10

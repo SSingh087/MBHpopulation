@@ -1,0 +1,19 @@
+
+# Executable and arguments
+executable      = ./EXECUTABLES/gen_events.sh
+getenv          = true
+
+arguments  = $(UNIVERSE_MODEL) $(SEED) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS)
+
+# Logs
+log             = LOG_FILES/gen_events_$(UNIVERSE_MODEL)_$(SEED)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).log
+error           = ERROR_FILES/gen_events_$(UNIVERSE_MODEL)_$(SEED)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).err
+output          = OUTPUT_FILES/gen_events_$(UNIVERSE_MODEL)_$(SEED)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).out
+
+# Notifications
+
+# Resources
+request_cpus    = 1
+request_memory  = 16GB
+
+queue 1

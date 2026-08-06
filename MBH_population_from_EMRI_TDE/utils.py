@@ -5,6 +5,21 @@ from scipy.stats import gaussian_kde
 import seaborn as sns
 from matplotlib import gridspec
 
+BASE_DIR = "./data"
+
+ASTROPHYSICAL_DATA_DIR = f"{BASE_DIR}/astrophysical_data"
+MOCK_GALAXY_CATALOG_DATA = "galaxy_catalog_data"  
+EMRI_DATA_FILE_NAME = "all_EMRI_params_data"
+TDE_DATA_FILE_NAME = "all_TDE_params_data"
+
+FISHER_DATA_DIR = f"{BASE_DIR}/fisher_data"
+
+INFERENCE_DATA_DIR = f"{BASE_DIR}/inference_data"
+
+TRAIN_DIR_TDE = f"{BASE_DIR}/PRE_TRAIN_DATA_TDE/"
+
+
+
 def ensure_2d(arr):
     """
     Ensures arr has shape (N, Nr).
@@ -392,7 +407,7 @@ class Plotting:
         axes[1].set_xlabel('Redshift $z$')
         axes[1].set_ylabel(r'$\log_{10}(M_{\mathrm{MBH}} / M_\odot)$')
 
-        fig.suptitle(f'Observing window: {T_obs:.2g} yr')
+        # fig.suptitle(f'Observing window: {T_obs:.2g} yr')
         plt.tight_layout()
         plt.savefig(filename, dpi=300, bbox_inches='tight')
         plt.close()
@@ -950,40 +965,27 @@ class Plotting:
         plt.close()
             
     @staticmethod
-    def plot_comparison_histogram(key, loc='.', x_label=None, **kwargs_sources):
-        """
-        Plot comparison histograms for different datasets.
-
-        Parameters:
-            key (str): The key/column to plot from each dataset.
-            loc (str): Directory path to save the figure.
-            **kwargs_sources: Arbitrary keyword arguments of the form name=dataframe,
-                            where `name` is the label and `dataframe` contains the key.
-        """
-        plt.figure(figsize=(8,6))
-        
+    def plot_comparison_histogram(key, loc='.', x_label=None, model=None, **kwargs_sources):
+        plt.figure(figsize=(8, 6))
         combined_data = []
-        
         for label, df in kwargs_sources.items():
             if key not in df:
-                print(f"Key '{key}' not found in dataframe '{label}'")
+                print(f"Key '{key}' not found in '{label}', skipping.")
                 continue
-            data = df[key].mean(axis=1)
+            data = df[key]
+            if data.ndim == 2:
+                data = data.mean(axis=1)   # (n_events, n_samples) → (n_events,)
             combined_data.append(data)
             plt.hist(data, bins=40, histtype='step', label=label)
-        
-        # Plot combined histogram
-        combined_array = np.concatenate(combined_data)
-        plt.hist(combined_array, bins=40, color='black', histtype='step', linestyle='--', linewidth=2, label='Combined')
-        
-        # Labels and styling
+        if combined_data:
+            combined_array = np.concatenate(combined_data)
+            plt.hist(combined_array, bins=40, color='black', histtype='step',
+                    linestyle='--', linewidth=2, label='Combined')
         plt.xlabel(x_label, fontsize=16)
         plt.ylabel("Counts", fontsize=16)
         plt.legend()
         plt.tight_layout()
-        
-        # Save figure
-        plt.savefig(f'{loc}/{key}_comparison_histogram.png')
+        plt.savefig(f'{loc}/{key}_comparison_histogram_{model}.png')
         plt.close()
 
     @staticmethod

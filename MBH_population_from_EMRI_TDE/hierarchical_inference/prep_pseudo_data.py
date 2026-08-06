@@ -14,30 +14,37 @@ parser.add_argument("--INCLUDE_LSST", type=int, default=0,
                      help="1 = also load/process TDE LSST data (requires "
                           "true_detected_data_TDE_LSST.h5 to exist). "
                           "0 = ZTF only.")
+parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
 args = parser.parse_args()
 
 N_POSTERIOR = 2000
 
 # ── Population setup ──────────────────────────────────────────────────────
 popdist = make_dist(args.POPULATION)
-true_x  = get_true_x(args.POPULATION)
+# FIX: get_true_x now requires the scenario (mbh_mass_method,
+# nucleation_method) to pick the right per-scenario truth values -- this
+# used to call get_true_x(args.POPULATION) with only one arg, which
+# raises a TypeError against the updated utils.get_true_x signature.
+true_x  = get_true_x(args.POPULATION, args.mbh_mass_method, args.nucleation_method)
 
 BASE = "./data"
 INFERENCE_DIR = f"{BASE}/inference_data/{args.GALAXIES}"
 
 # Count number of detections from the files
-with h5py.File(f"{INFERENCE_DIR}/true_detected_data_EMRI.h5", "r") as hf:
+with h5py.File(f"{INFERENCE_DIR}/true_detected_data_EMRI_{args.mbh_mass_method}_{args.nucleation_method}.h5", "r") as hf:
     N_EMRI = len(hf["lgMBH_mass"])
 
-with h5py.File(f"{INFERENCE_DIR}/true_detected_data_TDE_ZTF.h5", "r") as hf:
+with h5py.File(f"{INFERENCE_DIR}/true_detected_data_TDE_ZTF_{args.mbh_mass_method}_{args.nucleation_method}.h5", "r") as hf:
     N_TDE_ZTF = len(hf["lgMBH_mass"])
 
 N_TDE_LSST = None
 if args.INCLUDE_LSST:
-    with h5py.File(f"{INFERENCE_DIR}/true_detected_data_TDE_LSST.h5", "r") as hf:
+    with h5py.File(f"{INFERENCE_DIR}/true_detected_data_TDE_LSST_{args.mbh_mass_method}_{args.nucleation_method}.h5", "r") as hf:
         N_TDE_LSST = len(hf["lgMBH_mass"])
 
 print(f"[INFO] Population : {args.POPULATION}")
+print(f"[INFO] Scenario   : {args.mbh_mass_method} / {args.nucleation_method}")
 print(f"[INFO] EMRI events   : {N_EMRI}")
 print(f"[INFO] TDE (ZTF) events : {N_TDE_ZTF}")
 if args.INCLUDE_LSST:
@@ -77,10 +84,6 @@ if args.INCLUDE_LSST:
 # ══════════════════════════════════════════════════════════════════════════
 # Per-parameter measurement uncertainties, redshift-dependent.
 # ══════════════════════════════════════════════════════════════════════════
-# sigma_ref values were previously far too tight (e.g. 1e-5 for
-# lgMBH_mass/MBHspin), which made the EMRI likelihood collapse to a near
-# delta-function around the injected value. Loosened here to a still-good
-# but physically defensible LISA-quality precision (~1-10%).
 Z_REF_EMRI     = 1.0   # EMRIs (LISA) detectable to much higher z at fixed precision
 Z_REF_TDE_ZTF  = 0.1   # TDEs (ZTF) degrade fast with distance -- shorter reference scale
 Z_REF_TDE_LSST = 0.2   # PLACEHOLDER: LSST is deeper than ZTF, so probably a larger
@@ -124,9 +127,6 @@ if args.INCLUDE_LSST:
 
 # ══════════════════════════════════════════════════════════════════════════
 # Physical bounds for every parameter -- same units as `true_x` / catalogue.
-# Every parameter that can appear in `data` must have an entry here, and the
-# SAME clipping rule is applied to all of them uniformly (no parameter is
-# exempt, so e.g. spin is not clipped while mass is left unbounded).
 # ══════════════════════════════════════════════════════════════════════════
 PARAM_BOUNDS = {
     "lgMBH_mass": (4.0, 7.0),
@@ -167,17 +167,7 @@ if args.INCLUDE_LSST:
 
 # ── Posterior factory ─────────────────────────────────────────────────────
 def make_posteriors(data: dict, n_samples: int, sigma_dict: dict, bounds_dict: dict) -> dict:
-    """Gaussian mock posteriors centred on true values. Shape: (events, n_samples).
-
-    - `sigma_dict[k]` may be a scalar OR a per-event array of shape
-      (n_events,) -- e.g. from z_scaled_sigma() -- so measurement
-      precision can vary event-by-event (e.g. with redshift).
-    - `bounds_dict` gives per-parameter physical bounds. ALL parameters are
-      clipped to their bounds via the same code path -- clipping is never
-      applied to some parameters and skipped for others.
-    - Any key in `data` missing from either dict raises immediately, rather
-      than silently falling back to a default.
-    """
+    """Gaussian mock posteriors centred on true values. Shape: (events, n_samples)."""
     missing_sigma  = [k for k in data if k not in sigma_dict]
     missing_bounds = [k for k in data if k not in bounds_dict]
     if missing_sigma:
@@ -190,8 +180,8 @@ def make_posteriors(data: dict, n_samples: int, sigma_dict: dict, bounds_dict: d
         lo, hi = bounds_dict[k]
         sigma = np.asarray(sigma_dict[k])
         sigma_col = sigma[:, None] if sigma.ndim else sigma  # broadcast per-event sigma over samples
-        samples = np.random.normal(v[:, None], sigma_col, (len(v), n_samples))
-        samples = np.clip(samples, lo, hi)
+        samples = np.random.normal(v[:, None], sigma_col, (len(v), n_samples)) if v.ndim else np.random.normal(v, sigma_col, (n_samples,))
+        samples = np.clip(samples, lo, hi) 
         out[k] = samples.astype(np.float32)
     return out
 
@@ -225,7 +215,7 @@ emri_data = {k: cat_EMRI[k] for k in emri_keys}
 emri_post = make_posteriors(emri_data, N_POSTERIOR, SIGMA_EMRI, PARAM_BOUNDS)
 
 save_h5(
-    os.path.join(loc, f"true_data_EMRI_pseudo_data_{args.POPULATION}.h5"),
+    os.path.join(loc, f"true_data_EMRI_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.h5"),
     {**emri_data, **{f"{k}_posterior": emri_post[k] for k in emri_keys}},
     label="EMRI"
 )
@@ -258,12 +248,12 @@ def process_tde_survey(survey: str, cat: dict, sigma_internal: dict, sigma_raw: 
     post_internal = make_posteriors(internal, N_POSTERIOR, sigma_internal, PARAM_BOUNDS)
 
     save_h5(
-        os.path.join(loc, f"true_data_TDE_{survey}_pseudo_data_{args.POPULATION}.h5"),
+        os.path.join(loc, f"true_data_TDE_{survey}_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.h5"),
         {**raw, **{f"{k}_posterior": post_raw[k] for k in raw}},
         label=f"TDE {survey}"
     )
     save_pt(
-        os.path.join(loc, f"true_data_TDE_{survey}_pseudo_data_{args.POPULATION}.pt"),
+        os.path.join(loc, f"true_data_TDE_{survey}_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.pt"),
         post_internal,
         label=f"TDE {survey} (PT)"
     )
@@ -277,7 +267,7 @@ if args.INCLUDE_LSST:
     tde_post_internal_lsst = process_tde_survey("LSST", cat_TDE_LSST, SIGMA_TDE_LSST, SIGMA_TDE_LSST_RAW)
 
 save_pt(
-    os.path.join(loc, f"true_data_EMRI_pseudo_data_{args.POPULATION}.pt"),
+    os.path.join(loc, f"true_data_EMRI_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.pt"),
     emri_post,  # internal keys: lgMBH_mass, MBHspin, CO_mass, z_gal, e_pl
     label="EMRI (PT)"
 )
@@ -291,15 +281,15 @@ if args.INCLUDE_LSST:
     print(f"  Z_REF_TDE_LSST   : {Z_REF_TDE_LSST}  (placeholder, not physically derived)")
 print(f"  Bounds           : {PARAM_BOUNDS}")
 print(f"  Saved to         : {loc}")
-print(f"\n[SHAPES]")
-print("\n[INFO] EMRI shapes:")
-for k, v in emri_post.items():
-    print(f"  EMRI  {k:20s}  {v.shape}  → (n_events={v.shape[0]}, n_samples={v.shape[1]})")
-print("\n[INFO] TDE (ZTF) shapes:")
-for k, v in tde_post_internal_ztf.items():
-    print(f"  TDE   {k:20s}  {v.shape}  → (n_events={v.shape[0]}, n_samples={v.shape[1]})")
-if args.INCLUDE_LSST:
-    print("\n[INFO] TDE (LSST) shapes:")
-    for k, v in tde_post_internal_lsst.items():
-        print(f"  TDE   {k:20s}  {v.shape}  → (n_events={v.shape[0]}, n_samples={v.shape[1]})")
-print("\n[DONE]")
+# print(f"\n[SHAPES]")
+# print("\n[INFO] EMRI shapes:")
+# for k, v in emri_post.items():
+#     print(f"  EMRI  {k:20s}  {v.shape}  → (n_events={v.shape[0]}, n_samples={v.shape[1] if v.ndim > 1 else 1})")
+# print("\n[INFO] TDE (ZTF) shapes:")
+# for k, v in tde_post_internal_ztf.items():
+#     print(f"  TDE   {k:20s}  {v.shape}  → (n_events={v.shape[0]}, n_samples={v.shape[1] if v.ndim > 1 else 1})")
+# if args.INCLUDE_LSST:
+#     print("\n[INFO] TDE (LSST) shapes:")
+#     for k, v in tde_post_internal_lsst.items():
+#         print(f"  TDE   {k:20s}  {v.shape}  → (n_events={v.shape[0]}, n_samples={v.shape[1] if v.ndim > 1 else 1})")
+# print("\n[DONE]")

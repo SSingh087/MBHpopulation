@@ -42,4 +42,5 @@ python train_model.py \
    --outdir TDE_DETECT_${LOSS_TYPE}_${RESCALER_FLAG} \
    --device cuda \
    --loss_type $LOSS_TYPE \
-   --rescaler_flag $RESCALER_FLAG
+   --rescaler_flag $RESCALER_FLAG \
+   --SURVEY $SURVEY \

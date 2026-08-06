@@ -17,11 +17,8 @@ echo "Redshift range: $Z_MIN to $Z_MAX"
 
 python gen_TDE_params.py \
     --events $EVENTS \
-    --lgMBH 5.0 10.0 \
+    --lgMBH 4.0 7.0 \
     --z_gal $Z_MIN $Z_MAX \
-    --ra_deg 0.0 360.0 \
-    --dec_deg -90.0 90.0 \
-    --MBHspin 0.1 0.9 \
     --eta 0.001 0.1 \
     --alpha 0.01 0.1 \
     --beta 1.001 30 \

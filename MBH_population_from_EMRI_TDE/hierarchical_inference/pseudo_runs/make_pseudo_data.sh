@@ -1,25 +1,21 @@
 #!/bin/bash
 
 GALAXIES=100000
-INCLUDE_LSST=$1
+POPULATION=$1
+INCLUDE_LSST=$2
+MBH_MASS_METHODS=$3 # "use_sigma" "use_lgMgal"
+NUCLEATION_METHODS=$4 # "hannah" "neumayer"
 
 python prep_pseudo_data.py \
     --GALAXIES $GALAXIES \
-    --POPULATION A \
-    --INCLUDE_LSST $INCLUDE_LSST
+    --POPULATION $POPULATION \
+    --INCLUDE_LSST $INCLUDE_LSST \
+    --mbh_mass_method $MBH_MASS_METHODS \
+    --nucleation_method $NUCLEATION_METHODS
 
-python prep_pseudo_data.py \
-    --GALAXIES $GALAXIES \
-    --POPULATION B \
-    --INCLUDE_LSST $INCLUDE_LSST
-
-# # MAKE PLOTS 
-
-python plotting_pseudo_data.py \
-    --GALAXIES $GALAXIES \
-    --POPULATION A
-
-python plotting_pseudo_data.py \
-    --GALAXIES $GALAXIES \
-    --POPULATION B
+# python plotting_pseudo_data.py \
+#     --GALAXIES $GALAXIES \
+#     --POPULATION $POPULATION \
+#     --mbh_mass_method $MBH_MASS_METHODS \
+#     --nucleation_method $NUCLEATION_METHODS
         

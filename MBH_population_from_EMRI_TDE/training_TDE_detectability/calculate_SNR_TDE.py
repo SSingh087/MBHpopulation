@@ -1,4 +1,5 @@
 import logging
+import os
 
 logging.getLogger('bilby').disabled = True
 logging.getLogger('redback').disabled = True
@@ -89,13 +90,6 @@ def process_events(theta_dict):
     
     # Build parameter dictionaries for each event
     thetas = []
-    
-    if SURVEY == "ztf":
-        # ZTF-safe window
-        t0_mjd_transient = np.random.uniform(58200, 59550, size=n_events)
-    elif SURVEY == "Rubin_10yr_baseline":
-        # Rubin 10yr baseline, with buffers
-        t0_mjd_transient = np.random.uniform(60100, 63500, size=n_events)
 
     for i in range(n_events):
         z_gal = float(theta_dict["z_gal"][i])
@@ -106,6 +100,7 @@ def process_events(theta_dict):
         eta = float(theta_dict["eta"][i])
         alpha = float(theta_dict["alpha"][i])
         beta = float(theta_dict["beta"][i])
+        t0_mjd_transient = float(theta_dict["t0_mjd_transient"][i])
 
         thetas.append({
             "redshift": z_gal,
@@ -114,8 +109,8 @@ def process_events(theta_dict):
             "eta": eta,
             "alpha": alpha,
             "beta": beta,
-            "t0_mjd_transient": t0_mjd_transient[i],
-            "t0": t0_mjd_transient[i],
+            "t0_mjd_transient": t0_mjd_transient,
+            "t0": t0_mjd_transient,
             "ra": ra_rad,
             "dec": dec_rad,
         })
@@ -123,7 +118,7 @@ def process_events(theta_dict):
     print(f"[INFO] Running {len(thetas)} transient simulations (batch processing)...")
     
     # Process in batches to reduce memory usage
-    batch_size = 25
+    batch_size = 100
     sims = []
     for batch_start in range(0, len(thetas), batch_size):
         batch_end = min(batch_start + batch_size, len(thetas))
@@ -165,24 +160,25 @@ if __name__ == "__main__":
     print("[INFO] Loading HDF5 file...")
     with h5py.File(f'{output_dir}/TDE_params_1E{np.log10(args.events):.0f}_{args.SURVEY}.h5', 'r') as hf:
         lgMBH = hf['lgMBH'][:]
-        MBHspin = hf['MBHspin'][:]
         z_gal = hf['z_gal'][:]
         ra_rad = hf['ra_rad'][:]
         dec_rad = hf['dec_rad'][:]
         eta = hf['eta'][:]
         alpha = hf['alpha'][:]
         beta = hf['beta'][:]
+        t0_mjd_transient = hf['t0_mjd_transient'][:]
 
     theta = {
         "lgMBH": lgMBH,
-        "MBHspin": MBHspin,
         "z_gal": z_gal,
         "ra_rad": ra_rad,
         "dec_rad": dec_rad,
         "eta": eta,
         "alpha": alpha,
-        "beta": beta
+        "beta": beta,
+        "t0_mjd_transient": t0_mjd_transient
     }
+
 
     n_total_events = len(lgMBH)
     print(f"[IMPORTANT SURVEY INFO] Total events: {n_total_events}")
@@ -213,3 +209,36 @@ if __name__ == "__main__":
     np.save(f"{output_dir}/TDE_detectability_1E{np.log10(args.events):.0f}_{args.SURVEY}.npy", detectability_full)
     
     print("[DONE] All events processed and saved.")
+
+
+    # plotting the distribution of detectable vs non-detectable events
+    import matplotlib.pyplot as plt
+
+    fig, axs = plt.subplots(3, 3, figsize=(15, 15))
+    det_idx = detectability_full == 1
+
+    params = [
+        ('lgMBH',           axs[0,0]),
+        ('z_gal',           axs[0,1]),
+        ('ra_rad',          axs[0,2]),
+        ('dec_rad',         axs[1,0]),
+        ('eta',             axs[1,1]),
+        ('alpha',           axs[1,2]),
+        ('beta',            axs[2,0]),
+        ('t0_mjd_transient',axs[2,1]),
+    ]
+
+    for key, ax in params:
+        ax.hist(theta[key], bins='auto', density=True,
+                histtype='step', color='blue', linestyle='-',  linewidth=2, label='All events')
+        ax.hist(theta[key][det_idx], bins='auto', density=True,
+                histtype='step', color='red',  linestyle='--', linewidth=2, label='Detectable events')
+        ax.set_title(key)
+        ax.set_ylabel('PDF')
+
+    axs[0,0].legend()
+    axs[2,2].axis('off')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir,
+        f"TDE_params_detectability_1E{int(np.log10(args.events))}_{args.SURVEY}.png"))
+    plt.close()

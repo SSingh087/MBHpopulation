@@ -14,12 +14,25 @@ MSUN = 1.98892e30       # kg
 GPC = 3.0857e25         # m
 
 parser = argparse.ArgumentParser(description="Vectorized rough EMRI SNR estimate.")
+parser.add_argument("--UNIVERSE_MODEL", type=int, required=True, help="Universe model index")
 parser.add_argument("--GALAXIES", type=int, required=True)
+parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+# FIX: was a hardcoded module-level constant (SNR_THRESHOLD = 20). This
+# is a rough ANALYTIC SNR estimate, not an ML model -- lowering this
+# threshold is a legitimate, zero-retraining way to recover more
+# "detected" EMRIs in low-count scenarios (e.g. lgMgal/neumayer). Kept
+# the same default (20) so existing runs are unaffected unless you pass
+# a different value.
+parser.add_argument("--SNR_THRESHOLD", type=float, default=20.0,
+                     help="Detection SNR threshold. Lower this (e.g. 10-15) to recover "
+                          "more events in low-rate scenarios -- no retraining needed, "
+                          "this is an analytic formula, not a learned model.")
 args = parser.parse_args()
 
-SNR_THRESHOLD = 20
+SNR_THRESHOLD = args.SNR_THRESHOLD
 
-in_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/{EMRI_DATA_FILE_NAME}.h5")
+in_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/{EMRI_DATA_FILE_NAME}_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.h5")
 
 with h5py.File(in_path, "r") as f:
     data = {key: np.array(f[key][:]) for key in f.keys()}
@@ -35,6 +48,11 @@ n_events = len(M_arr)
 valid = np.isfinite(p0_arr) & np.isfinite(e0_arr) & (dist_m > 0)
 print(f"{valid.sum()}/{n_events} events have finite (p0, e0, D_L); "
       f"rest will get SNR = NaN.")
+if n_events > 0 and valid.sum() < n_events:
+    print(f"NOTE: {n_events - valid.sum()}/{n_events} events have non-finite p0 -- "
+          f"these are almost certainly the backward-integration fallback rows "
+          f"(see prepare_EMRIs.py's n_fallback warning). They can NEVER pass the "
+          f"SNR cut regardless of --SNR_THRESHOLD, since their SNR is NaN.")
 
 # ============================================================
 # GW frequency from semi-latus rectum p0, SOURCE FRAME
@@ -49,23 +67,13 @@ f_gw = f_gw_source / (1.0 + z_arr)
 
 # ============================================================
 # Chirp mass, SOURCE FRAME, then redshifted to detector frame.
-# In the EMRI limit (mu << M) this reduces to mu^(3/5) M^(2/5).
 # ============================================================
-# Mchirp_source = (mu_arr ** 3 * M_arr ** 2) ** (1.0 / 5.0) / (mu_arr + M_arr) ** (1.0 / 5.0)
 Mchirp_source = mu_arr ** (3.0 / 5.0) * M_arr ** (2.0 / 5.0)
 Mchirp_det = Mchirp_source * (1.0 + z_arr)
 
 # ============================================================
 # Sky/polarization-averaged characteristic strain, standard formula
-# (Moore, Cole & Berry 2015, "Gravitational-wave sensitivity curves",
-# Class. Quantum Grav. 32 015014, Eq. 20):
-#
-#   h_c(f) = sqrt(2/3) * pi^(-2/3) * (G*Mchirp/c^3)^(5/6) * (c/D_L) * f^(-1/6)
-#
-# This is dimensionally clean (verified by hand) and already has the
-# number-of-cycles weighting built into the f^(-1/6) power law -- no
-# separate dt/df factor needed. This supersedes the ad hoc sqrt(f*dt/df)
-# version from before, which had a units error.
+# (Moore, Cole & Berry 2015, Eq. 20).
 # ============================================================
 Mchirp_geom_time = G * Mchirp_det / CLIGHT ** 3   # seconds
 
@@ -118,23 +126,26 @@ if len(events_idx) == 0:
     print("WARNING: no events pass the SNR threshold -- writing an empty file "
           "(downstream scripts should handle n_events=0 gracefully, or check "
           "this print statement before running them).")
+    if n_finite > 0:
+        print(f"  (For reference: the highest SNR among finite events was "
+              f"{np.nanmax(snr_rough):.2f}, threshold was {SNR_THRESHOLD}. "
+              f"If that max is not wildly below threshold, --SNR_THRESHOLD "
+              f"may just need lowering for this scenario.)")
 
 # ============================================================
 # Save output -- full parameter set + SNR-derived quantities,
 # filtered to SNR-passing events only
 # ============================================================
-out_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/EMRI_SNRs_data.h5")
+out_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/EMRI_SNRs_data_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.h5")
 
 with h5py.File(out_path, "w") as f:
     f.attrs['n_events_total'] = n_events
     f.attrs['n_events_passed'] = len(events_idx)
     f.attrs['rho_threshold'] = SNR_THRESHOLD
 
-    # Everything originally loaded from the input catalog, filtered
     for key, val in data.items():
         f.create_dataset(key, data=val[events_idx])
 
-    # SNR-derived quantities, filtered
     f.create_dataset("SNR", data=snr_rough[events_idx])
     f.create_dataset("f_gw_det_Hz", data=f_gw[events_idx])
     f.create_dataset("Mchirp_source_kg", data=Mchirp_source[events_idx])
@@ -156,7 +167,7 @@ plt.xlabel(r'$\log_{10}(M_{\rm MBH}/M_\odot)$')
 plt.ylabel(r'Rough SNR ($\rho$)')
 plt.legend()
 plt.tight_layout()
-plot_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/SNR_MBHmass.png")
+plot_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/SNR_MBHmass_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.png")
 plt.savefig(plot_path)
 plt.close()
 print(f"Saved diagnostic plot to {plot_path}")

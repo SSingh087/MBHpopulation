@@ -1,12 +1,12 @@
 # Executable and arguments
 executable      = ./pseudo_runs/make_posterior_plots.sh
 getenv          = true
-arguments       = $(POPULATION)
+arguments       = $(POPULATION) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS)
 
 # Logs
-log             = LOG_FILES/make_posterior_plots_$(POPULATION).log
-error           = ERROR_FILES/make_posterior_plots_$(POPULATION).err
-output          = OUTPUT_FILES/make_posterior_plots_$(POPULATION).out
+log             = LOG_FILES/make_posterior_plots_$(POPULATION)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).log
+error           = ERROR_FILES/make_posterior_plots_$(POPULATION)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).err
+output          = OUTPUT_FILES/make_posterior_plots_$(POPULATION)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS).out
 
 # Notifications
 
