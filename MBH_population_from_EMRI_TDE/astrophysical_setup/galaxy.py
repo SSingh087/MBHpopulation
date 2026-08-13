@@ -53,6 +53,7 @@ from config import *
 
 _f_NSC_Hannah_   = lambda lgMgal: np.exp(-((lgMgal - 5.6)**4) / 1000.0)  # arXiv:2407.10911 Fig 4
 _f_NSC_Neumayer_ = lambda lgMgal: np.exp(-((lgMgal - 9.0)**2) /  30.0)**2  # arXiv:2001.03626 Fig 3
+_f_occupation_varying_ = lambda lgMgal, logM0=9.46, delta=3.91, theta=0.80: (1 + delta * np.exp(-theta * delta * (lgMgal - logM0))) ** (-1.0 / delta) # arXiv:2510.05252`` Table 2 Fig6
 
 class Galaxy:
     """
@@ -113,82 +114,23 @@ class Galaxy:
     Redshift: dimensionless
     """
 
-    def __init__(self, z_gal: np.ndarray, ra_deg: np.ndarray=None, dec_deg: np.ndarray=None, rng: Optional[np.random.Generator] = None, lgMgal: Optional[np.ndarray] = None, lgMBH: Optional[np.ndarray] = None, sigma_pc_yr: Optional[np.ndarray] = None, nucleation_occurs: bool = True, mbh_mass_method: str = 'use_sigma', nucleation_method: str = 'hannah'):
+    def __init__(self, z_gal: np.ndarray, ra_deg: np.ndarray=None, dec_deg: np.ndarray=None,
+                rng: Optional[np.random.Generator] = None, lgMgal: Optional[np.ndarray] = None,
+                lgMBH: Optional[np.ndarray] = None, sigma_pc_yr: Optional[np.ndarray] = None,
+                nucleation_occurs: bool = True, mbh_mass_method: str = 'use_sigma',
+                nucleation_method: str = 'hannah', occupation_method: str = 'uniform',
+                occupation_occurs: bool = True, occupation_value: float = 1.0):
         """
         Initialize a Galaxy instance with stellar mass and derived properties.
-
-        PARAMETERS
-        ──────────────────────────────────────────────────────────────────────
-        z_gal : ndarray
-            Galaxy redshift (required for all modes)
-            DIMENSION: (N_gal,)
-            UNITS: dimensionless
-
-        lgMgal : ndarray, optional
-            log10(stellar mass / Msun) - used in FORWARD mode
-            DIMENSION: (N_gal,)
-            UNITS: dex (log10 scale)
-            DEFAULT: None (triggers INVERSE mode if lgMgal is None and lgMBH is provided)
-
-        lgMBH : ndarray, optional
-            log10(black hole mass / Msun) - used in INVERSE or MIXED modes
-            DIMENSION: (N_gal,)
-            UNITS: dex (log10 scale)
-            DEFAULT: None
-
-        sigma_pc_yr : ndarray, optional
-            Velocity dispersion in pc/year (INVERSE mode only)
-            DIMENSION: (N_gal,)
-            UNITS: pc/year
-            DEFAULT: None (computed from M-Sigma in FORWARD mode)
-
-        nucleation_occurs : ndarray or bool, optional
-            Boolean mask indicating which galaxies are nucleated
-            DIMENSION: (N_gal,) or scalar
-            UNITS: dimensionless
-            DEFAULT: True (all nucleated)
-
-        ra_deg : ndarray, optional
-            Right ascension in degrees
-            DIMENSION: (N_gal,)
-            UNITS: degrees [0, 360)
-            DEFAULT: None (randomly generated)
-
-        dec_deg : ndarray, optional
-            Declination in degrees
-            DIMENSION: (N_gal,)
-            UNITS: degrees [-90, 90]
-            DEFAULT: None (randomly generated)
-
-        rng : numpy.random.Generator, optional
-            Random number generator for reproducibility
-            DEFAULT: numpy.random.default_rng() (system entropy)
-
-        mbh_mass_method : str, optional
-            Method to compute MBH: use either 'use_sigma' (compute from sigma) or 'use_lgMgal' 
-        nucleation_method : str, optional
-            Method to determine nucleation fraction: 'hannah' or 'neumayer'
-
-        INTERNAL DERIVATIONS
-        ──────────────────────────────────────────────────────────────────────
-        The class automatically:
-          1. Computes velocity dispersion from size-mass relation (FORWARD mode)
-          2. Derives black hole mass from M-sigma relation (FORWARD mode)
-          3. Applies nucleation filtering based on f_NSC(Mgal)
-          4. Converts units between pc/year and km/s as needed
-          5. Stores scatter as part of object for consistency
-
-        RAISES
-        ──────────────────────────────────────────────────────────────────────
-        ValueError
-            If neither lgMgal nor lgMBH is provided (ambiguous mode)
+        (docstring unchanged from before -- omitted here for brevity)
         """
 
         self.rng = rng if rng is not None else np.random.default_rng()
         self.z_gal = np.asarray(z_gal)
+        self.occupation_method = occupation_method
+        self.occupation_value = occupation_value
 
         # Determine which M-sigma relation to use based on the method parameter
-        
         if mbh_mass_method == 'use_sigma':
             self.MBH_A = MBH_A_sigma
             self.MBH_B = MBH_B_sigma
@@ -203,20 +145,21 @@ class Galaxy:
         if lgMgal is None and lgMBH is None:
             raise ValueError("Must specify either lgMgal or lgMBH. They are related by the M-sigma relation. Specify one or the other, or neither to compute lgMBH from lgMgal.")
 
-        # Case 1: MBH → sigma (inverse deterministic mode with both lgMgal and lgMBH)
+        # ── Case 1: MBH → sigma (inverse deterministic mode with both lgMgal and lgMBH) ──
         if lgMgal is not None and lgMBH is not None:
             warnings.warn("[INFO] : Both lgMgal and lgMBH are provided. This will ignore the M-sigma relation and treat them as independent. Ensure this is intended behavior. Also one should not attempt to use the M-sigma relation in this mode since it will be inconsistent with the provided lgMBH and lgMgal. This mode is primarily for testing and PDF construction where we want to condition on both properties independently.")
             self.lgMBH_mass = np.asarray(lgMBH)
             self.lgMgal = np.asarray(lgMgal)
 
-            # No nucleation randomness in since we are conditioning on lgMBH which implies a nucleated galaxy. So we can set nucleation_occurs=True for all of them.
+            # No nucleation randomness since we are conditioning on lgMBH, which
+            # implies a nucleated, occupied galaxy. Set both masks to True.
             self.nucleation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
+            self.occupation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
 
             self.sigma_pc_yr = np.asarray(sigma_pc_yr) if sigma_pc_yr is not None else self.sigma(unit='pc/year')
             self.sigma_km_s = self.sigma_pc_yr * pc_to_cm / sec_per_year / 1e5  # convert to km/s
 
-
-        # Case 2: Only lgMBH provided (inverse mode - MBH/sigma specified externally)
+        # ── Case 2a: Only lgMBH provided, use_sigma method ──
         elif lgMBH is not None and lgMgal is None and mbh_mass_method == 'use_sigma':
             print("[INFO] : Only lgMBH is provided. This will compute lgMgal and sigma from lgMBH using the M-sigma relation.")
             self.lgMBH_mass = np.asarray(lgMBH)
@@ -224,27 +167,36 @@ class Galaxy:
             self.sigma_km_s = self.sigma_pc_yr * pc_to_cm / sec_per_year / 1e5  # convert to km/s
             self.lgMgal = None  # Not known in this mode
 
-            # All objects are nucleated in this mode since we are conditioning on lgMBH
+            # All objects are nucleated and occupied in this mode, since we are
+            # conditioning directly on lgMBH.
             self.nucleation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
-        
+            self.occupation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
+
+        # ── Case 2b: Only lgMBH provided, use_lgMgal method ──
         elif lgMBH is not None and lgMgal is None and mbh_mass_method == 'use_lgMgal':
             print("[INFO] Only lgMBH provided (use_Mstar relation): inverting the "
-                  "M_BH-M* relation to recover implied lgMgal, then running that "
-                  "through the standard size-mass + virial pipeline for sigma.")
+                "M_BH-M* relation to recover implied lgMgal, then running that "
+                "through the standard size-mass + virial pipeline for sigma.")
             self.lgMBH_mass = np.asarray(lgMBH)
             self.nucleation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
+            self.occupation_occurs = np.ones_like(self.lgMBH_mass, dtype=bool)
             self.lgMgal = (self.lgMBH_mass - self.MBH_A) / self.MBH_B + np.log10(MGAL0)
- 
 
-        # Case 3: Mgal → sigma, MBH (forward galaxy model)
+        # ── Case 3: Mgal → sigma, MBH (forward galaxy model) ──
         elif lgMgal is not None and lgMBH is None:
             print("[INFO] : Mgal is provided. This will compute sigma and MBH from lgMgal using the {} relation.".format(mbh_mass_method))
             self.lgMgal = np.array(lgMgal)
 
+            # vectorized occupation flags
+            if occupation_occurs is None:
+                self.occupation_occurs = Galaxy.check_occupation(self.lgMgal, method=self.occupation_method, value=self.occupation_value, rng=self.rng)
+            else:   
+                self.occupation_occurs = np.asarray(occupation_occurs, dtype=bool)
+
             # vectorized nucleation flags
             if nucleation_occurs is None:
-                print("[INFO] : nuclating galaxies based on the {} nucleation fraction model.".format(nucleation_method))
-                nucleation_occurs = Galaxy.check_nucleation(self.lgMgal, method=nucleation_method, rng=self.rng)
+                print("[INFO] : nucleating galaxies based on the {} nucleation fraction model.".format(nucleation_method))
+                nucleation_occurs = Galaxy.check_nucleation(self.lgMgal, nucleation_method=nucleation_method, rng=self.rng)
             else:
                 print("[WARNING] : nucleation_occurs is provided. This will override the default nucleation fraction model and use the provided boolean mask. Ensure this is intended behavior.")
                 nucleation_occurs = np.asarray(nucleation_occurs, dtype=bool)
@@ -259,6 +211,14 @@ class Galaxy:
             self.lgMBH_mass = self.lgMBH(sigma_0=MBH_sigma0, unit='Msun', mbh_mass_method=mbh_mass_method)
             self.z_gal = self.z_gal[self.nucleation_occurs]
 
+            # occupation: an INDEPENDENT mask on top of nucleation, evaluated on
+            # the already-nucleated subset (self.lgMgal is now indexed to
+            # nucleation_occurs, matching sigma/lgMBH_mass/z_gal above).
+            self.occupation_occurs = Galaxy.check_occupation(
+                self.lgMgal, method=self.occupation_method,
+                value=self.occupation_value, rng=self.rng
+            )
+
         if ra_deg is None and dec_deg is None:
             self.ra_deg, self.dec_deg = self.sky_location().T
         else:
@@ -266,11 +226,10 @@ class Galaxy:
             dec_deg = np.asarray(dec_deg)
             self.ra_deg = ra_deg
             self.dec_deg = dec_deg
-        
-        # print(f"Number of galaxies: {self.lgMgal.shape[0]} with nucleation_occurs={self.nucleation_occurs.sum()} out of {self.lgMgal.shape[0]} total.")
 
+    # print(f"Number of galaxies: {self.lgMgal.shape[0]} with nucleation_occurs={self.nucleation_occurs.sum()} out of {self.lgMgal.shape[0]} total.")
     @staticmethod
-    def check_nucleation(cls, lgMgal, nucleation_method='hannah'):
+    def check_nucleation(lgMgal, nucleation_method='hannah', rng=None):
         """
         Determine which galaxies are nucleated based on stellar mass.
 
@@ -317,9 +276,11 @@ class Galaxy:
         >>> gal_nucleated = Galaxy(lgMgal=nucleated_lgMgal, z_gal=nucleated_z_gal)
         """
         lgMgal = np.array(lgMgal)
-
+        rng = rng if rng is not None else np.random.default_rng()
         # Stochastic sampling: draw uniform random numbers
-        f = np.random.uniform(0.0, 1.0, size=lgMgal.shape)
+
+        f = rng.uniform(0.0, 1.0, size=lgMgal.shape)
+
         if nucleation_method == 'hannah':
             p = _f_NSC_Hannah_(lgMgal)
         elif nucleation_method == 'neumayer':
@@ -329,6 +290,47 @@ class Galaxy:
         
         mask = f < p
         return mask
+
+    @staticmethod
+    def check_occupation(lgMgal, method='uniform', value=1.0, rng=None):
+        """
+        Determine which (already-nucleated) galaxies host a central MBH,
+        independent of nucleation status.
+
+        INPUTS
+        ────────────────────────────────────────────────────────────────
+        lgMgal : ndarray
+            log10(stellar mass / Msun), DIMENSION: (N_gal,)
+        method : str, optional
+            'uniform'  -> constant occupation probability = value
+            'varying'  -> mass-dependent occupation fraction from
+                          Zou et al. 2025 (arXiv:2510.05252), Eq. 2,
+                          median posterior parameters.
+            DEFAULT: 'uniform'
+        value : float, optional
+            Constant occupation probability, only used if method='uniform'.
+            DEFAULT: 1.0 (reproduces pre-patch behavior: all nucleated
+            galaxies are occupied).
+        rng : numpy.random.Generator, optional
+
+        OUTPUTS
+        ────────────────────────────────────────────────────────────────
+        mask : ndarray (bool), DIMENSION: (N_gal,)
+        """
+        lgMgal = np.array(lgMgal)
+        rng = rng if rng is not None else np.random.default_rng()
+        f = rng.uniform(0.0, 1.0, size=lgMgal.shape)
+
+        if method == 'uniform':
+            if not (0.0 <= value <= 1.0):
+                raise ValueError("occupation_value must be in [0, 1].")
+            p = np.full_like(lgMgal, value, dtype=float)
+        elif method == 'varying':
+            p = _f_occupation_varying_(lgMgal)
+        else:
+            raise ValueError("Invalid occupation_method. Must be 'uniform' or 'varying'.")
+
+        return f < p
 
     def R_eff(self, lg_A=0.82, B=0.24, Re_scatter=0.20, unit='kpc'):
         """

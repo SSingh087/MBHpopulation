@@ -35,8 +35,9 @@ parser.add_argument('--SOURCE',         type=str, required=True,
 parser.add_argument('--SURVEY',         type=str, default='None',
                     choices=['ZTF', 'LSST', 'ALL', 'None'])
 
-parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
-parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--mbh_mass_method", type=str, required=True, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=True, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--occupation_method", type=str, required=True, default="uniform", choices=["uniform", "varying"])
 
 # MBH mass (FixedLimitSchechterFunction)
 parser.add_argument('--xc',             type=float, nargs=2)
@@ -104,14 +105,14 @@ base = f'./data/pseudo_inference_data/{args.GALAXIES}'
 def load_torch(path):
     return torch.load(path, map_location='cpu')
 
-emri_torch = load_torch(f'{base}/true_data_EMRI_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}.pt')
+emri_torch = load_torch(f'{base}/true_data_EMRI_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
 
 if args.SURVEY in ['ZTF', 'LSST']:
-    tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}.pt')
+    tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
     data_TDE  = tde_torch
 elif args.SURVEY == 'ALL':
-    ztf  = load_torch(f'{base}/true_data_TDE_ZTF_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}.pt')
-    lsst = load_torch(f'{base}/true_data_TDE_LSST_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}.pt')
+    ztf  = load_torch(f'{base}/true_data_TDE_ZTF_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
+    lsst = load_torch(f'{base}/true_data_TDE_LSST_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
     data_TDE = {k: torch.cat([ztf[k], lsst[k]], dim=0) for k in ztf}
 
 data_EMRI = emri_torch
@@ -166,15 +167,15 @@ popdist.data, has_EMRI, has_TDE = get_data(args.SOURCE)
 if has_EMRI:
     popdist.data['EMRI'] = ensure_min_events(
         popdist.data['EMRI'], min_events=2,
-        label=f"EMRI ({args.mbh_mass_method}/{args.nucleation_method})"
+        label=f"EMRI ({args.mbh_mass_method}/{args.nucleation_method}/{args.occupation_method})"
     )
 if has_TDE:
     popdist.data['TDE'] = ensure_min_events(
         popdist.data['TDE'], min_events=2,
-        label=f"TDE ({args.SURVEY}, {args.mbh_mass_method}/{args.nucleation_method})"
+        label=f"TDE ({args.SURVEY}, {args.mbh_mass_method}/{args.nucleation_method}/{args.occupation_method})"
     )
 
-output = f"{base}/{args.SOURCE}_pop_A_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}"
+output = f"{base}/{args.SOURCE}_pop_A_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}"
 logger = setup_logger(output=output)
 
 # ── Model ─────────────────────────────────────────────────────────────────

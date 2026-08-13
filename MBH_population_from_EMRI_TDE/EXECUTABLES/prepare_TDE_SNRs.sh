@@ -8,6 +8,7 @@ UNIVERSE_MODEL=$1
 SURVEY=$2
 MBH_MASS_METHODS=$3 # "use_sigma" "use_lgMgal"
 NUCLEATION_METHODS=$4 # "hannah" "neumayer"
+OCCUPATION_METHODS=$5 # "uniform" "non_uniform"
 
 # == CALCULATING THE SNRs ==
 
@@ -17,7 +18,7 @@ OBSERVING_WINDOW=$(eval echo \$$OBSERVING_WINDOW_VAR)
 BANDS_VAR="BANDS_${SURVEY}"
 BANDS=$(eval echo \$$BANDS_VAR)
 
-echo "Calculating SNRs for $GALAXIES galaxies and universe model $UNIVERSE_MODEL for survey $SURVEY, MBH mass method: $MBH_MASS_METHODS, nucleation method: $NUCLEATION_METHODS"
+echo "Calculating SNRs for $GALAXIES galaxies and universe model $UNIVERSE_MODEL for survey $SURVEY, MBH mass method: $MBH_MASS_METHODS, nucleation method: $NUCLEATION_METHODS, occupation method: $OCCUPATION_METHODS, observing window: $OBSERVING_WINDOW, bands: $BANDS"
 
 python ./data_generation/calculate_SNR_TDE.py \
   --UNIVERSE_MODEL "$UNIVERSE_MODEL" \
@@ -28,6 +29,7 @@ python ./data_generation/calculate_SNR_TDE.py \
   --DETECTION_THRESHOLD 0.5 \
   --mbh_mass_method "$MBH_MASS_METHODS" \
   --nucleation_method "$NUCLEATION_METHODS" \
+  --occupation_method "$OCCUPATION_METHODS"
 
 # == FISHER ANALYSIS ==
 

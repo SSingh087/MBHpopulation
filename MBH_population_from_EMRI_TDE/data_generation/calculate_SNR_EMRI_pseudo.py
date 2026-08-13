@@ -16,8 +16,9 @@ GPC = 3.0857e25         # m
 parser = argparse.ArgumentParser(description="Vectorized rough EMRI SNR estimate.")
 parser.add_argument("--UNIVERSE_MODEL", type=int, required=True, help="Universe model index")
 parser.add_argument("--GALAXIES", type=int, required=True)
-parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
-parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--mbh_mass_method", type=str, required=True, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=True, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--occupation_method", type=str, required=True, default="uniform", choices=["uniform", "varying"])
 # FIX: was a hardcoded module-level constant (SNR_THRESHOLD = 20). This
 # is a rough ANALYTIC SNR estimate, not an ML model -- lowering this
 # threshold is a legitimate, zero-retraining way to recover more
@@ -32,7 +33,7 @@ args = parser.parse_args()
 
 SNR_THRESHOLD = args.SNR_THRESHOLD
 
-in_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/{EMRI_DATA_FILE_NAME}_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.h5")
+in_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/{EMRI_DATA_FILE_NAME}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.h5")
 
 with h5py.File(in_path, "r") as f:
     data = {key: np.array(f[key][:]) for key in f.keys()}
@@ -136,7 +137,7 @@ if len(events_idx) == 0:
 # Save output -- full parameter set + SNR-derived quantities,
 # filtered to SNR-passing events only
 # ============================================================
-out_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/EMRI_SNRs_data_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.h5")
+out_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/EMRI_SNRs_data_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.h5")
 
 with h5py.File(out_path, "w") as f:
     f.attrs['n_events_total'] = n_events
@@ -167,7 +168,7 @@ plt.xlabel(r'$\log_{10}(M_{\rm MBH}/M_\odot)$')
 plt.ylabel(r'Rough SNR ($\rho$)')
 plt.legend()
 plt.tight_layout()
-plot_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/SNR_MBHmass_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.png")
+plot_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/SNR_MBHmass_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.png")
 plt.savefig(plot_path)
 plt.close()
 print(f"Saved diagnostic plot to {plot_path}")

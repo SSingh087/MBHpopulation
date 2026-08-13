@@ -22,8 +22,9 @@ parser.add_argument("--GALAXIES", type=int, required=True,
 parser.add_argument("--Z_MAX", type=float, required=False, default=10.0, help="Maximum redshift")
 parser.add_argument("--T_OBS_EMRI", type=float, required=True)
 parser.add_argument("--T_OBS_TDE",  type=float, required=True)
-parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
-parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--mbh_mass_method", type=str, required=True, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=True, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--occupation_method", type=str, required=True, default="uniform", choices=["uniform", "varying"])
 parser.add_argument("--SEED", type=int, required=False, default=42, help="Random seed for reproducibility")
 
 args = parser.parse_args()
@@ -90,13 +91,13 @@ def find_lgMgal_rate_range(GSMF, cosmo_model, Rmin, Rmax, rng, lgMBH_min=4.0, lg
 
     # --- pilot mass samples: uniform over full range ---
     lgMgal_p    = rng.uniform(lgM_min_full, lgM_max_full, size=N_pilot)
-    nuc_idx_p   = Galaxy.check_nucleation(lgMgal_p, z_p, nucleation_method=args.nucleation_method)
-    gal_p       = Galaxy(lgMgal=lgMgal_p, z_gal=z_p, nucleation_occurs=nuc_idx_p, mbh_mass_method=args.mbh_mass_method, nucleation_method=args.nucleation_method)
+    nuc_idx_p   = Galaxy.check_nucleation(lgMgal_p, nucleation_method=args.nucleation_method)
+    gal_p       = Galaxy(lgMgal=lgMgal_p, z_gal=z_p, nucleation_occurs=nuc_idx_p, mbh_mass_method=args.mbh_mass_method, nucleation_method=args.nucleation_method, occupation_method=args.occupation_method)
 
     lgMBH_p     = gal_p.lgMBH_mass                    # nucleated subset
     lgMgal_nuc_p = lgMgal_p[nuc_idx_p]
 
-    in_range = (lgMBH_p >= lgMBH_min) & (lgMBH_p <= lgMBH_max)
+    in_range = (lgMBH_p >= lgMBH_min) & (lgMBH_p <= lgMBH_max) & gal_p.occupation_occurs
 
     if in_range.sum() < 50:
         raise RuntimeError(
@@ -160,8 +161,8 @@ print(f"mc_weight_i range: [{mc_weight_i.min():.3e}, {mc_weight_i.max():.3e}], "
 # Physics pipeline
 # ============================================================
 
-nucleation_indices = Galaxy.check_nucleation(lgMgal_samples, z_grid, nucleation_method=args.nucleation_method)
-gal_obj = Galaxy(lgMgal=lgMgal_samples, z_gal=z_grid, nucleation_occurs=nucleation_indices, mbh_mass_method=args.mbh_mass_method, nucleation_method=args.nucleation_method)
+nucleation_indices = Galaxy.check_nucleation(lgMgal_samples, nucleation_method=args.nucleation_method)
+gal_obj = Galaxy(lgMgal=lgMgal_samples, z_gal=z_grid, nucleation_occurs=nucleation_indices, mbh_mass_method=args.mbh_mass_method, nucleation_method=args.nucleation_method, occupation_method=args.occupation_method)
 
 NSC_obj = NSC(gal_obj)
 MBH_obj = MBH_properties(nsc=NSC_obj)
@@ -186,7 +187,7 @@ t_rlx_Gyr = relax_obj.t_relax_at_rinfl(kvir=1.0, unit='Gyr')
 
 active = (T_c_Gyr < t_rlx_Gyr).astype(float)
 
-MBH_MASK = (gal_obj.lgMBH_mass > 4.0) & (gal_obj.lgMBH_mass <= 7.0)
+MBH_MASK = (gal_obj.lgMBH_mass > 4.0) & (gal_obj.lgMBH_mass <= 7.0) & gal_obj.occupation_occurs
 
 rate_EMRI_Gyr = const_rate_obj.constant_rate(kind='EMRI')   # 0.0 outside [1e4,1e7]
 rate_TDE_Gyr  = const_rate_obj.constant_rate(kind='TDE')
@@ -274,7 +275,7 @@ loc = f'{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}'
 if not os.path.exists(loc):
     os.makedirs(loc)
  
-hf = h5py.File(f'{loc}/{MOCK_GALAXY_CATALOG_DATA}_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.h5', 'w')
+hf = h5py.File(f'{loc}/{MOCK_GALAXY_CATALOG_DATA}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.h5', 'w')
  
 hf.attrs['N_gal_true'] = N_gal_true
 hf.attrs['N_objs_sim'] = N_objs_sim
@@ -294,9 +295,15 @@ def build_event_catalog(idx, rng):
     lgMgal_event = lgMgal_samples[nucleation_indices][idx]
     z_event = z_nuc[idx]
     nucleation_all_true = np.ones_like(lgMgal_event, dtype=bool)
+    occupation_all_true = np.ones_like(lgMgal_event, dtype=bool)
+
  
     event_gal = Galaxy(lgMgal=lgMgal_event, z_gal=z_event, rng=rng,
-                        nucleation_occurs=nucleation_all_true)
+                        nucleation_occurs=nucleation_all_true, 
+                        occupation_occurs=occupation_all_true,
+                        mbh_mass_method=args.mbh_mass_method, 
+                        nucleation_method=args.nucleation_method)
+
     event_nsc = NSC(event_gal)
     event_mbh = MBH_properties(nsc=event_nsc)
     return event_gal, event_mbh
@@ -393,7 +400,7 @@ if emri_gal is not None and np.sum(emri_mask) > 0:
     axs[1, 0].set_xlabel(r'$a$')
     axs[1, 1].set_xlabel(r'$e_{\rm plunge}$')
     plt.suptitle(f'EMRI generated = {np.sum(emri_mask)}')
-    plt.savefig(f'{loc}/emri_catalog_histograms_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.png')
+    plt.savefig(f'{loc}/emri_catalog_histograms_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.png')
     plt.close()
 else:
     print(f"[WARN] EMRI catalog is empty (0 events after resampling+mass cut) -- "
@@ -409,7 +416,7 @@ if tde_gal is not None and np.sum(tde_mask) > 0:
     axs[1].set_xlabel(r'$z$')
     axs[2].set_xlabel(r'$a$')
     plt.suptitle(f'TDEs generated = {np.sum(tde_mask)}')
-    plt.savefig(f'{loc}/tde_catalog_histograms_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.png')
+    plt.savefig(f'{loc}/tde_catalog_histograms_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.png')
     plt.close()
 else:
     print(f"[WARN] TDE catalog is empty (0 events after resampling+mass cut) -- "

@@ -31,8 +31,9 @@ parser.add_argument(
     "--E0_FALLBACK", type=float, nargs=2, default=[0.05, 0.5],
     help="Uniform fallback range for e0 when backward integration fails for an event"
 )
-parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
-parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--mbh_mass_method", type=str, required=True, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=True, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--occupation_method", type=str, required=True, default="uniform", choices=["uniform", "varying"])
 parser.add_argument("--SEED", type=int, default=42, help="Random seed for reproducibility")
 args = parser.parse_args()
 
@@ -42,7 +43,7 @@ rng = np.random.default_rng(seed=args.SEED)
 # Load resampled EMRI catalog (flat, one row = one event)
 # ============================================================
 loc = f'{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}'
-catalog_path = f'{loc}/{MOCK_GALAXY_CATALOG_DATA}_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.h5'
+catalog_path = f'{loc}/{MOCK_GALAXY_CATALOG_DATA}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.h5'
 
 with h5py.File(catalog_path, 'r') as f:
     emri = {field: np.array(f['EMRI_catalog'][field][:]) for field in f['EMRI_catalog'].keys()}
@@ -132,7 +133,7 @@ param_names = ["Y0", "qK", "phiK", "Phi_phi0", "Phi_theta0", "Phi_r0", "T_SIGNAL
 # ============================================================
 # Save flat output: one row per event, no galaxy grouping.
 # ============================================================
-out_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/{EMRI_DATA_FILE_NAME}_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.h5")
+out_path = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/{EMRI_DATA_FILE_NAME}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.h5")
 
 with h5py.File(out_path, "w") as f:
     f.attrs['n_events'] = n_events
@@ -179,5 +180,5 @@ plt.colorbar(label='T_SIGNAL (years)')
 plt.xlabel('e0')
 plt.ylabel('p0')
 plt.tight_layout()
-plt.savefig(f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/EMRI_params_scatter_plots_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.png")
+plt.savefig(f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/EMRI_params_scatter_plots_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.png")
 plt.close()

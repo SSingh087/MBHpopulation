@@ -14,8 +14,9 @@ parser.add_argument("--INCLUDE_LSST", type=int, default=0,
                      help="1 = also load/process TDE LSST data (requires "
                           "true_detected_data_TDE_LSST.h5 to exist). "
                           "0 = ZTF only.")
-parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
-parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--mbh_mass_method", type=str, required=True, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=True, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--occupation_method", type=str, required=True, default="uniform", choices=["uniform", "varying"])
 args = parser.parse_args()
 
 N_POSTERIOR = 2000
@@ -32,19 +33,19 @@ BASE = "./data"
 INFERENCE_DIR = f"{BASE}/inference_data/{args.GALAXIES}"
 
 # Count number of detections from the files
-with h5py.File(f"{INFERENCE_DIR}/true_detected_data_EMRI_{args.mbh_mass_method}_{args.nucleation_method}.h5", "r") as hf:
+with h5py.File(f"{INFERENCE_DIR}/true_detected_data_EMRI_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.h5", "r") as hf:
     N_EMRI = len(hf["lgMBH_mass"])
 
-with h5py.File(f"{INFERENCE_DIR}/true_detected_data_TDE_ZTF_{args.mbh_mass_method}_{args.nucleation_method}.h5", "r") as hf:
+with h5py.File(f"{INFERENCE_DIR}/true_detected_data_TDE_ZTF_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.h5", "r") as hf:
     N_TDE_ZTF = len(hf["lgMBH_mass"])
 
 N_TDE_LSST = None
 if args.INCLUDE_LSST:
-    with h5py.File(f"{INFERENCE_DIR}/true_detected_data_TDE_LSST_{args.mbh_mass_method}_{args.nucleation_method}.h5", "r") as hf:
+    with h5py.File(f"{INFERENCE_DIR}/true_detected_data_TDE_LSST_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.h5", "r") as hf:
         N_TDE_LSST = len(hf["lgMBH_mass"])
 
 print(f"[INFO] Population : {args.POPULATION}")
-print(f"[INFO] Scenario   : {args.mbh_mass_method} / {args.nucleation_method}")
+print(f"[INFO] Scenario   : {args.mbh_mass_method} / {args.nucleation_method} / {args.occupation_method}")
 print(f"[INFO] EMRI events   : {N_EMRI}")
 print(f"[INFO] TDE (ZTF) events : {N_TDE_ZTF}")
 if args.INCLUDE_LSST:
@@ -104,14 +105,14 @@ z_tde_ztf = cat_TDE_ZTF["z_gal"]
 SIGMA_EMRI = {
     "lgMBH_mass": z_scaled_sigma(1e-2, z_emri, Z_REF_EMRI),
     "MBHspin":    z_scaled_sigma(1e-2, z_emri, Z_REF_EMRI),
-    "CO_mass":    z_scaled_sigma(5e-2, z_emri, Z_REF_EMRI),
+    # "CO_mass":    z_scaled_sigma(5e-2, z_emri, Z_REF_EMRI),
     "z_gal":      z_scaled_sigma(1e-2, z_emri, Z_REF_EMRI),
     "e_pl":       z_scaled_sigma(5e-2, z_emri, Z_REF_EMRI),
 }
 
 SIGMA_TDE_ZTF = {
     "lgMBH_mass": z_scaled_sigma(3e-1, z_tde_ztf, Z_REF_TDE_ZTF),
-    "CO_mass":    z_scaled_sigma(2.0,  z_tde_ztf, Z_REF_TDE_ZTF),
+    # "CO_mass":    z_scaled_sigma(2.0,  z_tde_ztf, Z_REF_TDE_ZTF),
     "z_gal":      z_scaled_sigma(5e-3, z_tde_ztf, Z_REF_TDE_ZTF),
     # no MBHspin, no e_pl -- TDEs don't measure these
 }
@@ -121,7 +122,7 @@ if args.INCLUDE_LSST:
     z_tde_lsst = cat_TDE_LSST["z_gal"]
     SIGMA_TDE_LSST = {
         "lgMBH_mass": z_scaled_sigma(3e-1, z_tde_lsst, Z_REF_TDE_LSST),
-        "CO_mass":    z_scaled_sigma(2.0,  z_tde_lsst, Z_REF_TDE_LSST),
+        # "CO_mass":    z_scaled_sigma(2.0,  z_tde_lsst, Z_REF_TDE_LSST),
         "z_gal":      z_scaled_sigma(5e-3, z_tde_lsst, Z_REF_TDE_LSST),
     }
 
@@ -131,7 +132,7 @@ if args.INCLUDE_LSST:
 PARAM_BOUNDS = {
     "lgMBH_mass": (4.0, 7.0),
     "MBHspin":    (0.01, 0.99),
-    "CO_mass":    (0.1, 15.0),
+    # "CO_mass":    (0.1, 15.0),
     "z_gal":      (0.01, 8.0),
     "e_pl":       (0.01, 0.99),
 }
@@ -143,7 +144,7 @@ def internal_to_raw_bounds(bounds: dict) -> dict:
     lo, hi = bounds["lgMBH_mass"]
     return {
         "mbh_6":        (lo - 6.0, hi - 6.0),
-        "stellar_mass": bounds["CO_mass"],
+        # "stellar_mass": bounds["CO_mass"],
         "redshift":     bounds["z_gal"],
     }
 
@@ -152,7 +153,7 @@ BOUNDS_TDE_RAW = internal_to_raw_bounds(PARAM_BOUNDS)
 
 SIGMA_TDE_ZTF_RAW = {
     "mbh_6":        SIGMA_TDE_ZTF["lgMBH_mass"],
-    "stellar_mass": SIGMA_TDE_ZTF["CO_mass"],
+    # "stellar_mass": SIGMA_TDE_ZTF["CO_mass"],
     "redshift":     SIGMA_TDE_ZTF["z_gal"],
 }
 
@@ -160,7 +161,7 @@ SIGMA_TDE_LSST_RAW = None
 if args.INCLUDE_LSST:
     SIGMA_TDE_LSST_RAW = {
         "mbh_6":        SIGMA_TDE_LSST["lgMBH_mass"],
-        "stellar_mass": SIGMA_TDE_LSST["CO_mass"],
+        # "stellar_mass": SIGMA_TDE_LSST["CO_mass"],
         "redshift":     SIGMA_TDE_LSST["z_gal"],
     }
 
@@ -205,7 +206,8 @@ def save_pt(path: str, datasets: dict, label: str = ""):
 # ══════════════════════════════════════════════════════════════════════════
 # EMRI  —  lgMBH_mass, MBHspin, CO_mass, z_gal, e_pl
 # ══════════════════════════════════════════════════════════════════════════
-emri_keys = ["lgMBH_mass", "MBHspin", "CO_mass", "z_gal", "e_pl"]
+# emri_keys = ["lgMBH_mass", "MBHspin", "CO_mass", "z_gal", "e_pl"]
+emri_keys = ["lgMBH_mass", "MBHspin", "z_gal", "e_pl"]
 
 missing = [k for k in emri_keys if k not in cat_EMRI]
 if missing:
@@ -215,7 +217,7 @@ emri_data = {k: cat_EMRI[k] for k in emri_keys}
 emri_post = make_posteriors(emri_data, N_POSTERIOR, SIGMA_EMRI, PARAM_BOUNDS)
 
 save_h5(
-    os.path.join(loc, f"true_data_EMRI_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.h5"),
+    os.path.join(loc, f"true_data_EMRI_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.h5"),
     {**emri_data, **{f"{k}_posterior": emri_post[k] for k in emri_keys}},
     label="EMRI"
 )
@@ -226,13 +228,14 @@ save_h5(
 #         so that prepare_data.py can read them without modification.
 #         ZTF always runs; LSST only if --INCLUDE_LSST 1 and the file exists.
 # ══════════════════════════════════════════════════════════════════════════
-tde_keys_internal = ["lgMBH_mass", "CO_mass", "z_gal"]
+# tde_keys_internal = ["lgMBH_mass", "CO_mass", "z_gal"]
+tde_keys_internal = ["lgMBH_mass", "z_gal"]
 
 def internal_to_raw(data: dict) -> dict:
     """Convert internal key names → raw fisher key names expected by prepare_data.py."""
     return {
         "mbh_6"       : data["lgMBH_mass"] - 6.0,
-        "stellar_mass": data["CO_mass"],
+        # "stellar_mass": data["CO_mass"],
         "redshift"    : data["z_gal"],
     }
 
@@ -248,12 +251,12 @@ def process_tde_survey(survey: str, cat: dict, sigma_internal: dict, sigma_raw: 
     post_internal = make_posteriors(internal, N_POSTERIOR, sigma_internal, PARAM_BOUNDS)
 
     save_h5(
-        os.path.join(loc, f"true_data_TDE_{survey}_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.h5"),
+        os.path.join(loc, f"true_data_TDE_{survey}_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.h5"),
         {**raw, **{f"{k}_posterior": post_raw[k] for k in raw}},
         label=f"TDE {survey}"
     )
     save_pt(
-        os.path.join(loc, f"true_data_TDE_{survey}_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.pt"),
+        os.path.join(loc, f"true_data_TDE_{survey}_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt"),
         post_internal,
         label=f"TDE {survey} (PT)"
     )
@@ -267,7 +270,7 @@ if args.INCLUDE_LSST:
     tde_post_internal_lsst = process_tde_survey("LSST", cat_TDE_LSST, SIGMA_TDE_LSST, SIGMA_TDE_LSST_RAW)
 
 save_pt(
-    os.path.join(loc, f"true_data_EMRI_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}.pt"),
+    os.path.join(loc, f"true_data_EMRI_pseudo_data_{args.POPULATION}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt"),
     emri_post,  # internal keys: lgMBH_mass, MBHspin, CO_mass, z_gal, e_pl
     label="EMRI (PT)"
 )

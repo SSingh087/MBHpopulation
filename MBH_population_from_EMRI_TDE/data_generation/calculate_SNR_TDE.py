@@ -17,8 +17,9 @@ parser.add_argument("--SURVEY",        type=str, default="ZTF", choices=["ZTF", 
 parser.add_argument("--Z_GAL_MIN",    type=float, default=0.0)
 parser.add_argument("--Z_GAL_MAX",    type=float, default=10.0)
 parser.add_argument("--batch_size",    type=int, default=4096)
-parser.add_argument("--mbh_mass_method", type=str, required=False, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
-parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--mbh_mass_method", type=str, required=True, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
+parser.add_argument("--nucleation_method", type=str, required=True, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--occupation_method", type=str, required=True, default="uniform", choices=["uniform", "varying"])
 parser.add_argument("--DETECTION_THRESHOLD", type=float, default=0.5,
                      help="Detection-probability threshold applied to the trained "
                           "classifier's output. Lower this (e.g. 0.2-0.3) to recover "
@@ -33,8 +34,8 @@ MODEL_PATH      = f"{TRAIN_DIR_TDE}/1E6_events/TDE_DETECT_BCE_no_rescaler_512_4_
 TRAIN_H5_PATH   = f"{TRAIN_DIR_TDE}/1E6_events/TDE_params_1E6_{args.SURVEY}.h5"
 TRAIN_NPY_PATH  = f"{TRAIN_DIR_TDE}/1E6_events/TDE_params_scaled_1E6_{args.SURVEY}.npy"
 
-DATA_PATH = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/{TDE_DATA_FILE_NAME}_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.h5"
-OUT_PATH  = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/TDE_SNRs_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.h5"
+DATA_PATH = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/{TDE_DATA_FILE_NAME}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.h5"
+OUT_PATH  = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/TDE_SNRs_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.h5"
 
 
 PARAM_ORDER = ['alpha', 'beta', 'dec_rad', 'eta', 'lgMBH', 'ra_rad', 't0_mjd_transient', 'z_gal']
@@ -211,7 +212,7 @@ if n_events > 0:
     plt.ylabel('Detection probability')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/TDE_detprob_MBHmass_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.png")
+    plt.savefig(f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/TDE_detprob_MBHmass_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.png")
     plt.close()
 
 # plot cumulative plot for detections with t0_mjd_transient
@@ -237,6 +238,6 @@ if len(t_detected) > 0:
     plt.title(f"{args.SURVEY} cumulative detections")
     plt.grid()
 
-    plt.savefig(f"{ASTROPHYSICAL_DATA_DIR}/cumulative_detections_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}_{args.UNIVERSE_MODEL}.png")
+    plt.savefig(f"{ASTROPHYSICAL_DATA_DIR}/cumulative_detections_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.UNIVERSE_MODEL}.png")
 else:
     print("[INFO] No detected TDEs -- skipping cumulative-detections plot.")

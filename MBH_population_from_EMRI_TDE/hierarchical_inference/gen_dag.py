@@ -26,10 +26,14 @@ SOURCE_SURVEY_COMBOS = [
 
 # Must match utils.SCENARIO_KEY (mbh_mass_method, nucleation_method) pairs.
 SCENARIOS = [
-    ("use_lgMgal", "hannah"),
-    ("use_sigma",  "hannah"),
-    ("use_lgMgal", "neumayer"),
-    ("use_sigma",  "neumayer"),
+    ("use_lgMgal", "hannah", "varying"),
+    ("use_sigma",  "hannah", "varying"),
+    ("use_lgMgal", "neumayer", "varying"),
+    ("use_sigma",  "neumayer", "varying"),
+    ("use_lgMgal", "hannah", "uniform"),
+    ("use_sigma",  "hannah", "uniform"),
+    ("use_lgMgal", "neumayer", "uniform"),
+    ("use_sigma",  "neumayer", "uniform"),
 ]
 
 POPULATIONS = ["A", "B"]
@@ -56,12 +60,12 @@ def main():
 
     lines.append("# ============= MAKE DATA (one per population x scenario) =========")
     lines.append("# make_pseudo_data.py's output filenames are population+scenario")
-    lines.append("# specific (true_data_EMRI_pseudo_data_{POP}_{mbh}_{nuc}.h5)")
+    lines.append("# specific (true_data_EMRI_pseudo_data_{POP}_{mbh}_{nuc}_{occ}.h5)")
     data_names_by_pop_scenario = {}  # (pop, mbh, nuc) -> job_name
     for population in POPULATIONS:
-        for mbh, nuc in SCENARIOS:
-            name = data_job_name(population, mbh, nuc)
-            data_names_by_pop_scenario[(population, mbh, nuc)] = name
+        for mbh, nuc, occ in SCENARIOS:
+            name = data_job_name(population, mbh, nuc, occ)
+            data_names_by_pop_scenario[(population, mbh, nuc, occ)] = name
             lines.append(f"JOB {name} ./pseudo_runs/make_pseudo_data.sub")
             lines.append(
                 f'VARS {name} POPULATION="{population}" MBH_MASS_METHODS="{mbh}" NUCLEATION_METHODS="{nuc}" INCLUDE_LSST="1"'
@@ -72,7 +76,7 @@ def main():
     infer_names_by_pop_scenario = {}  # (pop, mbh, nuc) -> [job_name, ...]
 
     for population in POPULATIONS:
-        for mbh, nuc in SCENARIOS:
+        for mbh, nuc, occ in SCENARIOS:
             names = []
             for source, survey in SOURCE_SURVEY_COMBOS:
                 name = infer_job_name(source, population, survey, mbh, nuc)
@@ -82,13 +86,13 @@ def main():
                     f'VARS {name} SOURCE="{source}" POPULATION="{population}" '
                     f'SURVEY="{survey}" MBH_MASS_METHODS="{mbh}" NUCLEATION_METHODS="{nuc}"'
                 )
-            infer_names_by_pop_scenario[(population, mbh, nuc)] = names
+            infer_names_by_pop_scenario[(population, mbh, nuc, occ)] = names
     lines.append("")
 
     lines.append("# ----------------- 1D posterior plotting jobs -----------------")
     for population in POPULATIONS:
-        for mbh, nuc in SCENARIOS:
-            name = oneD_job_name(population, mbh, nuc)
+        for mbh, nuc, occ in SCENARIOS:
+            name = oneD_job_name(population, mbh, nuc, occ)
             lines.append(f"JOB {name} ./pseudo_runs/make_posterior_plots.sub")
             lines.append(
                 f'VARS {name} POPULATION="{population}" '
@@ -98,8 +102,8 @@ def main():
 
     lines.append("# ----------------- PPD plotting jobs -----------------")
     for population in POPULATIONS:
-        for mbh, nuc in SCENARIOS:
-            name = ppd_job_name(population, mbh, nuc)
+        for mbh, nuc, occ in SCENARIOS:
+            name = ppd_job_name(population, mbh, nuc, occ)
             lines.append(f"JOB {name} ./pseudo_runs/make_PPD.sub")
             lines.append(
                 f'VARS {name} POPULATION="{population}" '
@@ -109,16 +113,16 @@ def main():
 
     lines.append("# ----------------- DAG structure -----------------")
     for population in POPULATIONS:
-        for mbh, nuc in SCENARIOS:
-            data_name = data_names_by_pop_scenario[(population, mbh, nuc)]
-            infer_names = infer_names_by_pop_scenario[(population, mbh, nuc)]
+        for mbh, nuc, occ in SCENARIOS:
+            data_name = data_names_by_pop_scenario[(population, mbh, nuc, occ)]
+            infer_names = infer_names_by_pop_scenario[(population, mbh, nuc, occ)]
             lines.append(f"PARENT {data_name} CHILD {' '.join(infer_names)}")
 
     for population in POPULATIONS:
-        for mbh, nuc in SCENARIOS:
-            names = infer_names_by_pop_scenario[(population, mbh, nuc)]
-            oneD = oneD_job_name(population, mbh, nuc)
-            ppd = ppd_job_name(population, mbh, nuc)
+        for mbh, nuc, occ in SCENARIOS:
+            names = infer_names_by_pop_scenario[(population, mbh, nuc, occ)]
+            oneD = oneD_job_name(population, mbh, nuc, occ)
+            ppd = ppd_job_name(population, mbh, nuc, occ)
             lines.append(f"PARENT {' '.join(names)} CHILD {oneD} {ppd}")
 
     print("\n".join(lines))

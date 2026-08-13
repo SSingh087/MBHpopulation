@@ -15,9 +15,10 @@ UNIVERSE_MODEL=$1
 SEED=$2
 MBH_MASS_METHODS=$3 # "use_sigma" "use_lgMgal"
 NUCLEATION_METHODS=$4 # "hannah" "neumayer"
+OCCUPATION_METHODS=$5 # "uniform" "non_uniform"
 
 echo "==========================================================================================="
-echo "Preparing EMRI events for $GALAXIES galaxies and universe model $UNIVERSE_MODEL for MBH mass method: $MBH_MASS_METHODS, nucleation method: $NUCLEATION_METHODS"
+echo "Preparing EMRI events for $GALAXIES galaxies and universe model $UNIVERSE_MODEL for MBH mass method: $MBH_MASS_METHODS, nucleation method: $NUCLEATION_METHODS, occupation method: $OCCUPATION_METHODS"
 echo "==========================================================================================="
 
 python ./data_generation/gen_EMRI_params.py \
@@ -27,6 +28,7 @@ python ./data_generation/gen_EMRI_params.py \
     --T_SIGNAL $T_SIGNAL_MIN $T_SIGNAL_MAX \
     --mbh_mass_method "$MBH_MASS_METHODS" \
     --nucleation_method "$NUCLEATION_METHODS" \
+    --occupation_method "$OCCUPATION_METHODS" \
     --SEED "$SEED" \
 
 
@@ -39,6 +41,7 @@ python ./data_generation/calculate_SNR_EMRI_pseudo.py \
     --GALAXIES $GALAXIES \
     --mbh_mass_method "$MBH_MASS_METHODS" \
     --nucleation_method "$NUCLEATION_METHODS" \
+    --occupation_method "$OCCUPATION_METHODS" \
 
 # # == Fisher matrix calculation ==
 
