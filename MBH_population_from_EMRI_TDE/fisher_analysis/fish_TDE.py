@@ -17,6 +17,7 @@ PARAM_INFO = {
 }
 
 def choose_simulator(survey):
+    """Pick the redback survey simulator for the survey."""
     su = survey.upper()
     if su == "ZTF":
         return SimulateOpticalTransient.simulate_transient_in_ztf, "ztf"
@@ -26,6 +27,7 @@ def choose_simulator(survey):
         raise ValueError(f"Unsupported survey {survey}")
 
 def run_telescope_simulator(theta, simulate_fn, survey, observing_window):
+    """Simulate survey observations of a TDE."""
     sim = simulate_fn(
         model="cooling_envelope",
         survey=survey,
@@ -39,6 +41,7 @@ def run_telescope_simulator(theta, simulate_fn, survey, observing_window):
     return sim.observations[cols]
 
 def extract_observed_data_by_band(df, bands):
+    """Split simulated observations by band."""
     grouped = df.groupby("band")
     return {
         b: {
@@ -50,9 +53,11 @@ def extract_observed_data_by_band(df, bands):
     }
 
 def extract_times_by_band(data_by_band):
+    """Observation times per band."""
     return {b: d["time"] for b, d in data_by_band.items()}, list(data_by_band.keys())
 
 def run_generic_for_band(theta, band, times):
+    """Evaluate the light-curve model for one band."""
     obs = SimulateGenericTransient(
         model="cooling_envelope",
         parameters=theta,
@@ -67,9 +72,11 @@ def run_generic_for_band(theta, band, times):
     return df["true_output"].to_numpy(float)
 
 def evaluate_model(theta, times_by_band, bands):
+    """Model magnitudes for all bands."""
     return {b: run_generic_for_band(theta, b, times_by_band[b]) for b in bands}
 
 def perturb_value(base, delta, kind):
+    """Parameter value shifted by delta (absolute or relative)."""
     if kind == "linear":
         return base + delta, base - delta
     if kind == "log10":
@@ -77,6 +84,7 @@ def perturb_value(base, delta, kind):
     raise ValueError
 
 def numerical_derivative(param, theta_base, times_by_band, bands):
+    """Numerical derivative of the model with respect to one parameter."""
     info = PARAM_INFO[param]
     delta = info["delta"]
     kind = info["type"]
@@ -101,6 +109,7 @@ def numerical_derivative(param, theta_base, times_by_band, bands):
     return deriv
 
 def compute_fisher(theta0, times_by_band, bands):
+    """Fisher matrix at theta0 from numerical derivatives."""
     params = list(PARAM_INFO.keys())
     derivs = {}
 

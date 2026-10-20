@@ -63,12 +63,14 @@ def vectorize_r_grid(r_grid, N):
 
 class Plotting:
     
+    """Plotting helpers for the generated populations."""
     matplotlib.rc('font', family='serif', serif=['Computer Modern'], size=15)
     matplotlib.rc('text', usetex=True)
 
     @staticmethod
     def plot_lgMgal_vs_lgsigma(lgMgal: np.ndarray, sigma_kms: np.ndarray,
                                color='lightcoral', lw=2, label=None, filename='lgMgal_vs_lgsigma.png'):
+        """Plot the Mgal-sigma relation."""
         plt.figure(figsize=(6.2, 4.6))
         plt.scatter(lgMgal, np.log10(sigma_kms), color=color, lw=lw, label=label)
         plt.xlabel(r'$\log_{10}(M_\star/M_\odot)$')
@@ -83,6 +85,7 @@ class Plotting:
     @staticmethod
     def plot_lgMgal_vs_lgMBH(lgMgal: np.ndarray, lgMBH: np.ndarray,
                              color='lightcoral', lw=2, label=None, filename='lgMgal_vs_lgMBH.png'):
+        """Plot the Mgal-MBH relation."""
         plt.figure(figsize=(6.2, 4.6))
         plt.scatter(lgMgal, lgMBH, color=color, lw=lw, label=label)
         plt.xlabel(r'$\log_{10}(M_\star/M_\odot)$')
@@ -97,6 +100,7 @@ class Plotting:
     @staticmethod
     def plot_lgsigma_vs_lgMBH(sigma_kms: np.ndarray, lgMBH: np.ndarray,
                               color='lightcoral', lw=2, label=None, filename='lgsigma_vs_lgMBH.png'):
+        """Plot the sigma-MBH relation."""
         plt.figure(figsize=(6.2, 4.6))
         plt.scatter(np.log10(sigma_kms), lgMBH, color=color, lw=lw, label=label)
         plt.xlabel(r'$\log_{10}(\sigma\,[\mathrm{km\,s^{-1}}])$')
@@ -111,6 +115,7 @@ class Plotting:
     @staticmethod
     def plot_lgMstar_vs_f_NSC(lgMgal: np.ndarray, f_NSC_Hannah: np.ndarray,
                              f_NSC_Neumayer: np.array, color='lightcoral', lw=2, label=None):
+        """Plot the NSC fraction versus stellar mass."""
         plt.scatter(lgMgal, f_NSC_Hannah, label='Hannah+24')
         plt.scatter(lgMgal, f_NSC_Neumayer, label='Neumayer+20')
         plt.ylabel(r'$f_{\mathrm{NSC}}$')
@@ -205,6 +210,7 @@ class Plotting:
     @staticmethod
     def MBHmass_vs_spin(mbhmass, spin, z, loc, cmap="plasma"):   
 
+        """Plot MBH mass versus spin."""
         from matplotlib.colors import Normalize
 
         mbhmass = np.asarray(mbhmass)
@@ -279,6 +285,7 @@ class Plotting:
     @staticmethod
     def MBHmass_vs_eccentricity_at_plunge(mbhmass, eccentricity_at_plunge, z, loc, cmap="plasma"):   
 
+        """Plot MBH mass versus plunge eccentricity."""
         from matplotlib.colors import Normalize
 
         mbhmass = np.asarray(mbhmass)
@@ -403,6 +410,7 @@ class Plotting:
 
     @staticmethod
     def plot_event_rates(z_EMRI, lgMBH_EMRI, z_TDE, lgMBH_TDE, T_obs, filename):
+        """Plot EMRI and TDE event rates versus redshift and mass."""
         fig, axes = plt.subplots(2, 1, figsize=(6, 8), sharex=True)
 
         # --- Top: EMRIs ---
@@ -469,6 +477,7 @@ class Plotting:
 
     @staticmethod
     def plot_3D_galaxy_distribution(x, y, z, z_filtered, filename, cmap='plasma'):
+        """3D scatter of the galaxy positions."""
         fig = plt.figure(figsize=(10,8), facecolor='white')
         ax = fig.add_subplot(111, projection='3d')
         sc = ax.scatter(x, y, z, c=z_filtered, s=15, cmap=cmap)
@@ -486,6 +495,7 @@ class Plotting:
     @staticmethod
     def mollweide_sky_map(ra_deg, dec_deg, z_gal, zmin_slice, zmax_slice, filename):
 
+        """Mollweide sky map of the galaxies in a redshift slice."""
         mask = (z_gal > zmin_slice) & (z_gal < zmax_slice)
 
         ra_rad  = np.deg2rad(ra_deg[mask])
@@ -503,6 +513,7 @@ class Plotting:
 
     @staticmethod
     def angular_density_slice(zmin_slice, zmax_slice, ra_deg, dec_deg, z_gal, filename):
+        """Angular galaxy density in a redshift slice."""
         zmin_slice, zmax_slice = 0.5, 1.0
         mask = (z_gal > zmin_slice) & (z_gal < zmax_slice)
 
@@ -703,6 +714,7 @@ class Plotting:
     
     @staticmethod
     def plot_event_rates_hist_2d_waterfall(lgMBH_EMRI, z_EMRI, lgMBH_TDE, z_TDE, T_obs, filename):
+        """2D waterfall histogram of the event rates."""
         from matplotlib.colors import LogNorm
         from scipy.ndimage import gaussian_filter
 
@@ -807,6 +819,7 @@ class Plotting:
     @staticmethod
     def plot_MBH_vs_waterfall(lgMBH, z_gal, generated_EMRIs, generated_TDEs, T_obs, filename):
 
+        """MBH-mass waterfall of the generated events."""
         from matplotlib.colors import Normalize
         from matplotlib.colors import LogNorm
 
@@ -975,6 +988,7 @@ class Plotting:
             
     @staticmethod
     def plot_comparison_histogram(key, loc='.', x_label=None, model=None, **kwargs_sources):
+        """Compare the histogram of a key across the sources."""
         plt.figure(figsize=(8, 6))
         combined_data = []
         for label, df in kwargs_sources.items():
@@ -1009,6 +1023,7 @@ class Plotting:
     @staticmethod
     def plot_mass_functions(lgMgal_grid, phi_gsmf_grid, lgMBH_grid, phi_mbhmf_grid, z_grid, filename):
 
+        """Plot the galaxy and MBH mass functions."""
         from matplotlib.lines import Line2D
 
         cmap = plt.get_cmap('plasma')

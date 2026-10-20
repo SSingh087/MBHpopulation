@@ -47,6 +47,7 @@ args = parser.parse_args()
 
 
 def smart_format(q50, q_low, q_high, alpha=0.8):
+    """Format a median with asymmetric errors using a sensible number of digits."""
     err_minus = q50 - q_low
     err_plus = q_high - q50
     u = min(abs(err_minus), abs(err_plus))
@@ -75,6 +76,7 @@ def xlim_for_key(key, combos, truth, pad_frac=0.05):
 
 
 def save_fig(fig, base_path):
+    """Save the figure as PNG and PDF."""
     fig.savefig(f"{base_path}.png", dpi=300, bbox_inches="tight")
     fig.savefig(f"{base_path}.pdf", bbox_inches="tight")
     print(f"Saved: {base_path}.png / .pdf")
@@ -108,6 +110,7 @@ for c in combos:
 # 1D grid: any key at least one combo sampled -- per-panel skips are fine.
 # ════════════════════════════════════════════════════════════════════════════
 def make_1d_grid():
+    """Grid of 1D marginal posteriors."""
     keys = [k for k in labels_dict if any(k in c["samples"] for c in combos)]
     labels_post = [labels_dict[k] for k in keys]
     truths = [truths_dict[k] for k in keys]
@@ -166,6 +169,7 @@ def make_1d_grid():
 # common to EVERY loaded combo.
 # ════════════════════════════════════════════════════════════════════════════
 def make_2d_corner():
+    """2D corner plot of the posteriors."""
     keys = [k for k in labels_dict if all(k in c["samples"] for c in combos)]
     dropped = [k for k in labels_dict if k not in keys]
     if dropped:

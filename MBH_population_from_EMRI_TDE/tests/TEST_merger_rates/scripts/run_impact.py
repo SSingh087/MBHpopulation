@@ -62,6 +62,7 @@ GSMF = GalaxyStellarMassFunction()
 # Built once, reused everywhere -- avoids redundant integration.
 # ============================================================
 def build_density_tables(gsmf, z_min, z_max, n_z=600, n_points_mass=5000):
+    """Tabulate the galaxy and MBH number densities on redshift and mass grids."""
     z_table = np.linspace(z_min, z_max, n_z)
     lgM_grid, log10phi_grid = gsmf.get_gsmf(z_table, n_points_mass=n_points_mass)
     phi_grid = np.nan_to_num(10.0 ** log10phi_grid, nan=0.0, posinf=0.0, neginf=0.0)
@@ -233,6 +234,7 @@ combined_EMRI_weight = mc_weight_i_nuc * Gamma_EMRI_i
 combined_TDE_weight = mc_weight_i_nuc * Gamma_TDE_i
 
 def effective_sample_size(weights):
+    """Effective sample size of the importance weights."""
     w = np.asarray(weights, float)
     s = w.sum()
     if s <= 0:

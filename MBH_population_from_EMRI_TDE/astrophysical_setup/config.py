@@ -73,4 +73,5 @@ Msun = 1.0                            # Msun units (placeholder for consistency)
 # instead of np.random directly
 
 def default_rng(seed=None):
+    """Numpy random generator for the seed."""
     return np.random.default_rng(seed)

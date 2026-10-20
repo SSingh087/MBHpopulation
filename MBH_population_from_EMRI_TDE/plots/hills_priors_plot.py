@@ -10,9 +10,11 @@ C_UNI,C_FLC,C_SM="#2a78d6","#eb6834","#1baf7a"
 Rsun=6.957e10; rS=2.953e5; BMAX_PRIOR=30.0
 def bmax(lgM): return Rsun*(10**lgM)**(1/3)/(rS*10**lgM)           # r_p > r_S  (Stone & Metzger beta_max = Rt/2Rg)
 def tail_frac(bm):                                                  # fraction of beta^-2 on [1,30] below bm
+    """Fraction of the prior above bmax."""
     b=np.clip(bm,1,BMAX_PRIOR); return (1-1/b)/(1-1/BMAX_PRIOR)
 def f_pinhole(lgM): return np.clip(0.22*(10**(lgM-8))**-0.307,0,1)   # Stone & Metzger 2016 eq. 29
 def survive(lgM,prior):
+    """Fraction of events surviving the Hills cut for a prior."""
     bm=bmax(lgM)
     if prior=="uniform": return np.clip((np.clip(bm,1,BMAX_PRIOR)-1)/(BMAX_PRIOR-1),0,1)
     if prior=="flc":     return tail_frac(bm)

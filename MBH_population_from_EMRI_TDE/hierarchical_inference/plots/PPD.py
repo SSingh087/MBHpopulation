@@ -62,6 +62,7 @@ labels_dict = {
 
 
 def compute_hist(data, bins=50, log=False):
+    """Histogram of the draws on the given bins."""
     data = np.asarray(data)
     data = data[np.isfinite(data)]
     data = data[data > 0] if log else data

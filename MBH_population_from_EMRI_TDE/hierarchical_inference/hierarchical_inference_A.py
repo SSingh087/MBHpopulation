@@ -91,6 +91,7 @@ data_EMRI, data_TDE = {}, {}
 base = f'./data/pseudo_inference_data/{args.GALAXIES}'
 
 def load_torch(path):
+    """Load a torch tensor file."""
     return torch.load(path, map_location='cpu')
 
 emri_torch = load_torch(f'{base}/true_data_EMRI_pseudo_data_A_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
@@ -143,6 +144,7 @@ def ensure_min_events(data, min_events=2, label=""):
 
 
 def get_data(source):
+    """Load the detected-event posteriors for the source."""
     if source == 'TDE':
         return {'TDE': data_TDE}, 0, 1
     elif source == 'EMRI_TDE':
@@ -169,6 +171,7 @@ logger = setup_logger(output=output)
 # ── Model ─────────────────────────────────────────────────────────────────
 class PopulationModel(Model):
 
+    """Population likelihood and prior for the hierarchical inference."""
     def __init__(self, popdist):
         super().__init__()
         self.popdist = popdist
@@ -220,12 +223,14 @@ class PopulationModel(Model):
         return b
 
     def log_prior(self, x):
+        """Log prior of the hyperparameters."""
         log_p = np.log(self.in_bounds(x), dtype="float")
         for n in self.names:
             log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
         return log_p
 
     def EMRI_likelihood(self, x):
+        """EMRI log-likelihood including the selection effect."""
         if not has_EMRI:
             return 0.0
         pdf_mass = self.dist_lgMBH.pdf(
@@ -254,6 +259,7 @@ class PopulationModel(Model):
         return logL.item()
 
     def TDE_likelihood(self, x):
+        """TDE log-likelihood including the selection effect."""
         if not has_TDE:
             return 0.0
         pdf_mass = self.dist_lgMBH.pdf(
@@ -273,6 +279,7 @@ class PopulationModel(Model):
 
     @torch.inference_mode()
     def log_likelihood(self, x):
+        """Total log-likelihood of the enabled sources."""
         if isinstance(x, (np.void, np.ndarray)):
             x = {n: np.ascontiguousarray(x[n], dtype=np.float32) for n in x.dtype.names}
         x = {k: torch.from_numpy(np.ascontiguousarray(v, dtype=np.float32))

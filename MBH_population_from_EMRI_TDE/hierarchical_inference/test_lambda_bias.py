@@ -78,6 +78,7 @@ def to_weights(x):
 
 
 def logL_grid(W, chunk=4000):
+    """Log-likelihood evaluated on the lambda grid."""
     L = np.zeros(F.shape[1])
     for s in range(0, W.shape[0], chunk):
         L += np.log(W[s:s + chunk] @ F + 1e-30).sum(0, dtype=np.float64)

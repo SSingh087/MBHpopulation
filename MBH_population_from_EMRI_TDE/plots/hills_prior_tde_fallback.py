@@ -25,6 +25,7 @@ for S in ["ZTF","LSST"]:
     # priors in beta-bin space (probability per bin), cut applied via beta<=beta_max(M)
     BW=np.diff(BE)
     def prior(name,M0):
+        """Beta prior of the named scheme."""
         w=np.zeros(len(bc))
         hi=4.0
         if name=="current":   # bb uniform -> density in beta

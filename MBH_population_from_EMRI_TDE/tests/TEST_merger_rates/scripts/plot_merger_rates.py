@@ -31,6 +31,7 @@ z = np.linspace(0, 10, 500)
 
 
 def lines(ax, f, **kw):
+    """Draw the rate curves."""
     for k, m in M.items():
         if k not in STYLE: continue
         c, ls, lw = STYLE[k]

@@ -44,6 +44,7 @@ SIGMA_RATIO_GRID = np.array([0.464, 0.681, 1.0, 1.468])  # ConstantRate's own gr
 
 
 def broggi_sigma0(MBH):
+    """Reference velocity dispersion of Broggi et al."""
     return BROGGI_SIGMA0 * (MBH / BROGGI_MBH_PIVOT) ** BROGGI_INV_SLOPE
 
 

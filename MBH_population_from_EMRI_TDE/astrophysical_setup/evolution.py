@@ -63,6 +63,7 @@ class CuspEvolution:
         return self.rate_model.time_to_peak_EMRI_rate()
     
     def Gamma_hat(self, kind: str = 'EMRI'):
+        """Dimensionless event rate versus cusp age."""
         if kind.upper() == 'EMRI':
             return self.rate_model.peak_EMRI_rate()
         elif kind.upper() == 'TDE':
@@ -73,6 +74,7 @@ class CuspEvolution:
     def evaluate_tau(self, kvir):
 
         
+        """Cusp age in units of the rate-model timescale."""
         T_c_array = self.cusp_age(kvir=kvir)
 
         t_EMRI_array = self.t_EMRI()
@@ -160,6 +162,7 @@ class CuspEvolution:
 
         # N_expected = self.expected_objects_in_time_full_integration(T_obs=T_obs, kvir=kvir, A=A, B=B, sigma_0=sigma_0, MBH_scatter=MBH_scatter, n_grid=n_grid, kind=kind)
 
+        """Expected number of events in T_obs from the time-dependent rate."""
         N_expected = self.expected_objects_in_time(T_obs=T_obs, kvir=kvir, kind=kind) 
 
         return np.random.poisson(N_expected)
@@ -182,5 +185,6 @@ class CuspEvolution:
             return rate_Gyr_inv * T_obs_Gyr * active / (1.0 + self.nsc.gal.z_gal)
 
     def number_of_objects_in_time_constant_rate(self, T_obs_yr, kvir: float = 1.0, kind: str = 'EMRI', RateModel: ConstantRate = None):
+        """Expected number of events in T_obs from the constant (time-averaged) rate."""
         N_expected = self.expected_objects_in_time_constant_rate(T_obs_yr=T_obs_yr, kvir=kvir, kind=kind, RateModel=RateModel)
         return np.random.poisson(N_expected)

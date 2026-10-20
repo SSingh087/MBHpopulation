@@ -30,6 +30,7 @@ SOURCE_SURVEY_COMBOS = [
 
 
 def result_path(base_dir: str, source: str, survey: str, population: str) -> str:
+    """Path of the inference result for a source/survey/population."""
     return f"{base_dir}/{source}_pop_{population}_{survey}/result.hdf5"
 
 

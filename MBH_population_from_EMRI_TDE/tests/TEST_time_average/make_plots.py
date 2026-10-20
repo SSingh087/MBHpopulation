@@ -44,6 +44,7 @@ fig.tight_layout(); fig.savefig(OUT + "fig1_curves_and_cumulative.png", dpi=170)
 # ---------- fig 2
 fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.4))
 def avg_ratio(tf):
+    """Ratio of instantaneous to time-averaged counts for cusp age tf."""
     m = tau <= tf; return np.trapz(fT[m], tau[m]) / np.trapz(fE[m], tau[m])
 tt = np.linspace(0.1, 15, 400); inst = U.TDE_rate(tt) / U.EMRI_rate(tt)
 a = ax[0]; a.plot(tt, inst, color=INK, lw=2); a.set_yscale("log")
@@ -65,6 +66,7 @@ fig.tight_layout(); fig.savefig(OUT + "fig2_ratio_and_boost.png", dpi=170); plt.
 d = np.load("tests/TEST_time_average/time_avg_200k.npz"); z, w = d["z"], d["w"]
 fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.4))
 def cdf(lam):
+    """Cumulative redshift distribution for rate lam."""
     W = w * lam; o = np.argsort(z); c = np.cumsum(W[o]); return z[o], c / c[-1]
 for a, kind, col in [(ax[0], "TDE", ORANGE), (ax[1], "EMRI", BLUE)]:
     for key, ls, lab in [("lam_td", "-", "time-dependent"), ("lam_avg", "--", "time-averaged")]:
@@ -90,6 +92,7 @@ fig.tight_layout(); fig.savefig(OUT + "fig4_cutoff_test.png", dpi=170); plt.clos
 # ---------- fig 5: median redshift of expected events by black-hole mass
 edges = [4, 5, 6, 7]; cen = [4.5, 5.5, 6.5]
 def wmed(x, W):
+    """Weighted median."""
     o = np.argsort(x); c = np.cumsum(W[o]); return x[o][np.searchsorted(c, .5 * c[-1])] if c[-1] > 0 else np.nan
 fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.2), sharey=True)
 for a, kind, col in [(ax[0], "TDE", ORANGE), (ax[1], "EMRI", BLUE)]:

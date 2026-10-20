@@ -23,6 +23,7 @@ cusp_evolution_object.cusp_turn_on_time(kvir=1.0)  # keep the already-sampled tu
 active = (np.atleast_1d(cusp_evolution_object.cusp_age(kvir=1.0)) < t_rlx_Gyr).astype(float)
 
 def wq(x, ww, q):
+    """Weighted quantile."""
     o = np.argsort(x); c = np.cumsum(ww[o]); return float(x[o][np.searchsorted(c, q * c[-1])])
 
 res = {}; dump = dict(z=z, w=w, active=active, mask=MBH_MASK, lgMBH=gal_obj.lgMBH_mass)

@@ -91,6 +91,7 @@ beta_min, beta_max = args.beta
 
 
 def loguniform(low, high, size, rng):
+    """Log-uniform samples between low and high."""
     return np.exp(rng.uniform(np.log(low), np.log(high), size))
 
 

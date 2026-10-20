@@ -66,6 +66,7 @@ os.makedirs(outdir, exist_ok=True)
 
 # ---------------------------------------------------------------- helpers
 def smart_format(q50, q_low, q_high, alpha=0.8):
+    """Format a median with asymmetric errors using a sensible number of digits."""
     err_minus = q50 - q_low
     err_plus = q_high - q50
     u = min(abs(err_minus), abs(err_plus))
@@ -78,6 +79,7 @@ def smart_format(q50, q_low, q_high, alpha=0.8):
 
 
 def compute_hist(data, bins=50, log=False):
+    """Histogram of the draws on the given bins."""
     data = np.asarray(data)
     data = data[np.isfinite(data)]
     data = data[data > 0] if log else data

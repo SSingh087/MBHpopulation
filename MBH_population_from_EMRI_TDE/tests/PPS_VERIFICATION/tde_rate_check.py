@@ -39,6 +39,7 @@ sigma_ratios = [0.464, 0.681, 1.0, 1.468]
 
 
 def km_s_to_pc_yr(sigma_km_s):
+    """Convert km/s to pc/yr."""
     return sigma_km_s * 1e5 * sec_per_year / pc_to_cm
 
 

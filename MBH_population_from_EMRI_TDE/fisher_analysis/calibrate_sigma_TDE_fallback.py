@@ -146,6 +146,7 @@ print(f"[INFO] chunk {args.CHUNK}/{args.N_CHUNKS}: {len(sel)} events")
 
 # ── model evaluation ──────────────────────────────────────────────────────────
 def build_theta(i):
+    """Build the light-curve parameter dict for event i."""
     t0 = float(events["t0"][i])
     return {
         "redshift": float(events["z"][i]), "t0_mjd_transient": t0, "t0": t0,
@@ -173,6 +174,7 @@ def observe(theta):
 
 
 def model_mags(theta, band, times):
+    """Model magnitudes of the TDE light curve for one band."""
     o = SimulateGenericTransient(model="tde_fallback", parameters=theta, times=times,
                                  data_points=len(times),
                                  model_kwargs={'bands': (band,), 'output_format': 'magnitude'},
@@ -189,6 +191,7 @@ def shifted(theta, name, kind, du):
 
 
 def fisher(theta, obs, step_mult=1.0):
+    """Numerical Fisher matrix of the TDE light curve."""
     F = np.zeros((P, P))
     for b, (times, err) in obs.items():
         J = np.zeros((P, len(times)))
@@ -204,6 +207,7 @@ def fisher(theta, obs, step_mult=1.0):
 
 
 def covariance(F, with_prior=True):
+    """Covariance matrix from the Fisher matrix, optionally with priors."""
     Ft = F + np.diag(PRIOR_PREC) if with_prior else F
     return np.linalg.pinv(0.5 * (Ft + Ft.T)), np.linalg.cond(Ft)
 

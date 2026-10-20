@@ -20,6 +20,7 @@ data_inj_params_COMBINED = load(f'{output_dir}/injection_params_COMBINED.npy')
 
 
 def minmax_scale(x, min_val, max_val):
+    """Scale x to [0, 1] given its bounds."""
     return (x - min_val) / (max_val - min_val)
 
 

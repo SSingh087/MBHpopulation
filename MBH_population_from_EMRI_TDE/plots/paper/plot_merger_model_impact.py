@@ -38,6 +38,7 @@ SCENARIOS = [
 
 
 def collect(dfs, col):
+    """Collect a column across the data frames."""
     out = {}
     for m in MODELS:
         df = dfs[m]
@@ -48,6 +49,7 @@ def collect(dfs, col):
 
 
 def boxplot_panel(ax, data, ylabel):
+    """Box-plot panel of the data."""
     n_model = len(MODELS)
     width = 0.8 / n_model
     base = np.arange(len(SCENARIOS))

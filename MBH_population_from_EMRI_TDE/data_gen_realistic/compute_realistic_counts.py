@@ -62,11 +62,13 @@ SCENARIO_NAME_MAP = {s: f"M{i+1}" for i, s in enumerate(SCENARIOS)}
 
 
 def scenario_tag(scenario):
+    """Short tag identifying a scenario."""
     # (mbh, nuc, occ) + merger model, matching data_generation/*.py file names
     return "_".join(tuple(scenario) + (MERGER_MODEL,))
 
 
 def discover_universes(glob_pattern):
+    """List the universe indices matching a file glob."""
     idx = []
     for p in glob.glob(glob_pattern):
         m = re.search(r"_(\d+)\.h5$", os.path.basename(p))
@@ -76,6 +78,7 @@ def discover_universes(glob_pattern):
 
 
 def counts_for(glob_pattern):
+    """Detected-event counts per universe for the files matching the glob."""
     universes = discover_universes(glob_pattern)
     counts = []
     for u in universes:

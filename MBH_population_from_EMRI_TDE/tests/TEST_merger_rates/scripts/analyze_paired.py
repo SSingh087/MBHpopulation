@@ -15,6 +15,7 @@ plt.rcParams.update({"figure.facecolor": "#fcfcfb", "axes.facecolor": "#fcfcfb",
     "grid.linewidth": .6, "axes.spines.top": False, "axes.spines.right": False, "xtick.color": MUT, "ytick.color": MUT, "legend.frameon": False, "font.size": 11})
 
 def tde_contrib(z, k):   # per-galaxy expected TDE contribution, and active mask, for variant k
+    """TDE contribution at redshift z."""
     a = (z[k + "|T_c"] < z["t_rlx"]).astype(float)
     g = np.where(z["mask"], z["rate_TDE"] * float(z["T_obs_TDE"]) * a / (1 + z["z"]), 0.0)
     return z["w"] * g, a

@@ -26,6 +26,7 @@ def best(L, XC, LAM):
 
 
 def fmt(b):
+    """Format a value for output."""
     return "(" + ",".join(f"{v:.2f}" for v in b) + ")"
 
 

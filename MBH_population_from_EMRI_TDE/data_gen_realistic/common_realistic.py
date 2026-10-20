@@ -59,11 +59,13 @@ MERGER_MODEL = None
 
 
 def set_merger_model(mm):
+    """Select the galaxy merger-rate model by name."""
     global MERGER_MODEL
     MERGER_MODEL = mm
 
 
 def scenario_tag(scenario):
+    """Short tag identifying a scenario."""
     mbh, nuc, occ = scenario
     if MERGER_MODEL is None:
         raise RuntimeError("call common_realistic.set_merger_model(args.merger_model) first")
@@ -90,6 +92,7 @@ def discover_universes(glob_pattern):
 
 
 def tde_snr_path(astro_dir, galaxies, survey, scenario, tde_model, universe, realistic=False):
+    """Path of the TDE SNR file of a scenario."""
     tag = scenario_tag(scenario)
     fname = f"TDE_SNRs_{survey}_{tag}_{tde_model}_{universe}.h5"
     if realistic:
@@ -98,6 +101,7 @@ def tde_snr_path(astro_dir, galaxies, survey, scenario, tde_model, universe, rea
 
 
 def emri_snr_path(astro_dir, galaxies, scenario, universe, realistic=False):
+    """Path of the EMRI SNR file of a scenario."""
     tag = scenario_tag(scenario)
     if realistic:
         return os.path.join(astro_dir, str(galaxies), "realistic",
@@ -114,6 +118,7 @@ def load_h5_catalog(path):
 
 
 def redshift_bin_edges(z, n_bins=N_REDSHIFT_BINS_DEFAULT):
+    """Redshift bin edges with n_bins bins."""
     if len(z) == 0:
         return np.linspace(0.0, 1.0, n_bins + 1)
     z_max = max(float(np.max(z)), 1e-6)
@@ -157,6 +162,7 @@ def thin_by_redshift_bin(z, keep_prob, bin_edges, rng):
 
 
 def save_thinned_h5(out_path, data, attrs, keep_mask, extra_attrs=None):
+    """Write the subset of events selected by keep_mask to an HDF5 file."""
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with h5py.File(out_path, "w") as f:
         for k, v in attrs.items():

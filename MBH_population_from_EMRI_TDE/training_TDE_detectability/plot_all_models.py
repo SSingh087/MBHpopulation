@@ -68,6 +68,7 @@ _FITTED_MODELS = {"fitted", "fitted_exp_decay", "fitted_pl_decay"}
 
 
 def get_tde_model_names():
+    """Names of the available redback TDE models."""
     names = [
         name for name, obj in inspect.getmembers(tde_models, inspect.isfunction)
         if not name.startswith("_") and obj.__module__ == tde_models.__name__
@@ -110,6 +111,7 @@ def _is_network_error(exc):
 
 
 def plot_model(model_name, ax, bands_list, band_colors, time_days):
+    """Plot one TDE model's light curves."""
     func = getattr(tde_models, model_name)
     params = sample_fixed_parameters(model_name)
 
@@ -179,6 +181,7 @@ def plot_model(model_name, ax, bands_list, band_colors, time_days):
 # Write one table of all models' fixed parameters (blank where unused)
 # ----------------------------------------------------------------------
 def write_parameter_table(model_names, out_path=f"{OUTDIR}/model_parameters.txt"):
+    """Write the parameter table of the models."""
     per_model_params = {name: sample_fixed_parameters(name) for name in model_names}
 
     all_keys = sorted({key for params in per_model_params.values() for key in params})
@@ -188,6 +191,7 @@ def write_parameter_table(model_names, out_path=f"{OUTDIR}/model_parameters.txt"
     col_width = max(col_width, 12)
 
     def fmt(value):
+        """Format a value for output."""
         if value is None:
             return ""
         if isinstance(value, float):
@@ -214,6 +218,7 @@ def write_parameter_table(model_names, out_path=f"{OUTDIR}/model_parameters.txt"
 # Main: one figure per survey, one subplot per model (grid layout)
 # ----------------------------------------------------------------------
 def make_survey_figure(survey_name, survey_cfg, model_names):
+    """Figure of all models for a survey."""
     bands_list = survey_cfg["bands"]
     band_colors = survey_cfg["colors"]
     time_days = survey_cfg["time_days"]

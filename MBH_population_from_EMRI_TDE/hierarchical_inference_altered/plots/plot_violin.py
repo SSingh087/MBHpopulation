@@ -62,6 +62,7 @@ base_dir = f"./data/altered_inference_data/pseudo_inference_data/{args.GALAXIES}
 
 
 def save_fig(fig, base_path):
+    """Save the figure as PNG and PDF."""
     fig.savefig(f"{base_path}.png", dpi=300, bbox_inches="tight")
     fig.savefig(f"{base_path}.pdf", bbox_inches="tight")
     print(f"Saved: {base_path}.png / .pdf")
@@ -110,11 +111,13 @@ def shared_params_for(df, labels_by_pop, pops_present):
 
 
 def combo_order_for(combo_labels_present):
+    """Order the source/survey combos for plotting."""
     return [label for (_src, _srv, label, _color) in SOURCE_SURVEY_COMBOS if label in combo_labels_present]
 
 
 def make_violin_grid(df, shared_params, combo_order, labels_by_pop, pops, split,
                       truths_by_pop=None, title_suffix=""):
+    """Grid of violin plots across parameters and combos."""
     n_rows = len(shared_params)
     fig, axes = plt.subplots(n_rows, 1, figsize=(2.2 * len(combo_order), 3.2 * n_rows), squeeze=False)
     axes = axes[:, 0]

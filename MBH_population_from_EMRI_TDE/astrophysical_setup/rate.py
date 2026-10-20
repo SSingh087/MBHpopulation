@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from scipy.interpolate import RegularGridInterpolator
 
 class RateModel:
+    """Base class for event-rate models as a function of cusp age."""
     def __init__(self, nsc: NSC):
         self.nsc = nsc
         self.gal = nsc.gal
@@ -118,6 +119,7 @@ class UniversalRate:
 
 class ConstantRate:
 
+    """Time-averaged constant-rate model."""
     # 7 MBH masses, log-evenly spaced 1e4 - 1e7 Msun
     _log10_MBH_grid = np.log10(np.array([1e4, 3e4, 1e5, 3e5, 1e6, 3e6, 1e7]))
 
@@ -178,6 +180,7 @@ class ConstantRate:
         return BROGGI_SIGMA0 * (MBH / BROGGI_MBH_PIVOT) ** BROGGI_INV_SLOPE
 
     def constant_rate(self, kind: str = 'EMRI'):
+        """Constant rate for the given event kind."""
         MBH = 10.0 ** np.atleast_1d(self.nsc.gal.lgMBH_mass)
         in_range = (MBH >= 1e4) & (MBH <= 1e7)
 

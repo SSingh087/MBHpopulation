@@ -102,19 +102,23 @@ NAME_TO_SCENARIO = {v: k for k, v in SCENARIO_NAME_MAP.items()}
 
 
 def model_name(mbh, nuc, occ):
+    """Paper model name of a scenario."""
     return SCENARIO_NAME_MAP[(mbh, nuc, occ)]
 
 
 def mbh_mass_latex(mbh):
+    """LaTeX label of the MBH-mass relation."""
     return r"$M_\bullet$--$M_\star$" if mbh == "use_lgMgal" else r"$M_\bullet$--$\sigma$"
 
 
 def nucleation_latex(nuc):
+    """LaTeX label of the nucleation model."""
     return (r"Hannah et al. \citep{Hannah:2024dmr}" if nuc == "hannah"
             else r"Neumayer et al. \citep{Neumayer:2020gno}")
 
 
 def occupation_latex(occ):
+    """LaTeX label of the occupation model."""
     return (r"Uniform ($f_\mathrm{occ}=1$)" if occ == "uniform"
             else r"Varying \citep{2025ApJ...992..176Z}")
 
@@ -142,6 +146,7 @@ CHANNEL_MARKERS = {
 
 
 def scenario_tag(mbh, nuc, occ):
+    """Short tag identifying a scenario."""
     return f"{mbh}_{nuc}_{occ}"
 
 
@@ -158,9 +163,11 @@ def sci_latex(x, sig=3):
 # Single source of truth for the universe-tagged filenames -- change
 # these if your actual naming pattern differs.
 def emri_snr_path(base, mbh, nuc, occ, mm, u):
+    """Path of the EMRI SNR file of a scenario."""
     return f"{base}/EMRI_SNRs_data_{mbh}_{nuc}_{occ}_{mm}_{u}.h5"
 
 def tde_snr_path(base, survey, mbh, nuc, occ, mm, model, u):
+    """Path of the TDE SNR file of a scenario."""
     return f"{base}/TDE_SNRs_{survey}_{mbh}_{nuc}_{occ}_{mm}_{model}_{u}.h5"
 
 def zscore(value, mean, var):
@@ -381,6 +388,7 @@ def main():
     #    logic as the per-TDE-model selection, just without the per-model
     #    split. ──
     def overall_scenario_channel_cells(u):
+        """Detected counts per scenario and channel for universe u."""
         cells = []
         for tag, rows_by_universe in per_scenario_rows.items():
             row = rows_by_universe.get(u)
@@ -393,6 +401,7 @@ def main():
         return cells
 
     def overall_score(u):
+        """Maximin score of universe u."""
         cells = overall_scenario_channel_cells(u)
         values = [c[0] for c in cells]
         bottleneck = min(cells, key=lambda c: c[0])
@@ -427,6 +436,7 @@ def main():
     #    all scenarios/occupation methods), the TDE side is scored and
     #    selected independently per redback model.
     def scenario_channel_cells(u, model):
+        """Detected counts per scenario and channel for universe u and TDE model."""
         cells = []
         for tag, rows_by_universe in per_scenario_rows.items():
             row = rows_by_universe.get(u)
@@ -439,6 +449,7 @@ def main():
         return cells
 
     def score(u, model):
+        """Maximin score of universe u for the TDE model."""
         cells = scenario_channel_cells(u, model)
         values = [c[0] for c in cells]
         bottleneck = min(cells, key=lambda c: c[0])
@@ -690,6 +701,7 @@ def main():
     ]
 
     def best_and_z(u, key, mean, var):
+        """Best value and its z-score."""
         row = per_scenario_rows.get(tag, {}).get(u)
         if row is None:
             return None, float("nan")
@@ -722,6 +734,7 @@ def main():
         counts_table_lines.append(line)
 
         def fmt_best(best, z):
+            """Format the best value with its z-score."""
             if best is None:
                 return "\\text{--}"
             zs = "\\text{NaN}" if z != z else f"{z:+.2f}"
@@ -914,6 +927,7 @@ def main():
     ]
 
     def fmt_best_ratio(best, z):
+        """Format the best ratio with its z-score."""
         if best is None:
             return "\\text{--}"
         zs = "\\text{NaN}" if z != z else f"{z:+.2f}"
@@ -974,6 +988,7 @@ def main():
               f"TDE-LSST={args.OBSERVED_TDE_LSST} ===")
 
         def poisson_logpmf(k, lam):
+            """Poisson log pmf."""
             if lam <= 0:
                 return float("-inf") if k > 0 else 0.0
             return k * math.log(lam) - lam - math.lgamma(k + 1)

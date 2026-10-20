@@ -75,6 +75,7 @@ MAP = SHARED_PARAM_MAP[MODEL_NAME]
 
 def run_telescope_simulator(theta):
 
+    """Simulate survey observations of a TDE."""
     sim = SIMULATE_FN(
         model=MODEL_NAME,
         survey=SURVEY,

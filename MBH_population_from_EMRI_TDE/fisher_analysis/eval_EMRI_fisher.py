@@ -90,6 +90,7 @@ def make_posteriors(data: dict, n_samples: int, sigma: float) -> dict:
 
 
 def save_h5(path: str, datasets: dict, label: str = "", **attrs):
+    """Save the datasets to an HDF5 file."""
     with h5py.File(path, "w") as hf:
         for key, arr in datasets.items():
             hf.create_dataset(key, data=arr, compression="gzip")
@@ -99,6 +100,7 @@ def save_h5(path: str, datasets: dict, label: str = "", **attrs):
 
 
 def save_pt(path: str, datasets: dict, label: str = ""):
+    """Save the datasets as torch tensors."""
     torch.save(
         {k: torch.from_numpy(np.asarray(arr, dtype=np.float32))
          for k, arr in datasets.items()},

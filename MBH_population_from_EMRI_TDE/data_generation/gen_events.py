@@ -43,6 +43,7 @@ GSMF = GalaxyStellarMassFunction()
 # Built once, reused everywhere -- avoids redundant integration.
 # ============================================================
 def build_density_tables(gsmf, z_min, z_max, n_z=300, n_points_mass=1000):
+    """Tabulate the galaxy and MBH number densities on redshift and mass grids."""
     z_table = np.linspace(z_min, z_max, n_z)
     lgM_grid, log10phi_grid = gsmf.get_gsmf(z_table, n_points_mass=n_points_mass)
     phi_grid = np.nan_to_num(10.0 ** log10phi_grid, nan=0.0, posinf=0.0, neginf=0.0)
@@ -96,6 +97,7 @@ print(f"mc_weight_i range: [{mc_weight_i.min():.3e}, {mc_weight_i.max():.3e}], "
 # EMRI eccentricity model
 # ============================================================
 def emri_parameters(M):
+    """EMRI rate and mass parameters for MBH mass M."""
     lgM = np.log10(M)
     alpha1 = max(4.0 + 0.5 * (lgM - 6), 1.0)
     beta1 = max(10.0 - 0.8 * (lgM - 6), 1.0)
@@ -107,6 +109,7 @@ def emri_parameters(M):
 
 
 def sample_emri_eccentricity(M, size=1, rng=rng):
+    """Sample EMRI eccentricities at plunge for MBH mass M."""
     a1, b1, a2, b2, w = emri_parameters(M)
     is_classical = rng.random(size) < w
     e = np.zeros(size)
@@ -163,6 +166,7 @@ combined_EMRI_weight = mc_weight_i_nuc * Gamma_EMRI_i
 combined_TDE_weight = mc_weight_i_nuc * Gamma_TDE_i
 
 def effective_sample_size(weights):
+    """Effective sample size of the importance weights."""
     w = np.asarray(weights, float)
     s = w.sum()
     if s <= 0:
@@ -193,6 +197,7 @@ N_TDE_events = int(round(Lambda_TDE_tot))
 # PPS resampling using the combined weight (importance * rate)
 # ============================================================
 def pps_resample(weights, n_draws, rng):
+    """Probability-proportional-to-size resampling of galaxy indices."""
     w = np.asarray(weights, float)
     total = w.sum()
     if total <= 0 or n_draws <= 0:
@@ -255,6 +260,7 @@ hf.attrs['star_mass'] = CO_objs.masses['star']
 # ============================================================
 
 def build_event_catalog(idx, rng):
+    """Build the EMRI/TDE event catalogue for the selected galaxies."""
     if len(idx) == 0:
         return None, None
     lgMgal_event = lgMgal_samples[nucleation_indices][idx]

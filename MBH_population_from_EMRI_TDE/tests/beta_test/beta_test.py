@@ -56,16 +56,19 @@ a = p.parse_args()
 
 
 def beta_max(lgM, mstar):
+    """Maximum beta allowed by the Hills cut."""
     rstar = RSUN_KM * mstar**0.8
     rt = rstar * (10**lgM / mstar) ** (1 / 3)
     return np.clip(rt / (2 * GM_C2_KM * 10**lgM), BETA_MIN * 1.0001, None)
 
 
 def f_pinhole(lgM):
+    """Pinhole (loss-cone) fraction versus MBH mass."""
     return np.clip(0.22 * (10**lgM / 1e8) ** -0.307, 0, 1)
 
 
 def draw_beta(scheme, lgM, mstar, rng):
+    """Draw beta under the chosen prior scheme."""
     n = len(lgM); bmax = np.minimum(beta_max(lgM, mstar), BETA_MAX_TRAIN)
     inv = lambda: 1.0 / rng.uniform(1.0 / bmax, 1.0 / BETA_MIN)   # beta^-2 on [BETA_MIN,bmax]
     if scheme == "uniform": return rng.uniform(BETA_MIN, BETA_MAX_TRAIN, n)

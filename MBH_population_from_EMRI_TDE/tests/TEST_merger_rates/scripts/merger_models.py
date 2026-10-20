@@ -40,10 +40,12 @@ class _PowerLaw(LastMajorMerger):
     label = "baseline"
 
     def lambda_MM(self, z):
+        """Major-merger rate at redshift z."""
         return self.R0 * (1.0 + np.asarray(z)) ** self.m
 
 
 class Baseline(_PowerLaw):
+    """Original 0.25 (1+z)^2 merger rate."""
     label = r"Baseline $0.25(1+z)^{2}$"
 
 
@@ -54,6 +56,7 @@ class NoMerger(_PowerLaw):
 
 
 class Duan24_PL(_PowerLaw):
+    """Duan et al. 2024 power-law merger rate."""
     R0, m = 0.013, 2.818
     label = r"Duan+24 $0.013(1+z)^{2.818}$"
 
@@ -64,16 +67,19 @@ class Duan24_PLexp(LastMajorMerger):
     label = r"Duan+24 PL+exp"
 
     def lambda_MM(self, z):
+        """Major-merger rate at redshift z."""
         x = 1.0 + np.asarray(z)
         return self.F0 * x ** self.M * np.exp(self.TAU * x)
 
 
 class Mundy17(_PowerLaw):
+    """Mundy et al. 2017 merger rate."""
     R0, m = 1.8e-2, 1.3
     label = r"Mundy+17 $0.018(1+z)^{1.3}$"
 
 
 class Mundy17_n5e4(_PowerLaw):
+    """Mundy et al. 2017 merger rate with a fixed density of 5e4."""
     R0, m = 2.0e-2, 1.4
     label = r"Mundy+17 $0.020(1+z)^{1.4}$"
 
@@ -88,6 +94,7 @@ class OLeary21(LastMajorMerger):
         self.label = rf"O'Leary+21 EMERGE $M_*\geq10^{{{logM_cut}}}$"
 
     def lambda_MM(self, z):
+        """Major-merger rate at redshift z."""
         x = 1.0 + np.asarray(z)
         return self.alpha * x ** self.m * np.exp(self.beta * x)
 
@@ -102,12 +109,15 @@ class _MassDependent(LastMajorMerger):
     _lgM = None
 
     def set_mass(self, lgMgal):
+        """Set the galaxy stellar mass."""
         self._lgM = np.asarray(lgMgal, float)
 
     def rate(self, z, lgM):
+        """Merger rate at redshift z and mass lgM."""
         raise NotImplementedError
 
     def lambda_MM(self, z):
+        """Major-merger rate at redshift z."""
         z = np.asarray(z)
         if self._lgM is None:
             raise RuntimeError("call set_mass(lgMgal) first")
@@ -121,6 +131,7 @@ class BaselineDocstringM(_MassDependent):
     label = r"Baseline + docstring $m(M)$"
 
     def rate(self, z, lgM):
+        """Merger rate at redshift z and mass lgM."""
         return 0.25 * (1.0 + np.asarray(z)) ** (2.0 + 0.3 * (lgM - 10.0))
 
 
@@ -134,6 +145,7 @@ class OLeary21Mass(_MassDependent):
     _K = np.array(sorted(OLEARY_TABLE3))
 
     def rate(self, z, lgM):
+        """Merger rate at redshift z and mass lgM."""
         tab = np.array([OLEARY_TABLE3[k] for k in self._K])
         la, m, b = (np.interp(lgM, self._K, tab[:, i]) for i in range(3))
         x = 1.0 + np.asarray(z)
@@ -141,6 +153,7 @@ class OLeary21Mass(_MassDependent):
 
 
 def make_models(cosmo=None):
+    """Instantiate all merger models."""
     cosmo = cosmo or CosmologyModel()
     return {
         "repo":          LastMajorMerger(cosmo),   # untouched repo class, for equality checks

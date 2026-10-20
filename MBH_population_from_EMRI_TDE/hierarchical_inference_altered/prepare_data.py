@@ -33,9 +33,11 @@ theta0_TDE_final_ZTF = {}
 theta0_TDE_final_LSST = {}
 
 def to_numpy(x):
+    """Convert to a numpy array."""
     return np.asarray(x, dtype=np.float32)
 
 def to_torch(x, device="cpu"):
+    """Convert to a torch tensor."""
     return torch.as_tensor(x, dtype=torch.float32, device=device)
 
 

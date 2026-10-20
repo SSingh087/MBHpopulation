@@ -67,30 +67,37 @@ POPULATIONS = ["A", "B"]
 
 
 def data_job_name(population, mbh, nuc, occ):
+    """Condor job name for data preparation."""
     return f"make_pseudo_data_{population}_{mbh}_{nuc}_{occ}"
 
 
 def infer_job_name(source, population, survey, mbh, nuc, occ):
+    """Condor job name for an inference run."""
     return f"infer_{source}_{population}_{survey}_{mbh}_{nuc}_{occ}"
 
 
 def posterior_job_name(population, mbh, nuc, occ):
+    """Condor job name for posterior plots."""
     return f"posterior_{population}_{mbh}_{nuc}_{occ}"
 
 
 def violin_scenario_job_name(mbh, nuc, occ):
+    """Condor job name for a per-scenario violin plot."""
     return f"violin_{mbh}_{nuc}_{occ}"
 
 
 def violin_all_job_name():
+    """Condor job name for the all-scenario violin plot."""
     return "violin_all"
 
 
 def ppd_job_name(population, mbh, nuc, occ):
+    """Condor job name for the PPD plot."""
     return f"ppd_{population}_{mbh}_{nuc}_{occ}"
 
 
 def main():
+    """Build and write the DAG."""
     lines = []
 
     lines.append("# ============= MAKE DATA (one per population x scenario) =========")

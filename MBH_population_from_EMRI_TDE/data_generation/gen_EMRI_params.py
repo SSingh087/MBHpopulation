@@ -92,6 +92,7 @@ Phi_r0_samples = rng.uniform(Phi_r0_min, Phi_r0_max, size=n_events)
 traj = EMRIInspiral(func=_ODE_FUNC)
 
 def compute_e0_p0_backward(M, mu, a, e_plunge, x0, T_years, dt):
+    """Integrate backward from plunge to get the initial eccentricity and semi-latus rectum."""
     p_plunge = get_separatrix(a, e_plunge, x0)
     t, p, e, x, Phi_phi, Phi_theta, Phi_r = traj(
         M, mu, a, p_plunge, e_plunge, x0,

@@ -50,6 +50,7 @@ f_occ = _f_occupation_varying_(lgMgal_grid)  # same lgMgal grid MBHMassFunction 
 
 
 def integrate(logM_lo, logM_hi, phi_raw_z, phi_occ_z):
+    """Integrated number of MBHs between logM_lo and logM_hi."""
     mask = (logMBH_grid >= logM_lo) & (logMBH_grid <= logM_hi)
     N_raw = np.trapz(phi_raw_z[mask], logMBH_grid[mask])
     N_occ = np.trapz(phi_occ_z[mask], logMBH_grid[mask])

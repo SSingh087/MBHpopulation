@@ -251,6 +251,7 @@ def make_posteriors(data: dict, n_samples: int, sigma_dict: dict, bounds_dict: d
 
 # ── HDF5 / torch helpers ──────────────────────────────────────────────────
 def save_h5(path: str, datasets: dict, label: str = ""):
+    """Save the datasets to an HDF5 file."""
     with h5py.File(path, 'w') as hf:
         for key, arr in datasets.items():
             hf.create_dataset(key, data=arr)
@@ -258,6 +259,7 @@ def save_h5(path: str, datasets: dict, label: str = ""):
 
 
 def save_pt(path: str, datasets: dict, label: str = ""):
+    """Save the datasets as torch tensors."""
     torch.save(
         {k: torch.from_numpy(arr) for k, arr in datasets.items()},
         path
@@ -302,6 +304,7 @@ def internal_to_raw(data: dict) -> dict:
 
 
 def process_tde_survey(survey: str, cat: dict, sigma_internal: dict, sigma_raw: dict):
+    """Add noise and build the posteriors for one TDE survey."""
     missing_tde = [k for k in tde_keys_internal if k not in cat]
     if missing_tde:
         raise KeyError(f"TDE {survey} keys missing: {missing_tde}\nAvailable: {list(cat.keys())}")

@@ -40,6 +40,7 @@ LON, LAT = -np.deg2rad(RA_2d), np.deg2rad(DEC_2d)             # mollweide conven
 
 
 def plot_panel(ax, grad_map, obs_lat_deg, obs_label, title):
+    """Plot one panel."""
     pcm = ax.pcolormesh(LON, LAT, grad_map, cmap='viridis', vmin=0, vmax=1, shading='auto')
     ax.grid(True, alpha=0.3)
 

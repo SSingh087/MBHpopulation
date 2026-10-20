@@ -90,6 +90,7 @@ h_c = (np.sqrt(2.0 / 3.0) * np.pi ** (-2.0 / 3.0)
 # Analytic LISA PSD (Robson, Cornish & Liu 2019, ~4yr confusion fit)
 # ============================================================
 def lisa_psd(f):
+    """Analytic LISA noise power spectral density at frequency f."""
     f = np.asarray(f)
     L = 2.5e9
     fstar = CLIGHT / (2 * np.pi * L)

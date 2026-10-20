@@ -84,6 +84,7 @@ MAP = SHARED_PARAM_MAP[MODEL_NAME]
 
 # ── Core simulation functions ──────────────────────────────────────────────
 def run_telescope_simulator(theta):
+    """Simulate survey observations of a TDE."""
     sim = SIMULATE_FN(
         model=MODEL_NAME,
         survey=SURVEY_STR,
@@ -98,6 +99,7 @@ def run_telescope_simulator(theta):
 
 
 def extract_observed_data_by_band(df):
+    """Split simulated observations by band."""
     grouped = df.groupby("band")
     return {
         band: {
@@ -112,6 +114,7 @@ def extract_observed_data_by_band(df):
 
 
 def if_detected_per_band(data_by_band):
+    """Whether the TDE is detected in each band."""
     detected_bands = [
         b for b, d in data_by_band.items()
         if d["detected"].sum() >= MIN_DETECTIONS
@@ -154,6 +157,7 @@ def build_theta(theta_dict, i):
 
 
 def process_events(theta_dict):
+    """Simulate and label a batch of events."""
     n_events = len(theta_dict["z_gal"])
 
     thetas = [build_theta(theta_dict, i) for i in range(n_events)]

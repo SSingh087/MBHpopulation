@@ -74,6 +74,7 @@ SHARED_SCALING_RULES = {
 }
 
 def scale_column(x, kind):
+    """Scale a parameter column to [0, 1]."""
     if kind == "log":
         return rescale_between(np.log10(x), -1.0, 1.0)
     return rescale_between(x, 0.0, 1.0)

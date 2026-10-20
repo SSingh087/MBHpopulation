@@ -79,30 +79,37 @@ POPULATIONS = ["A", "B"]
 
 
 def data_job_name(population, mbh, nuc, occ):
+    """Condor job name for data preparation."""
     return f"make_pseudo_data_{population}_{mbh}_{nuc}_{occ}"
 
 
 def infer_job_name(source, population, survey, mbh, nuc, occ):
+    """Condor job name for an inference run."""
     return f"infer_{source}_{population}_{survey}_{mbh}_{nuc}_{occ}"
 
 
 def posterior_job_name(population, mbh, nuc, occ):
+    """Condor job name for posterior plots."""
     return f"posterior_{population}_{mbh}_{nuc}_{occ}"
 
 
 def violin_job_name(population):
+    """Condor job name for the violin plot."""
     return f"violin_{population}"
 
 
 def ppd_job_name(population, mbh, nuc, occ):
+    """Condor job name for the PPD plot."""
     return f"ppd_{population}_{mbh}_{nuc}_{occ}"
 
 
 def prepare_job_name(mbh, nuc, occ):
+    """Condor job name for inference-data preparation."""
     return f"prepare_data_{mbh}_{nuc}_{occ}"
 
 
 def main():
+    """Build and write the DAG."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--with_prepare", action="store_true", help="add the one-off prepare_data_MEDIAN.py stage")
     ap.add_argument("--tde_model", default="tde_fallback")

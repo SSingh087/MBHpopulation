@@ -43,6 +43,7 @@ phi_occ = phi_raw * f_occ
 
 
 def integrate(logM_lo, logM_hi, phi_model_raw, phi_model_occ):
+    """Integrated number of MBHs between logM_lo and logM_hi."""
     mask = (logMBH_grid >= logM_lo) & (logMBH_grid <= logM_hi)
     N_raw = np.trapz(phi_model_raw[mask], logMBH_grid[mask])
     N_occ = np.trapz(phi_model_occ[mask], logMBH_grid[mask])

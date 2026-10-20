@@ -60,6 +60,7 @@ elif args.SURVEY.lower() == "lsst":
     t0_mjd_transient = np.random.uniform(61220, 64872, size=args.events)  # 2026-06-29 -> 2036-06-28, 10.00 yr
 
 def loguniform(low=0, high=1, size=None):
+    """Log-uniform samples between low and high."""
     return np.exp(np.random.uniform(low, high, size))
 
 

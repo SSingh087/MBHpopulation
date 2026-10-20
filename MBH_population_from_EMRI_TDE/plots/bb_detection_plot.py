@@ -11,6 +11,7 @@ for S in ["ZTF","LSST"]:
     data[S]=(p["bb"][:],p["lgMBH"][:],d)
 e=np.linspace(0,2,41); c=.5*(e[1:]+e[:-1])
 def curve(bb,sel,d):
+    """Detection curve versus bb."""
     n=np.histogram(bb[sel],e)[0]; k=np.histogram(bb[sel&(d==1)],e)[0]; pr=k/np.maximum(n,1); return pr,np.sqrt(pr*(1-pr)/np.maximum(n,1)),k
 plt.rcParams.update({"font.size":11,"axes.facecolor":SURF,"figure.facecolor":SURF,"text.color":INK,"axes.labelcolor":INK2,"xtick.color":INK2,"ytick.color":INK2,"axes.edgecolor":GRID,"axes.spines.top":False,"axes.spines.right":False})
 fig,ax=plt.subplots(1,3,figsize=(18,5.4)); fig.subplots_adjust(wspace=.32,top=.78)

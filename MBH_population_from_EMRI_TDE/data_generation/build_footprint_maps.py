@@ -48,6 +48,7 @@ COVERAGE_NPZ = os.path.join(ASTROPHYSICAL_DATA_DIR, 'coverage_maps_nohealpy.npz'
 # 1. Extract redback's shipped pointing tables (plain gzip, not tar)
 # ────────────────────────────────────────────────────────────────────
 def extract_gz(src_path, dst_path):
+    """Decompress a gzip file."""
     if os.path.exists(dst_path):
         return dst_path
     with gzip.open(src_path, 'rb') as f_in, open(dst_path, 'wb') as f_out:
@@ -139,6 +140,7 @@ print(f"       Rubin geometric sky fraction (area-weighted): {rubin_area_frac:.3
 
 
 def normalized_gradient(visits, mask):
+    """Visit-count map normalised to [0, 1] inside the mask."""
     g = np.full(visits.shape, np.nan)
     v = visits[mask]
     if v.size and v.max() > 0:

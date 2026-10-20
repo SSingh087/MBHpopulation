@@ -114,6 +114,7 @@ def run_weighted_sample(merger_model, mbh_mass_method, nucleation_method, occupa
     GSMF = GalaxyStellarMassFunction()
 
     def build_density_tables(gsmf, z_min, z_max, n_z=600, n_points_mass=5000):
+        """Tabulate the galaxy and MBH number densities on redshift and mass grids."""
         z_table = np.linspace(z_min, z_max, n_z)
         lgM_grid, log10phi_grid = gsmf.get_gsmf(z_table, n_points_mass=n_points_mass)
         phi_grid = np.nan_to_num(10.0 ** log10phi_grid, nan=0.0, posinf=0.0, neginf=0.0)
@@ -124,6 +125,7 @@ def run_weighted_sample(merger_model, mbh_mass_method, nucleation_method, occupa
         return z_table, n_density_table, n_density_interp
 
     def find_lgMgal_rate_range(lgMBH_min=4.0, lgMBH_max=7.0, N_pilot=100_000):
+        """Galaxy-mass range that contributes MBHs in [lgMBH_min, lgMBH_max]."""
         lgM_min_full = GSMF.lgMgal_data.min()
         lgM_max_full = GSMF.lgMgal_data.max()
 

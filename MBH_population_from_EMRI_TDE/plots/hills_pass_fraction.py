@@ -3,8 +3,10 @@ import os, h5py, numpy as np
 os.chdir('./data')
 Rsun=6.957e10; rS_sun=2.953e5   # cm; Schwarzschild radius of 1 Msun
 def bmax(lgM, k=1.0):           # k=1: r_p>r_S (Stone&Metzger bmax=Rt/2Rg); k=2: r_p>2 r_S (capture orbit)
+    """Maximum beta allowed by the Hills cut."""
     M=10**lgM; return Rsun*M**(1/3)/(k*rS_sun*M)
 def frac_invb2(bm):             # fraction of beta^-2 on [1,30] with beta<=bm
+    """Pass fraction for a beta^-2 prior."""
     b=np.clip(bm,1,30); return (1-1/b)/(1-1/30)
 print("beta_max(lgM) k=1:",{m:round(float(bmax(m)),1) for m in [4,5,6,6.5,7]})
 print("beta_max(lgM) k=2:",{m:round(float(bmax(m,2)),1) for m in [4,5,6,6.5,7]})

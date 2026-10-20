@@ -82,6 +82,7 @@ def save(fig, name):
 
 
 def stat(x):
+    """Summary statistic of the samples."""
     lo, md, hi = np.percentile(x, [5, 50, 95])
     s68 = 0.5 * (np.percentile(x, 84) - np.percentile(x, 16))
     return lo, md, hi, s68
@@ -91,6 +92,7 @@ def stat(x):
 # V1 / V2 : heatmaps of information gain and bias
 # ════════════════════════════════════════════════════════════════════════════
 def info_and_pull(pop):
+    """Information gain and pull of the posteriors."""
     labels = get_latex_labels(pop)
     params = list(labels)
     info = np.full((len(CASES), len(params), len(SCEN_TAGS)), np.nan)
@@ -109,6 +111,7 @@ def info_and_pull(pop):
 
 
 def heatmap_grid(pop, which):
+    """Heatmap grid of the statistic over scenarios and combos."""
     params, labels, info, pull = info_and_pull(pop)
     fig, axes = plt.subplots(2, 4, figsize=(19, 0.33 * len(params) * 2 + 3.2), sharey=True)
     axes = axes.ravel()
@@ -155,6 +158,7 @@ for pop in "AB":
 # V3 : every hyperparameter on one common axis (offset from truth / prior width)
 # ════════════════════════════════════════════════════════════════════════════
 def pull_plot(pop):
+    """Pull of the posterior medians from the truth."""
     labels = get_latex_labels(pop)
     params = list(labels)
     fig, axes = plt.subplots(1, len(SCEN_TAGS), figsize=(20, 0.55 * len(params) + 2), sharey=True, sharex=True)
@@ -234,12 +238,14 @@ def pdf_from(pop, obs, S):
 
 
 def thin(S):
+    """Thin the samples."""
     n = len(next(iter(S.values())))
     idx = rng.choice(n, size=min(args.NTHIN, n), replace=False)
     return {k: np.asarray(v)[idx] for k, v in S.items()}
 
 
 def truth_dict(pop, tag):
+    """True hyperparameter values."""
     return {k: np.array([v]) for k, v in TRUTH[pop][tag].items()}
 
 
@@ -250,6 +256,7 @@ OBS_CASES = {"mass": ["EMRI", "TDE (ALL)", "EMRI+TDE (ALL)"], "spin": ["EMRI", "
 
 
 def band_plot(obs):
+    """Observable credible bands versus the truth."""
     g = GRID[obs]
     fig, axes = plt.subplots(len(SCEN_TAGS), 2, figsize=(10, 1.75 * len(SCEN_TAGS)), sharex=True)
     for col, pop in enumerate("AB"):
@@ -295,6 +302,7 @@ SUMMARIES = [("mass", r"$\langle \lg M_\bullet\rangle$"), ("spin", r"$\langle a\
 
 
 def summary_samples(pop, key, S):
+    """Posterior samples for the summary plots."""
     if key == "z":
         return np.asarray(S["lam_z_gal"]) if "lam_z_gal" in S else None
     S = thin(S)
@@ -303,6 +311,7 @@ def summary_samples(pop, key, S):
 
 
 def summary_truth(pop, key, tag):
+    """True value for the summary plots."""
     if key == "z":
         return TRUTH[pop][tag]["lam_z_gal"]
     return summary_samples(pop, key, truth_dict(pop, tag))[0]
@@ -322,6 +331,7 @@ for pop in "AB":
 
 # ── V5 : forest plot of summaries ────────────────────────────────────────────
 def forest():
+    """Forest plot summarising posteriors across scenarios."""
     fig, axes = plt.subplots(len(SUMMARIES), 2, figsize=(11, 2.9 * len(SUMMARIES)), sharey=True)
     off = np.linspace(-0.34, 0.34, len(CASES))
     for r, (key, lab) in enumerate(SUMMARIES):
@@ -361,6 +371,7 @@ save(forest(), "V5_summary_forest")
 
 # ── V6 : z-score scorecard of the summaries ──────────────────────────────────
 def scorecard():
+    """Scorecard summary of the inference quality."""
     fig, axes = plt.subplots(2, len(SUMMARIES), figsize=(4.2 * len(SUMMARIES), 7.6), sharey=True)
     for r, pop in enumerate("AB"):
         for c, (key, lab) in enumerate(SUMMARIES):

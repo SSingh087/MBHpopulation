@@ -72,6 +72,7 @@ def generate_lognormal_field(N, L, rng, A=2.0, n=-1.0, k0=0.05, kc=0.2):
     return delta_ln, L/N
 
 def sample_spherical_lognormal(delta_ln, dx, Rmax, nbar, rng):
+    """Sample galaxy positions in a sphere from a lognormal density field."""
     N = delta_ln.shape[0]
     L = N*dx
 
@@ -100,6 +101,7 @@ def sample_spherical_lognormal(delta_ln, dx, Rmax, nbar, rng):
     return np.column_stack((x,y,z)).astype(np.float32)
 
 def evaluate_z_ra_dec(xyz):
+    """Convert Cartesian positions to redshift, RA and Dec."""
     x, y, z = xyz.T
     r = np.sqrt(x*x + y*y + z*z)
     ra = np.degrees(np.arctan2(y,x)) % 360

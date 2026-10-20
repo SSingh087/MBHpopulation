@@ -83,6 +83,7 @@ N_DEC, N_RA = ztf_mask.shape
 
 
 def radec_to_grid_indices(ra_rad, dec_rad):
+    """Map RA/Dec (rad) to footprint-grid pixel indices."""
     ra_deg = np.rad2deg(ra_rad) % 360
     ra_deg = np.where(ra_deg > 180, ra_deg - 360, ra_deg)   # wrap to [-180, 180)
     dec_deg = np.rad2deg(dec_rad)
@@ -160,6 +161,7 @@ LON, LAT = -np.deg2rad(RA_2d), np.deg2rad(DEC_2d)
 
 
 def plot_panel(ax, grad_map, ra_pop, dec_pop, comp_pop, in_footprint, obs_lat_deg, obs_label, title):
+    """Plot one panel."""
     pcm = ax.pcolormesh(LON, LAT, grad_map, cmap='viridis', vmin=0, vmax=1,
                          shading='auto')
     ax.grid(True, alpha=0.3)

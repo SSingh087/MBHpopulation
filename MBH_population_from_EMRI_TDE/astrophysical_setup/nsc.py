@@ -73,6 +73,7 @@ class NSC:
 
 
 class CompactObject:
+    """Compact-object component (sBH or star) masses and numbers in the NSC."""
     def __init__(self, nsc, masses, total_mass_in_MBH_mass_units, types_CO, types_masses, type_CO_limits=None):
 
         self.nsc = nsc
@@ -101,9 +102,11 @@ class CompactObject:
 
     @property
     def total_number_CO(self):
+        """Total number of compact objects in the NSC."""
         return self.total_number
 
     def orbit_sense(self):
+        """Draw prograde/retrograde orbit sense."""
         # ----------------------------------------------------------------
         # this is required for generating the MBHspin evolution.
         # this can be added in the nsc.py but it will take loads of memory to 
@@ -124,6 +127,7 @@ class CompactObject:
     #         raise NotImplementedError("Random mass sampling for COs is not implemented yet. Please use 'same_mass' for now.")
 
 class MBH_properties:
+    """MBH mass, spin and related properties of a galaxy sample."""
     def __init__(self, nsc, A=7.87, B=4.55, sigma_0=160.0, MBH_scatter=0.53):
         self.nsc = nsc
         self.lgMBH_mass = self.nsc._lgMBH_mass_
@@ -131,6 +135,7 @@ class MBH_properties:
    
     def initial_MBHspin(self):
 
+        """Draw the initial MBH spin as a function of MBH mass."""
         alpha0_low_mass = 2.5
         lambda_alpha_low_mass = 0.1
         beta_low_mass = 5.0
@@ -147,6 +152,7 @@ class MBH_properties:
     
     @staticmethod
     def MBHspin_evolution_at_time(initial_spin):
+        """MBH spin after accretion/evolution."""
         # this needs a bit of discussion 
         # since a) the mass of e MBH can change 
         # and b) the spin evolution depends on the environment which can change with time, and also on the orbit sense which can change with time as well.

@@ -278,6 +278,7 @@ def load_available_combos(base_dir: str, population: str,
 
 def ppd_cache_dir(base_dir: str, population: str,
                    mbh_mass_method: str, nucleation_method: str, occupation_method: str) -> str:
+    """Directory of the PPD cache."""
     d = f"{base_dir}/PPD_CACHE/{population}_{mbh_mass_method}_{nucleation_method}_{occupation_method}"
     os.makedirs(d, exist_ok=True)
     return d
@@ -286,6 +287,7 @@ def ppd_cache_dir(base_dir: str, population: str,
 def ppd_cache_path(base_dir: str, population: str,
                     mbh_mass_method: str, nucleation_method: str, occupation_method: str,
                     source_label: str, key: str) -> str:
+    """File path of the PPD cache."""
     safe_label = source_label.replace(" ", "_").replace("(", "").replace(")", "")
     d = ppd_cache_dir(base_dir, population, mbh_mass_method, nucleation_method, occupation_method)
     return f"{d}/{safe_label}__{key}.npz"
@@ -304,6 +306,7 @@ def load_ppd_cache(cache_path: str):
 
 
 def save_ppd_cache(cache_path: str, centers: np.ndarray, hist_stack: np.ndarray) -> None:
+    """Save histogram stacks to the PPD cache."""
     tmp_path = cache_path[:-len(".npz")] + ".tmp.npz"  # np.savez appends .npz unless the name already ends in it
     np.savez(tmp_path, centers=centers, hist_stack=hist_stack)
     os.replace(tmp_path, cache_path)  # atomic write, avoids half-written cache on crash
@@ -311,6 +314,7 @@ def save_ppd_cache(cache_path: str, centers: np.ndarray, hist_stack: np.ndarray)
 
 def make_dist(pop):
 
+    """Build the population distributions for the population."""
     if pop == "A":
         DIST = {
                 "lgMBH_mass": FixedLimitSchechterFunction([4, 7], device=device),
@@ -378,6 +382,7 @@ def load_posterior_samples_dynamic(hf):
 
 def get_latex_labels(pop):
 
+    """LaTeX labels of the hyperparameters."""
     if pop == "A":
         return {
             "xc": r"$x_c$",
@@ -423,6 +428,7 @@ def get_latex_labels(pop):
 
 def get_true_x_flat(pop, mbh_mass_method, nucleation_method, occupation_method):
 
+    """Flat dict of true hyperparameter values for a scenario."""
     tx = get_true_x(pop, mbh_mass_method, nucleation_method, occupation_method)
 
     if pop == "A":
@@ -469,12 +475,14 @@ def get_true_x_flat(pop, mbh_mass_method, nucleation_method, occupation_method):
 
 
 class PopulationDistribution:
+    """Population distribution built from hyperparameters."""
     # this will work until we make mass dependance explicit.
     def __init__(self, distributions, data=None) -> None:
         self.distributions = distributions
         self.data = data
 
     def draw_samples(self, x, size):
+        """Draw samples from the population for hyperparameters x."""
         out = {}
         lgMBH_mass_samples = self.distributions['lgMBH_mass'].draw_samples(**x['lgMBH_mass'], size=size)
         MBHspin_samples = self.distributions['MBHspin'].draw_samples(**x['MBHspin'], size=size)

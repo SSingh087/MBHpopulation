@@ -19,6 +19,7 @@ loc = f'./data/pseudo_inference_data/{args.GALAXIES}'
 
 # ── Load data ─────────────────────────────────────────────────────────────
 def load_h5(path):
+    """Load all datasets of an HDF5 file into a dict."""
     with h5py.File(path, 'r') as hf:
         return {k: hf[k][()] for k in hf.keys()}
 

@@ -88,6 +88,7 @@ if n_events == 0:
 
 
 def sample_truncated_gaussian(mean, cov, n_target, n_draw=50000):
+    """Sample a multivariate Gaussian truncated to the prior bounds."""
     samples = np.random.multivariate_normal(mean, cov, size=n_draw)
     mask = (
         (0.001 <= samples[:, 0]) & (samples[:, 0] <= 8) &
@@ -149,6 +150,7 @@ def save_event_plots(global_i, truths1, C1, true_samples, truths2, C2, noisy_sam
 
 
 def process_event(local_i, global_i):
+    """Fisher evaluation for a single event."""
     try:
         theta0 = {
             "redshift":     float(catalog["z_gal"][local_i]),

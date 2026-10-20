@@ -8,11 +8,13 @@ from galaxy import Galaxy
 from config import MBH_A_sigma, MBH_B_sigma
 
 class HaloMassFunction:
+    """Halo mass function."""
     pass
 
 class GalaxyStellarMassFunction:
     # https://arxiv.org/abs/2509.07960
 
+    """Galaxy stellar mass function phi(Mgal, z) with sampling of galaxy masses."""
     def __init__(self, device="cpu"):
         if device == "cpu":
             self.xp = np
@@ -60,9 +62,11 @@ class GalaxyStellarMassFunction:
         self.interp = RegularGridInterpolator((self.z_vals, self.lgMgal_data), self.gsmf_grid, bounds_error=False, fill_value=np.nan)
     
     def clean(self, arr):
+        """Replace non-finite entries by zero."""
         return np.array([np.nan if x is None else x for x in arr], dtype=float)
 
     def build_mass_grid(self, n_points_mass=1000):
+        """Log-spaced mass grid."""
         self.lgMgal_grid = np.linspace(self.lgMgal_data.min(), self.lgMgal_data.max(), n_points_mass)
         return self.lgMgal_grid
 
@@ -91,6 +95,7 @@ class GalaxyStellarMassFunction:
         return lgMgal_grid_samples, phi_mass
 
     def sample_gsmf(self, z_gal, n_samples_per_z=1, device="cpu"):
+        """Draw galaxy stellar masses from the GSMF at each redshift."""
         import torch
         z_gal = np.atleast_1d(z_gal)
         N_z = len(z_gal)
@@ -293,7 +298,9 @@ class MBHMassFunction:
 
 @dataclass
 class CO_mass_function:
+    """Mass function of the compact objects (stars, stellar-mass BHs) in the NSC."""
     def delta_distribution(self, m, M_CO):
+        """Delta-function mass distribution."""
         m = np.asarray(m)
         # exact discrete delta at nearest bin
         psi = np.zeros_like(m, dtype=float)
@@ -340,6 +347,7 @@ class CO_mass_function:
     # 6. Unified interface
     # ------------------------------------------------------
     def mass_distribution(self, m, kind="kroupa", M_CO=10.0, alpha=2.35):
+        """Mass distribution of the compact objects."""
         m = np.asarray(m, float)
 
         if kind == "delta":
@@ -463,6 +471,7 @@ MERGER_MODEL_CHOICES = list(MERGER_MODELS)
 
 class LastMajorMerger:
 
+    """Last-major-merger (LMM) time model for galaxies, used to date the NSC cusp."""
     def __init__(self, cosmology_model: CosmologyModel = None, merger_model: str = "baseline"):
         self.cosmo_model = cosmology_model if cosmology_model is not None else CosmologyModel()
         if merger_model not in MERGER_MODELS:
@@ -599,6 +608,7 @@ class LastMajorMerger:
             return np.array(Lambda_conds)
 
     def build_hazard_grid(self, z_obs_array):
+        """Tabulate the merger hazard/survival function on a redshift grid."""
         z_obs_array = np.asarray(z_obs_array)
         N = z_obs_array.shape[0]
 
@@ -643,6 +653,7 @@ class LastMajorMerger:
 
     # -----------------------------------
     def sample_LMM_times(self, z_obs_array, size=1):
+        """Sample last-major-merger times for the given observation redshifts."""
         z_LMM = self.sample_z_LMM(z_obs_array, size=size)
         t_LMM = self.cosmo_model.age_Gyr(z_LMM)
         t_obs_at_z_obs = self.cosmo_model.age_Gyr(z_obs_array)

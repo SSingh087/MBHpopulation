@@ -51,6 +51,7 @@ class DehnenProfile:
         return n
 
     def radial_number_distribution(self, r_grid, kind='TDE', unit='1/pc'):
+        """Number of objects per radius bin of the Dehnen profile."""
         r_grid = np.asarray(r_grid, float)
         n = self.dehnen_number_density(r_grid, kind)   # (N_galaxies, N_radii_for_each_galaxy)
         return 4.0 * np.pi * (r_grid ** 2) * n
@@ -105,6 +106,7 @@ class DehnenProfile:
         return N_objects
 
     def dehnen_number_density_at_radius(self, r, kind='TDE'):
+        """Dehnen number density at radius r."""
         r = np.asarray(r, float)           # (N_galaxies,)
         Ntot = self.compact_object.total_number['sBH'] if kind.upper() == 'EMRI' else self.compact_object.total_number['star']    
 
@@ -123,6 +125,7 @@ class DehnenProfile:
         return n                              # (N_galaxies,)
 
     def mass_density(self, r_grid, unit='Msun/pc^3'):
+        """Dehnen mass density on r_grid."""
         r_grid = np.asarray(r_grid, float)       # (N_galaxies, N_radii_for_each_galaxy)
         N_galaxies, N_radii_for_each_galaxy = r_grid.shape
 
@@ -142,6 +145,7 @@ class DehnenProfile:
 
     def mass_density_at_rinfl(self, kvir=1.0, unit='Msun/pc^3'):
         
+        """Mass density at the MBH influence radius."""
         r_inf = self.nsc.r_influence(kvir=kvir, unit='pc')   # (N_galaxies,)
 
         if self.compact_object.types_masses == 'same_mass':

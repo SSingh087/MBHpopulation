@@ -48,6 +48,7 @@ xi_TDE_per_yr = 1e-4         # fiducial, within Marta's requested 1e-4 - 1e-5 ra
 
 
 def apparent_mag(MBH_Msun, z):
+    """Apparent magnitude of a TDE for MBH mass and redshift."""
     L = L0 * MBH_Msun
     L_band = f_band * L
     D_L_cm = cosmo.luminosity_distance(z).to(u.cm).value
@@ -56,6 +57,7 @@ def apparent_mag(MBH_Msun, z):
 
 
 def z_max_for_mass(MBH_Msun, z_grid):
+    """Maximum redshift at which a TDE of this MBH mass is detectable."""
     mags = np.array([apparent_mag(MBH_Msun, z) for z in z_grid])
     ok = mags < m_limit
     return z_grid[ok].max() if ok.any() else 0.0

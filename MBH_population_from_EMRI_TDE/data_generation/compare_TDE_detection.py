@@ -52,6 +52,7 @@ MJD_REF = 51544.5  # MJD of 2000-01-01T12:00 (matches your year = 2000 + (t - 51
 
 
 def mjd_to_year(t_mjd):
+    """Convert MJD to decimal year."""
     return 2000 + (np.asarray(t_mjd) - MJD_REF) / 365.25
 
 

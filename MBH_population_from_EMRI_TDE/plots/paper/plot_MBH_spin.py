@@ -11,6 +11,7 @@ setup_style()
 
 def initial_MBHspin(lgMBH_mass):
 
+    """Draw the initial MBH spin as a function of MBH mass."""
     alpha0_low_mass = 2.5
     lambda_alpha_low_mass = 0.1
     beta_low_mass = 5.0

@@ -66,6 +66,7 @@ mass_labels = [fr'$10^{{{m:.1f}}}$' for m in lgMBH_mass.squeeze()]
 X_LIM = (1e-4, 1e3)
 
 def plot_panel(ax, y_tde, y_emri, title, x, mass_labels=None, legend_mode='none', show_vlines=False):
+    """Plot one panel."""
     ax.set_prop_cycle(color=colors)
 
     tde_lines = ax.plot(x, y_tde, linestyle='-', lw=1.0)

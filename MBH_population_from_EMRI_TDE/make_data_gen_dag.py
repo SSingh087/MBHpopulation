@@ -128,34 +128,42 @@ N_UNIVERSES = 100
 
 
 def scenario_tag(mbh, nuc, occ, mm):
+    """Short tag identifying a scenario."""
     return f"{mbh}_{nuc}_{occ}_{mm}"
 
 
 def gen_events_name(mbh, nuc, occ, mm, u):
+    """Job name for event generation."""
     return f"gen_events_{scenario_tag(mbh, nuc, occ, mm)}_u{u}"
 
 
 def gen_emri_params_name(mbh, nuc, occ, mm, u):
+    """Job name for EMRI parameter generation."""
     return f"gen_EMRI_params_{scenario_tag(mbh, nuc, occ, mm)}_u{u}"
 
 
 def gen_emri_snr_name(mbh, nuc, occ, mm, u):
+    """Job name for EMRI SNR."""
     return f"gen_EMRI_SNR_{scenario_tag(mbh, nuc, occ, mm)}_u{u}"
 
 
 def gen_tde_params_name(mbh, nuc, occ, mm, model, u):
+    """Job name for TDE parameter generation."""
     return f"gen_TDE_params_{scenario_tag(mbh, nuc, occ, mm)}_{model}_u{u}"
 
 
 def gen_tde_snr_name(survey, mbh, nuc, occ, mm, model, u):
+    """Job name for TDE detection."""
     return f"gen_TDE_SNR_{survey}_{scenario_tag(mbh, nuc, occ, mm)}_{model}_u{u}"
 
 
 def footprint_name(mbh, nuc, occ, mm, model, u):
+    """Job name for the footprint overlay."""
     return f"FOOTPRINT_{scenario_tag(mbh, nuc, occ, mm)}_{model}_u{u}"
 
 
 def validate_occupation_methods():
+    """Check the requested occupation methods are supported."""
     if not OCCUPATION_METHODS:
         raise ValueError("OCCUPATION_METHODS must not be empty.")
     seen = set()
@@ -168,6 +176,7 @@ def validate_occupation_methods():
 
 
 def validate_merger_models():
+    """Check the requested merger models are supported."""
     if not MERGER_MODELS:
         raise ValueError("MERGER_MODELS must not be empty.")
     if len(set(MERGER_MODELS)) != len(MERGER_MODELS):
@@ -178,6 +187,7 @@ def validate_merger_models():
 
 
 def main():
+    """Build and write the DAG."""
     global MERGER_MODELS, N_UNIVERSES
     parser = argparse.ArgumentParser(description="Generate the multi-universe DAG (scenario x occupation x "
                                      "merger model x universe x TDE model). Prints the DAG to stdout.")

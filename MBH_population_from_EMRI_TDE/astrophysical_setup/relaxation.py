@@ -9,6 +9,7 @@ from density import DehnenProfile
 
 class RelaxationModel:
 
+    """Two-body relaxation time at the influence radius."""
     def __init__(self, nsc: NSC, compact_object: CompactObject, profile: DehnenProfile, lnLambda: float = lnLambda):
         self.nsc = nsc
         self.compact_object = compact_object
@@ -54,6 +55,7 @@ class RelaxationModel:
 
     def t_relax_at_rinfl(self, kvir=1.0, unit='Gyr'):
         
+        """Relaxation time at the MBH influence radius."""
         r_inf_pc = self.nsc.r_influence(kvir=kvir, unit='pc')
         rho_at_rinfl = self.profile.mass_density_at_rinfl(kvir=kvir, unit='Msun/pc^3')
         return self.t_relax_at_radius(rho_at_radius=rho_at_rinfl, radius_pc=r_inf_pc, kvir=kvir, unit=unit)
