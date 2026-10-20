@@ -56,11 +56,12 @@ def redshift_from_distance(dl_gpc):
 
 
 n_events = len(catalog["z_gal"])
-out = {k: [] for k in ["lgMBH_mass", "MBHspin", "CO_mass", "z_gal", "e_pl"]}
+out = {k: [] for k in ["lgMBH_mass", "MBHspin", "z_gal", "e_pl"]}
 errors, ok_idx = [], []
 
 for i in range(n_events):
     theta = {p: float(catalog[p][i]) for p in PARAMS}
+    theta["CO_mass"] = float(catalog["CO_mass"][i])
     try:
         F = compute_fisher(response, theta, psd, args.DT)
         C = covariance(F)
@@ -71,9 +72,8 @@ for i in range(n_events):
         idx = {p: PARAMS.index(p) for p in PARAMS}
         out["lgMBH_mass"].append(s[:, idx["lgMBH_mass"]])
         out["MBHspin"].append(s[:, idx["MBHspin"]])
-        out["CO_mass"].append(s[:, idx["CO_mass"]])
         out["z_gal"].append(redshift_from_distance(s[:, idx["distance_Gpc"]]))
-        out["e_pl"].append(plunge_eccentricity(traj, s, catalog["T_SIGNAL_duration_years"][i], args.DT))
+        out["e_pl"].append(plunge_eccentricity(traj, s, theta["CO_mass"], catalog["T_SIGNAL_duration_years"][i], args.DT))
         errors.append(np.sqrt(np.diag(C)))
         ok_idx.append(args.START_IDX + i)
     except Exception as exc:

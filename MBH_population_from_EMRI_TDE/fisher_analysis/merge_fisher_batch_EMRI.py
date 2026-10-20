@@ -23,7 +23,7 @@ files = sorted(glob.glob(f"{loc}/fisher_batches/{tag}_*.h5"))
 if not files:
     raise RuntimeError(f"No batch files for {tag} in {loc}/fisher_batches -- did the Fisher DAG run?")
 
-keys = ["lgMBH_mass", "MBHspin", "CO_mass", "z_gal", "e_pl"]
+keys = ["lgMBH_mass", "MBHspin", "z_gal", "e_pl"]
 merged = {k: [] for k in keys}
 for fn in files:
     with h5py.File(fn, "r") as hf:

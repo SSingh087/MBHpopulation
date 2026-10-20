@@ -1,11 +1,10 @@
 """Fisher-matrix helpers for EMRIs: LISA response (FEW AAK + fastlisaresponse), numerical derivatives and the Fisher matrix."""
 import numpy as np
 
-# Waveform arguments in the order expected by the response wrapper (M, mu, a, p0, e0, Y0, dist, ...).
+# Fisher parameters (the compact-object mass theta["CO_mass"] is held fixed at the catalogue value).
 # `delta` is the relative step of the central difference; `scale` maps the catalogue column to the argument.
 PARAM_INFO = {
     "lgMBH_mass":  {"delta": 1e-6, "kind": "log10"},    # M = 10**lgMBH_mass
-    "CO_mass":     {"delta": 1e-6, "kind": "linear"},   # mu [Msun]
     "MBHspin":     {"delta": 1e-6, "kind": "linear"},   # a
     "p0":          {"delta": 1e-6, "kind": "linear"},
     "e0":          {"delta": 1e-6, "kind": "linear"},
@@ -23,7 +22,7 @@ PARAMS = list(PARAM_INFO.keys())
 
 # Prior bounds used to truncate the Gaussian posteriors (same ranges as the injections)
 BOUNDS = {
-    "lgMBH_mass": (4.0, 10.0), "CO_mass": (1.0, 100.0), "MBHspin": (0.0, 0.99),
+    "lgMBH_mass": (4.0, 10.0), "MBHspin": (0.0, 0.99),
     "p0": (0.0, np.inf), "e0": (0.0, 0.8), "Y0": (-1.0, 1.0), "distance_Gpc": (0.0, np.inf),
     "qS": (0.0, np.pi), "phiS": (0.0, 2 * np.pi), "qK": (0.0, np.pi), "phiK": (0.0, 2 * np.pi),
     "Phi_phi0": (0.0, 2 * np.pi), "Phi_theta0": (0.0, 2 * np.pi), "Phi_r0": (0.0, 2 * np.pi),
@@ -108,12 +107,12 @@ def sample_truncated_gaussian(mean, cov, n_target, rng, n_draw=20000):
     return ok[rng.choice(len(ok), size=n_target, replace=len(ok) < n_target)]
 
 
-def plunge_eccentricity(traj, samples, T_years, dt):
-    """Eccentricity at plunge for each (lgMBH_mass, CO_mass, MBHspin, p0, e0, Y0) sample."""
+def plunge_eccentricity(traj, samples, co_mass, T_years, dt):
+    """Eccentricity at plunge for each (lgMBH_mass, MBHspin, p0, e0, Y0) sample at fixed compact-object mass."""
     e_pl = np.empty(len(samples))
     for k, s in enumerate(samples):
         th = dict(zip(PARAMS, s))
-        _, _, e, *_ = traj(10 ** th["lgMBH_mass"], th["CO_mass"], th["MBHspin"], th["p0"], th["e0"],
+        _, _, e, *_ = traj(10 ** th["lgMBH_mass"], co_mass, th["MBHspin"], th["p0"], th["e0"],
                            th["Y0"], Phi_phi0=0.0, Phi_theta0=0.0, Phi_r0=0.0, dt=dt, T=T_years)
         e_pl[k] = e[-1]
     return e_pl

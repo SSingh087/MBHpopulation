@@ -74,20 +74,17 @@ TDE_SNR_PATH_LSST = (f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/max_detected_{ar
                      f"{args.occupation_method}_{MM_TAG}{args.tde_model}_{best_universe_model}.h5")
 
 # ── Key rename maps ───────────────────────────────────────────────────────
-# EMRI: SNR file already uses internal names, except sBH_mass -> CO_mass
-# and eccentricities_at_plunge -> e_pl.
+# EMRI: SNR file already uses internal names, except eccentricities_at_plunge -> e_pl.
 EMRI_RENAME = {
     "lgMBH_mass"                : ("lgMBH_mass", 0.0),
     "MBHspin"                   : ("MBHspin",    0.0),
-    # "sBH_mass"                  : ("CO_mass",    0.0),
     "z_gal"                     : ("z_gal",      0.0),
     "eccentricities_at_plunge"  : ("e_pl",       0.0),
 }
 
-# TDE: SNR file uses star_mass (CO mass) and its own lgMBH_mass/z_gal directly.
+# TDE: SNR file uses its own lgMBH_mass/z_gal directly.
 TDE_RENAME = {
     "lgMBH_mass": ("lgMBH_mass", 0.0),
-    # "star_mass" : ("CO_mass",    0.0),
     "z_gal"     : ("z_gal",      0.0),
 }
 
@@ -170,7 +167,6 @@ kwargs_all = {
 model = f"{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}"
 
 Plotting.plot_comparison_histogram(key="lgMBH_mass", loc=OUT_DIR, x_label=r"$\log_{10}(M_{\mathrm{BH}}/M_\odot)$", model=model, **kwargs_all)
-Plotting.plot_comparison_histogram(key="CO_mass", loc=OUT_DIR, x_label=r"$m_{\mathrm{CO}}\ [M_\odot]$", model=model, **kwargs_all)
 Plotting.plot_comparison_histogram(key="z_gal", loc=OUT_DIR, x_label=r"$z$", model=model, **kwargs_all)
 
 # EMRI-only keys

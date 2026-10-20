@@ -1,57 +1,17 @@
+# Overview
 
+This repository contains analyses of the supermassive black hole (MBH) population constrained through extreme mass-ratio inspirals (EMRIs) observed by LISA and tidal disruption events (TDEs) observed by ZTF and LSST.
 
-# Overview 
-This repository contains comprehensive analyses of supermassive black hole (SMBH) populations constrained through Extreme Mass Ratio Inspirals (EMRIs) and Tidal Disruption Events (TDEs) and mergers of supermassive black holes (MBHB). The work combines astrophysical population modeling with statistical inference to characterize black hole mass distributions and detection rates.
+## Science goal
 
-## Project Structure
+MBHs in galactic nuclei are the source of both EMRIs and TDEs, so the two channels trace the same underlying population and probe it in complementary ways: EMRIs through the MBH mass, spin, the eccentricity of the orbit at plunge and the redshift distribution, and TDEs through the MBH mass and the redshift distribution. We ask what the detected events can tell us about the MBH population, and how much is gained by combining both channels.
 
-### 1. **MBH_population_from_EMRI/**
+## Approach
 
-This directory contains analyses focusing on constraining SMBH populations using EMRI observations from gravitational wave detectors like LISA.
-
-**Key Components:**
-- **`PLOTS/`**: Visualization outputs including posterior distributions, parameter distributions, and inference results
-- **`scripts/plotting_scripts/`**: Python scripts for generating publication-quality figures
-  - `combine_plots_*_posterior_PPD.py`: Scripts combining posterior and predictive distributions for different population models
-
-**Scientific Purpose:** 
-Uses EMRI observations to infer the properties and distribution of supermassive black holes across cosmic time, leveraging the sensitivity of LISA to extreme mass-ratio systems.
-
----
-
-### 2. **MBH_population_from_EMRI_TDE/**
-
-Pipeline that builds a mock galaxy population with nuclear star clusters (NSCs), predicts the EMRI and TDE events each galaxy produces, decides which are detectable by LISA (EMRIs) and ZTF/LSST (TDEs), and infers the MBH population hierarchically from the detected events.
-
-Scripts are written to be run from the `MBH_population_from_EMRI_TDE/` directory. Generated data is expected under `./data` (not tracked); the DAGs in `hierarchical_inference*/` run from their own folder, so link `hierarchical_inference*/data` to `../data`.
-
-| Directory / file | Content |
-|---|---|
-| `astrophysical_setup/` | Cosmology, mass functions, NSC, cusp evolution, EMRI/TDE rate and merger models |
-| `utils.py` | Shared helpers and data paths for the generation pipeline |
-| `data_generation/` | Event generation (`sources_num.py`), EMRI/TDE parameters and detection, ZTF/LSST footprints |
-| `data_gen_realistic/` | Event counts for realistic (thinned) observing conditions |
-| `training_EMRI_SNR/` | Neural-network emulator of the EMRI SNR |
-| `training_TDE_detectability/` | Neural-network classifier for TDE detectability per survey and light-curve model |
-| `fisher_analysis/` | Fisher analysis of the detected EMRIs and TDEs, giving per-event posteriors |
-| `selection_function/` | MLP emulator of the selection function alpha(Lambda), used in the inference likelihood |
-| `hierarchical_inference/` | Hierarchical Bayesian inference (populations A and B), with `plots/` for posteriors, violin plots and PPDs |
-| `hierarchical_inference_altered/` | Variant of the inference with a different scenario setup, same layout |
-| `tests/` | Validation: `TEST_merger_rates`, `TEST_time_average`, `PPS_VERIFICATION`, `beta_test` |
-| `plots/` | Diagnostic plots and `plots/paper/` figure scripts |
-| `EXECUTABLES/`, `SUBMIT_FILES/` | Shell wrappers (`config.sh` holds the shared settings) and HTCondor submit files |
-| `make_data_gen_dag.py`, `make_fisher_TDE_dag.py`, `report_universes.py` | Generate the DAGs and pick the best universe across scenarios |
-
-**Typical workflow**
-
-1. Train the surrogates in `training_EMRI_SNR/` (EMRI SNR) and `training_TDE_detectability/` (TDE detection).
-2. `python make_data_gen_dag.py` writes the multi-universe DAG (events, parameters, detection with the trained networks, footprints, `report_universes.py`); submit it with `condor_submit_dag`.
-3. `hierarchical_inference/gen_dag.py --with_prepare` writes the inference DAG: the detected events of the best universe are collected (`prepare_data_MEDIAN.py`), a Fisher sub-DAG per scenario and source (`make_fisher_dag.py`, `fisher_analysis/`) gives each event a posterior, and the inference reads these posteriors.
-4. `selection_function/` generates training data for and trains one network per channel and population, which maps the hyperparameters to log alpha; the inference divides each event by it.
-
-Dependencies include numpy, scipy, h5py, matplotlib, torch, [FastEMRIWaveforms](https://github.com/BlackHolePerturbationToolkit/FastEMRIWaveforms), [redback](https://github.com/nikhil-sarin/redback) and `poplar`.
-
----
+1. **Mock universes.** Galaxies are drawn from the cosmological mass functions, each with a nuclear star cluster and an MBH, for different MBH mass relations, nucleation and occupation fractions, and galaxy merger-rate models. The cusp evolution gives the EMRI and TDE events each galaxy produces.
+2. **Detectability.** Neural-network emulators give the LISA signal-to-noise ratio of each EMRI and the probability that ZTF or LSST detects each TDE. The universe that best represents the expected number of detections across all scenarios is selected.
+3. **Measurement.** A Fisher analysis of every detected EMRI and TDE gives its posterior on the MBH mass, redshift and, for EMRIs, spin and plunge eccentricity.
+4. **Population inference.** A hierarchical Bayesian analysis infers the MBH population from these posteriors for two parametrised population models, using EMRIs only, TDEs only, and both together. The selection function of each channel, emulated by a neural network, enters the likelihood.
 
 ## Citation
 
