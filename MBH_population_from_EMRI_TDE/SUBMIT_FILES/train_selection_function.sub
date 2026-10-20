@@ -1,0 +1,16 @@
+executable     = ./EXECUTABLES/train_selection_function.sh
+getenv         = True
+arguments      = $(population) $(channel)
+
+request_cpus   = 1
+request_gpus   = 1
+request_memory = 16GB
+
+queue population,channel from (
+A EMRI
+A TDE_ZTF
+A TDE_LSST
+B EMRI
+B TDE_ZTF
+B TDE_LSST
+)

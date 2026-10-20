@@ -7,9 +7,7 @@ snr_scaling.json by training_EMRI_SNR/prep_SNR_training_data.py.
 """
 
 import argparse
-import json
 import os
-import pickle
 import sys
 
 import h5py
@@ -18,13 +16,10 @@ import torch
 
 sys.path.insert(0, os.path.abspath('./'))
 sys.path.insert(0, os.path.abspath('./astrophysical_setup'))
+sys.path.insert(0, os.path.abspath('./data_generation'))
 sys.path.insert(0, os.path.abspath('../poplar'))
 from utils import ASTROPHYSICAL_DATA_DIR, EMRI_DATA_FILE_NAME, MERGER_MODEL_CHOICES
-
-# Network input order (distance and the three initial phases are not inputs); must match
-# the column order of injection_params_dist_REMOVED_COMBINED.npy in training_EMRI_SNR/.
-FEATURES = ["lgMBH_mass", "MBHspin", "p0", "e0", "Y0", "qS", "phiS", "qK", "phiK",
-            "T_SIGNAL_duration_years"]
+from emri_snr_model import load_snr_model, predict_snr
 
 parser = argparse.ArgumentParser(description="EMRI SNR from the trained network.")
 parser.add_argument("--UNIVERSE_MODEL", type=int, required=True)
@@ -49,33 +44,11 @@ with h5py.File(in_path, "r") as f:
     data = {key: np.array(f[key][:]) for key in f.keys()}
 
 n_events = len(data["lgMBH_mass"])
-X = np.stack([data[k] for k in FEATURES], axis=1).astype(np.float32)
-dist_gpc = data["distance_Gpc"]
-
-valid = np.isfinite(X).all(axis=1) & (dist_gpc > 0)
-print(f"{valid.sum()}/{n_events} events have finite inputs; the rest get SNR = NaN.")
-
-with open(args.SCALING_PATH) as f:
-    scaling = json.load(f)
-y_min, y_max = scaling["y_min"], scaling["y_max"]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-with open(args.MODEL_PATH, "rb") as f:
-    model = pickle.load(f)
-model.to(device)
-model.eval()
-
-y = np.full(n_events, np.nan)
-Xv = torch.tensor(X[valid])
-pred = []
-with torch.no_grad():
-    for i in range(0, len(Xv), args.batch_size):
-        pred.append(model(Xv[i:i + args.batch_size].to(device)).reshape(-1).cpu().numpy())
-if pred:
-    y[valid] = np.concatenate(pred)
-
-snr = dist_gpc * 10 ** (y * (y_max - y_min) + y_min)
-snr = np.where(valid, snr, np.nan)
+model, y_min, y_max = load_snr_model(args.MODEL_PATH, args.SCALING_PATH, device)
+snr = predict_snr(model, y_min, y_max, data, device, args.batch_size)
+print(f"{np.isfinite(snr).sum()}/{n_events} events have finite inputs; the rest get SNR = NaN.")
 
 events_idx = np.where(snr > args.SNR_THRESHOLD)[0]
 print(f"{len(events_idx)}/{n_events} events pass SNR threshold {args.SNR_THRESHOLD}")

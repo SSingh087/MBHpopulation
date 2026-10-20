@@ -1,0 +1,16 @@
+executable     = ./EXECUTABLES/gen_selection_data.sh
+getenv         = True
+arguments      = $(population) $(channel) $(chunk)
+
+request_cpus   = 1
+request_gpus   = 1
+request_memory = 8GB
+
+queue population,channel,chunk from (
+A EMRI 0
+A TDE_ZTF 0
+A TDE_LSST 0
+B EMRI 0
+B TDE_ZTF 0
+B TDE_LSST 0
+)
