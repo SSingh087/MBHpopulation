@@ -92,27 +92,24 @@ def compute_hist(data, bins=50, log=False):
     return centers, hist
 
 
-def xlim_for_key(key, combos, truth, pad_frac=0.05):
+def xlim_for_key(key, combos, pad_frac=0.05):
     """0.5-99.5 percentile range across every source that has this
-    parameter, padded a bit, widened to include truth if needed. Used for
+    parameter, padded a bit. Used for
     the 1D-posterior column."""
     vals = [c["samples"][key] for c in combos if key in c["samples"]]
     if not vals:
         return None
     all_vals = np.concatenate(vals)
     lo, hi = np.percentile(all_vals, [0.5, 99.5])
-    if truth is not None:
-        lo = min(lo, truth)
-        hi = max(hi, truth)
     pad = (hi - lo) * pad_frac if hi > lo else max(abs(lo), 1.0) * pad_frac
     return lo - pad, hi + pad
 
 
 # get_nested_from_flat is imported from utils (see utils_patch.py) -- it
-# uses the SAME explicit flat<->nested name table as get_true_x_flat(), so
+# uses the SAME explicit flat<->nested name table (FLAT_KEYMAP), so
 # it can't silently mismatch names. It also returns which components a
 # given source's row did NOT actually sample, so we know to skip those
-# rather than plot truth-pinned noise.
+# rather than plot unconstrained noise.
 
 
 # ---------------------------------------------------------------- load data (once)
@@ -129,14 +126,8 @@ if not combos:
     )
 
 popdist = make_dist(args.POPULATION)
-true_x = get_true_x(
-    args.POPULATION, args.mbh_mass_method, args.nucleation_method, args.occupation_method
-)
 
 labels_dict = get_latex_labels(args.POPULATION)
-truths_dict = get_true_x_flat(
-    args.POPULATION, args.mbh_mass_method, args.nucleation_method, args.occupation_method
-)
 post_keys = [k for k in labels_dict if any(k in c["samples"] for c in combos)]
 for c in combos:
     missing = [k for k in labels_dict if k not in c["samples"]]
@@ -264,9 +255,7 @@ for idx, ax in enumerate(post_axes[:len(post_keys)]):
         ax.text(0.04, y_pos, err, transform=ax.transAxes,
                 verticalalignment='top', horizontalalignment='left',
                 color=c["color"], fontsize=ANNOT_FONTSIZE)
-    if key in truths_dict:
-        ax.axvline(truths_dict[key], color='black', linestyle='--', linewidth=1.3)
-    xlim = xlim_for_key(key, combos, truths_dict.get(key))
+    xlim = xlim_for_key(key, combos)
     if xlim is not None:
         ax.set_xlim(*xlim)
     ax.set_yticks([])

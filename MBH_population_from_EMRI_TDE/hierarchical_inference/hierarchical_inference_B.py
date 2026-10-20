@@ -83,7 +83,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 from selection_function import SelectionFunction
 
 # ── Population setup ──────────────────────────────────────────────────────
-true_x  = get_true_x("B", args.mbh_mass_method, args.nucleation_method, args.occupation_method)
 popdist = make_dist("B")
 
 # ── Load data ─────────────────────────────────────────────────────────────
@@ -315,17 +314,13 @@ with h5py.File(f'{output}/result.hdf5', 'r') as hf:
     post = load_posterior_samples_dynamic(hf)
 
 # FIX: this used to hardcode "A" here -- a pop-B run was plotting against
-# pop-A's parameter names and truth values.
 labels_dict = get_latex_labels("B")
-truths_dict = get_true_x_flat("B", args.mbh_mass_method, args.nucleation_method, args.occupation_method)
 
 keys = [k for k in labels_dict if k in post]   # only params actually sampled this run
 
 posterior_samples = np.vstack([post[k] for k in keys]).T
-truths = [truths_dict[k] for k in keys]
 labels = [labels_dict[k] for k in keys]
 
-print("Truths:", truths)
 print("Labels:", labels)
 
 figure = corner.corner(

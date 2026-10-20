@@ -11,7 +11,6 @@ Three products, selected via --MODE:
            the "individual per scenario" product.)
   all      BOTH populations, EVERY scenario pooled together into one
            split-violin figure -- the grand combined view. Truth markers
-           are omitted here since the injected truth differs per scenario.
 
 --MODE single/grouped need --mbh_mass_method/--nucleation_method/--occupation_method.
 --MODE all takes no scenario args (pools every entry in utils.SCENARIO_KEY).
@@ -33,7 +32,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from utils import load_available_combos, get_latex_labels, get_true_x_flat, SOURCE_SURVEY_COMBOS, SCENARIO_KEY
+from utils import load_available_combos, get_latex_labels, SOURCE_SURVEY_COMBOS, SCENARIO_KEY
 
 matplotlib.rc('font', family='serif', serif=['Computer Modern'], size=18)
 matplotlib.rc('text', usetex=True)
@@ -69,14 +68,13 @@ def save_fig(fig, base_path):
 
 
 def load_scenario(pop, mbh, nuc, occ):
-    """Returns (records_df_or_None, labels_dict, truths_dict, combo_labels_present)."""
+    """Returns (records_df_or_None, labels_dict, combo_labels_present)."""
     combos = load_available_combos(base_dir, pop, mbh, nuc, occ)
     if not combos:
         print(f"[warn] no combos loaded for population {pop} ({mbh}_{nuc}_{occ}) -- skipping")
-        return None, {}, {}, set()
+        return None, {}, set()
 
     labels_dict = get_latex_labels(pop)
-    truths_dict = get_true_x_flat(pop, mbh, nuc, occ)
 
     records = []
     combo_labels_present = set()
@@ -87,7 +85,7 @@ def load_scenario(pop, mbh, nuc, occ):
                 "value": samples, "param": key, "combo": c["label"], "population": pop,
             }))
     df = pd.concat(records, ignore_index=True) if records else None
-    return df, labels_dict, truths_dict, combo_labels_present
+    return df, labels_dict, combo_labels_present
 
 
 def shared_params_for(df, labels_by_pop, pops_present):
@@ -116,7 +114,7 @@ def combo_order_for(combo_labels_present):
 
 
 def make_violin_grid(df, shared_params, combo_order, labels_by_pop, pops, split,
-                      truths_by_pop=None, title_suffix=""):
+                      title_suffix=""):
     """Grid of violin plots across parameters and combos."""
     n_rows = len(shared_params)
     fig, axes = plt.subplots(n_rows, 1, figsize=(2.2 * len(combo_order), 3.2 * n_rows), squeeze=False)
@@ -136,15 +134,6 @@ def make_violin_grid(df, shared_params, combo_order, labels_by_pop, pops, split,
                 palette=POP_COLORS, order=combo_order, hue_order=pops,
                 linewidth=1.0, saturation=0.9,
             )
-            if truths_by_pop is not None:
-                for i, combo in enumerate(combo_order):
-                    for pop in pops:
-                        t = truths_by_pop.get(pop, {}).get(param)
-                        if t is None:
-                            continue
-                        dx = -0.18 if pop == "A" else 0.18
-                        ax.plot([i + dx - 0.12, i + dx + 0.12], [t, t],
-                                color=POP_COLORS[pop], lw=2.2, solid_capstyle="round", zorder=5)
             if row_i == 0:
                 ax.legend(title="Population", loc='upper right', fontsize=12, title_fontsize=13)
             else:
@@ -156,10 +145,6 @@ def make_violin_grid(df, shared_params, combo_order, labels_by_pop, pops, split,
                 order=combo_order, color=POP_COLORS.get(pop, "#3b6fa0"),
                 linewidth=1.0, saturation=0.9,
             )
-            if truths_by_pop is not None:
-                t = truths_by_pop.get(pop, {}).get(param)
-                if t is not None:
-                    ax.axhline(t, color="black", lw=1.8, linestyle="--", zorder=5)
 
         label = labels_by_pop[pops[0]][param]
         ax.set_ylabel(label, fontsize=16)
@@ -177,7 +162,7 @@ if args.MODE == "single":
     outdir = f"{base_dir}/PLOTS/violin-posteriors/{scenario_tag}"
     os.makedirs(outdir, exist_ok=True)
 
-    df, labels_dict, truths_dict, combo_labels = load_scenario(
+    df, labels_dict, combo_labels = load_scenario(
         args.POPULATION, args.mbh_mass_method, args.nucleation_method, args.occupation_method
     )
     if df is None:
@@ -190,7 +175,7 @@ if args.MODE == "single":
 
     fig = make_violin_grid(
         df, shared_params, combo_order, {args.POPULATION: labels_dict},
-        pops=[args.POPULATION], split=False, truths_by_pop={args.POPULATION: truths_dict},
+        pops=[args.POPULATION], split=False,
     )
     base_name = f"{outdir}/{args.GALAXIES}_pop_{args.POPULATION}_{scenario_tag}_violin"
     save_fig(fig, base_name)
@@ -201,16 +186,15 @@ elif args.MODE == "grouped":
     outdir = f"{base_dir}/PLOTS/violin-posteriors/{scenario_tag}"
     os.makedirs(outdir, exist_ok=True)
 
-    dfs, labels_by_pop, truths_by_pop, combo_labels_present = [], {}, {}, set()
+    dfs, labels_by_pop, combo_labels_present = [], {}, set()
     for pop in POPS:
-        d, labels_dict, truths_dict, combos_here = load_scenario(
+        d, labels_dict, combos_here = load_scenario(
             pop, args.mbh_mass_method, args.nucleation_method, args.occupation_method
         )
         if d is None:
             continue
         dfs.append(d)
         labels_by_pop[pop] = labels_dict
-        truths_by_pop[pop] = truths_dict
         combo_labels_present |= combos_here
 
     if not dfs:
@@ -225,7 +209,7 @@ elif args.MODE == "grouped":
 
     fig = make_violin_grid(
         df, shared_params, combo_order, labels_by_pop,
-        pops=pops_present, split=True, truths_by_pop=truths_by_pop,
+        pops=pops_present, split=True,
     )
     base_name = f"{outdir}/{args.GALAXIES}_{scenario_tag}_violin_grouped"
     save_fig(fig, base_name)
@@ -238,7 +222,7 @@ else:  # all
     dfs, labels_by_pop, combo_labels_present = [], {}, set()
     for pop in POPS:
         for (mbh, nuc, occ) in SCENARIO_KEY:
-            d, labels_dict, _truths, combos_here = load_scenario(pop, mbh, nuc, occ)
+            d, labels_dict, combos_here = load_scenario(pop, mbh, nuc, occ)
             if d is None:
                 continue
             d = d.copy()
@@ -252,8 +236,6 @@ else:  # all
     df = pd.concat(dfs, ignore_index=True)
     pops_present = list(labels_by_pop.keys())
 
-    # Truths differ per scenario -- pooled figure omits truth markers (split=True
-    # branch handles truths_by_pop=None gracefully).
     shared_params = shared_params_for(df, labels_by_pop, pops_present)
     if not shared_params:
         raise RuntimeError("No parameters shared across both populations and all combos/scenarios.")
@@ -261,7 +243,7 @@ else:  # all
 
     fig = make_violin_grid(
         df, shared_params, combo_order, labels_by_pop,
-        pops=pops_present, split=True, truths_by_pop=None,
+        pops=pops_present, split=True,
     )
     base_name = f"{outdir}/{args.GALAXIES}_violin_all_scenarios"
     save_fig(fig, base_name)

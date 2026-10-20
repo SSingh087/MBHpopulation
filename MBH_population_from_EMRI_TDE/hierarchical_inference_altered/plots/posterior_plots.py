@@ -5,7 +5,7 @@ across every source/survey combination (EMRI / TDE-ZTF / TDE-LSST / TDE-ALL /
 EMRI+TDE-ZTF / EMRI+TDE-LSST / EMRI+TDE-ALL).
 
   - 1D grid : one panel per hyperparameter, KDE per combo, median +/- 90%
-              annotation, truth line.
+              annotation.
   - 2D corner: overlaid corner.corner() per combo, restricted to the
               hyperparameters common to every loaded combo (required so the
               overlays share the same axes layout).
@@ -59,18 +59,14 @@ def smart_format(q50, q_low, q_high, alpha=0.8):
     return f"${fmt.format(q50_r)}_{{-{fmt.format(em_r)}}}^{{+{fmt.format(ep_r)}}}$"
 
 
-def xlim_for_key(key, combos, truth, pad_frac=0.05):
+def xlim_for_key(key, combos, pad_frac=0.05):
     """0.5-99.5 percentile range across every source that has this
-    parameter, padded a bit, and widened if needed so the truth line
-    stays visible."""
+    parameter, padded a bit."""
     vals = [c["samples"][key] for c in combos if key in c["samples"]]
     if not vals:
         return None
     all_vals = np.concatenate(vals)
     lo, hi = np.percentile(all_vals, [0.5, 99.5])
-    if truth is not None:
-        lo = min(lo, truth)
-        hi = max(hi, truth)
     pad = (hi - lo) * pad_frac if hi > lo else max(abs(lo), 1.0) * pad_frac
     return lo - pad, hi + pad
 
@@ -96,9 +92,6 @@ if not combos:
     )
 
 labels_dict = get_latex_labels(args.POPULATION)
-truths_dict = get_true_x_flat(
-    args.POPULATION, args.mbh_mass_method, args.nucleation_method, args.occupation_method
-)
 
 for c in combos:
     missing = [k for k in labels_dict if k not in c["samples"]]
@@ -113,7 +106,6 @@ def make_1d_grid():
     """Grid of 1D marginal posteriors."""
     keys = [k for k in labels_dict if any(k in c["samples"] for c in combos)]
     labels_post = [labels_dict[k] for k in keys]
-    truths = [truths_dict[k] for k in keys]
 
     n_params = len(keys)
     ncols = 4
@@ -141,8 +133,7 @@ def make_1d_grid():
             ax.text(0.04, y_pos, err, transform=ax.transAxes,
                     verticalalignment='top', horizontalalignment='left',
                     color=c["color"], fontsize=13)
-        ax.axvline(truths[idx], color='black', linestyle='--', linewidth=1.5)
-        xlim = xlim_for_key(key, combos, truths[idx])
+        xlim = xlim_for_key(key, combos)
         if xlim is not None:
             ax.set_xlim(*xlim)
         ax.set_yticks([])
@@ -179,12 +170,10 @@ def make_2d_corner():
         return None
 
     labels = [labels_dict[k] for k in keys]
-    truths = [truths_dict[k] for k in keys]
 
     default_kwargs = dict(
         bins=32,
         smooth=0.9,
-        truth_color='black',
         plot_density=False,
         plot_datapoints=False,
         fill_contours=False,
@@ -202,7 +191,6 @@ def make_2d_corner():
             samp,
             fig=fig_corner,
             color=c["color"],
-            truths=truths,
             labels=labels,
             hist_kwargs=dict(density=True, color=c["color"], linewidth=2),
             contour_kwargs=dict(linewidths=2),

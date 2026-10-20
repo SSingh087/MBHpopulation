@@ -14,8 +14,6 @@ For a fixed population:
               utils.MODEL_LABELS (matches the paper's model-name table)
   - hue     = the 7 source/survey cases, dodged side by side within each
               scenario tick (NOT split -- there are more than 2 to compare)
-  - a black dash at each scenario tick marks that scenario's injected truth
-    (truth depends only on population + scenario, not on case)
 
 A case can be silenced from the overlay with --EXCLUDE_CASES, same as
 posterior_plots.py.
@@ -33,7 +31,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from utils import load_available_combos, get_latex_labels, get_true_x_flat, SOURCE_SURVEY_COMBOS, SCENARIO_KEY, MODEL_LABELS
+from utils import load_available_combos, get_latex_labels, SOURCE_SURVEY_COMBOS, SCENARIO_KEY, MODEL_LABELS
 
 matplotlib.rc('font', family='serif', serif=['Computer Modern'], size=18)
 matplotlib.rc('text', usetex=True)
@@ -67,7 +65,6 @@ scenario_tuples = sorted(SCENARIO_KEY, key=lambda t: int(MODEL_LABELS[t][1:]))
 scenario_order = [MODEL_LABELS[t] for t in scenario_tuples]
 
 records = []
-truths_by_scenario = {}  # "M#" -> {param: truth}
 present_cells = set()    # (param, "M#", case) actually loaded
 
 for (mbh, nuc, occ) in scenario_tuples:
@@ -77,8 +74,6 @@ for (mbh, nuc, occ) in scenario_tuples:
     if not combos:
         print(f"[warn] no cases loaded for pop {args.POPULATION}, scenario {scen_tag} -- skipping")
         continue
-
-    truths_by_scenario[scen_tag] = get_true_x_flat(args.POPULATION, mbh, nuc, occ)
 
     for c in combos:
         for key, samples in c["samples"].items():
@@ -116,7 +111,6 @@ fig, axes = plt.subplots(n_rows, 1, figsize=(2.0 * len(scenarios_present), 3.2 *
 axes = axes[:, 0]
 
 n_cases = len(cases_present)
-dodge_width = 0.8  # total width sns.violinplot spreads hues across, per its own convention
 
 for row_i, param in enumerate(params_ordered):
     ax = axes[row_i]
@@ -129,15 +123,6 @@ for row_i, param in enumerate(params_ordered):
         dodge=True, linewidth=0.8, saturation=0.9, inner="quart",
         density_norm="width", common_norm=False,
     )
-
-    # One truth dash per scenario tick, spanning the dodged case cluster.
-    for i, scen_tag in enumerate(scenarios_present):
-        t = truths_by_scenario.get(scen_tag, {}).get(param)
-        if t is None:
-            continue
-        half = dodge_width / 2
-        ax.plot([i - half, i + half], [t, t], color="black", lw=2.0,
-                linestyle="--", solid_capstyle="butt", zorder=5)
 
     label = labels_dict[param]
     ax.set_ylabel(label, fontsize=16)

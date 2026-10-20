@@ -44,14 +44,7 @@ if not combos:
     )
 
 popdist = make_dist(args.POPULATION)
-true_x = get_true_x(
-    args.POPULATION, args.mbh_mass_method, args.nucleation_method, args.occupation_method
-)
-
-TRUE_SIZE = 500
-catalogue_true = popdist.draw_samples(x=true_x, size=TRUE_SIZE)
-
-keys = list(catalogue_true.keys())
+keys = ["lgMBH_mass", "MBHspin", "e_pl", "z_gal"]
 
 labels_dict = {
     "lgMBH_mass": r"\log_{10}(M_\mathrm{BH}/M_\odot)",
@@ -76,11 +69,11 @@ def compute_hist(data, bins=50, log=False):
 
 
 # get_nested_from_flat lives in utils.py (same explicit flat<->nested name
-# table used by get_true_x_flat()) and returns (nested_dict,
+# table used by FLAT_KEYMAP) and returns (nested_dict,
 # missing_components) -- missing_components lists which top-level
 # population components (e.g. "MBHspin") this particular posterior row
 # did NOT actually sample, so we skip drawing a PPD contribution for
-# those rather than plotting truth-pinned noise.
+# those rather than plotting unconstrained noise.
 
 n_params = len(keys)
 ncols = 3
@@ -136,7 +129,7 @@ for idx, ax_i in enumerate(plot_slots):
                 if key in missing_components:
                     # This source/survey combo never sampled the hyperparameters
                     # feeding this component -- skip rather than plot
-                    # truth-pinned catalogue noise.
+                    # unconstrained catalogue noise.
                     skipped_as_unsampled += 1
                     continue
 
@@ -197,8 +190,6 @@ for j in range(len(axes)):
 
 # --- Legend ---
 handles = [
-    plt.Line2D([], [], color='black', lw=2, label='Truth')
-] + [
     plt.Line2D([], [], color=c["color"], lw=2, linestyle='--', label=c["label"])
     for c in combos
 ]
