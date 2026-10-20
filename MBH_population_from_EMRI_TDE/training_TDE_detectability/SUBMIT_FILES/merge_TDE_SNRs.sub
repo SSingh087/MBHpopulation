@@ -1,0 +1,12 @@
+executable   = ./EXECUTABLES/merge_TDE_SNRs.sh
+getenv       = true
+arguments    = $(SURVEY) $(N_CHUNKS)
+
+log    = LOG_FILES/merge_$(SURVEY).log
+error  = ERROR_FILES/merge_$(SURVEY).err
+output = OUTPUT_FILES/merge_$(SURVEY).out
+
+
+request_cpus   = 1
+request_memory = 16GB
+queue 1

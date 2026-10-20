@@ -1,0 +1,19 @@
+log = LOG_FILES/gen_PSD.log
+error = ERROR_FILES/gen_PSD.err
+output = OUTPUT_FILES/gen_PSD.out
+
+# Email notifications
+
+
+# Executable and arguments here 
+executable = EXECUTABLES/gen_PSD.sh
+getenv = True
+
+# Resource requirements
+request_GPUs = 1
+require_gpus = (GlobalMemoryMb - (MemoryUsage?:0) > 5000 )
+request_cpus = 1
+request_memory = 1GB
+
+# Number of jobs
+queue 1

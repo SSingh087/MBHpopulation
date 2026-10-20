@@ -1,0 +1,17 @@
+
+# Executable and arguments
+executable      = ./EXECUTABLES/gen_TDE_params.sh
+getenv          = true
+arguments       = $(SURVEY) $(MODEL)
+
+# Logs
+log             = LOG_FILES/gen_TDE_params_$(SURVEY)_$(MODEL).log
+error           = ERROR_FILES/gen_TDE_params_$(SURVEY)_$(MODEL).err
+output          = OUTPUT_FILES/gen_TDE_params_$(SURVEY)_$(MODEL).out
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 2GB
+
+queue 1

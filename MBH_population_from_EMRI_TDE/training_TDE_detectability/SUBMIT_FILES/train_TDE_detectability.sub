@@ -1,0 +1,93 @@
+log = LOG_FILES/train_TDE.$(num_neurons)_$(layers)_$(loss_type)_$(rescaler_flag)_$(SURVEY)_$(MODEL).log
+error = ERROR_FILES/train_TDE.$(num_neurons)_$(layers)_$(loss_type)_$(rescaler_flag)_$(SURVEY)_$(MODEL).err
+output = OUTPUT_FILES/train_TDE.$(num_neurons)_$(layers)_$(loss_type)_$(rescaler_flag)_$(SURVEY)_$(MODEL).out
+
+
+executable = EXECUTABLES/train_TDE_detectability.sh
+getenv = True
+
+request_GPUs = 1
+request_cpus = 1
+request_memory = 12GB
+
+arguments = $(num_neurons) $(layers) $(loss_type) $(rescaler_flag) $(SURVEY) $(MODEL)
+
+# Smart hyperparameter combinations for binary TDE detectability classification,
+# now trained as one independent classifier PER redback TDE model (each model
+# has its own physics/parameter set, so a single shared network is not
+# appropriate -- see gen_TDE_params.py for the per-model parameter spec).
+# Testing: neurons (64,128,256,512) x layers (2,3,4) x loss (BCE) x rescaler (no) x surveys (ZTF,LSST) x model (6)
+queue num_neurons, layers, loss_type, rescaler_flag, SURVEY, MODEL from (
+64  2  BCE  no_rescaler  LSST  cooling_envelope
+64  3  BCE  no_rescaler  LSST  cooling_envelope
+128 2  BCE  no_rescaler  LSST  cooling_envelope
+128 3  BCE  no_rescaler  LSST  cooling_envelope
+128 4  BCE  no_rescaler  LSST  cooling_envelope
+256 3  BCE  no_rescaler  LSST  cooling_envelope
+256 4  BCE  no_rescaler  LSST  cooling_envelope
+512 3  BCE  no_rescaler  LSST  cooling_envelope
+512 4  BCE  no_rescaler  LSST  cooling_envelope
+64  2  BCE  no_rescaler  LSST  stream_stream_tde
+64  3  BCE  no_rescaler  LSST  stream_stream_tde
+128 2  BCE  no_rescaler  LSST  stream_stream_tde
+128 3  BCE  no_rescaler  LSST  stream_stream_tde
+128 4  BCE  no_rescaler  LSST  stream_stream_tde
+256 3  BCE  no_rescaler  LSST  stream_stream_tde
+256 4  BCE  no_rescaler  LSST  stream_stream_tde
+512 3  BCE  no_rescaler  LSST  stream_stream_tde
+512 4  BCE  no_rescaler  LSST  stream_stream_tde
+64  2  BCE  no_rescaler  LSST  tde_analytical
+64  3  BCE  no_rescaler  LSST  tde_analytical
+128 2  BCE  no_rescaler  LSST  tde_analytical
+128 3  BCE  no_rescaler  LSST  tde_analytical
+128 4  BCE  no_rescaler  LSST  tde_analytical
+256 3  BCE  no_rescaler  LSST  tde_analytical
+256 4  BCE  no_rescaler  LSST  tde_analytical
+512 3  BCE  no_rescaler  LSST  tde_analytical
+512 4  BCE  no_rescaler  LSST  tde_analytical
+64  2  BCE  no_rescaler  LSST  tde_fallback
+64  3  BCE  no_rescaler  LSST  tde_fallback
+128 2  BCE  no_rescaler  LSST  tde_fallback
+128 3  BCE  no_rescaler  LSST  tde_fallback
+128 4  BCE  no_rescaler  LSST  tde_fallback
+256 3  BCE  no_rescaler  LSST  tde_fallback
+256 4  BCE  no_rescaler  LSST  tde_fallback
+512 3  BCE  no_rescaler  LSST  tde_fallback
+512 4  BCE  no_rescaler  LSST  tde_fallback
+64  2  BCE  no_rescaler  ZTF  cooling_envelope
+64  3  BCE  no_rescaler  ZTF  cooling_envelope
+128 2  BCE  no_rescaler  ZTF  cooling_envelope
+128 3  BCE  no_rescaler  ZTF  cooling_envelope
+128 4  BCE  no_rescaler  ZTF  cooling_envelope
+256 3  BCE  no_rescaler  ZTF  cooling_envelope
+256 4  BCE  no_rescaler  ZTF  cooling_envelope
+512 3  BCE  no_rescaler  ZTF  cooling_envelope
+512 4  BCE  no_rescaler  ZTF  cooling_envelope
+64  2  BCE  no_rescaler  ZTF  stream_stream_tde
+64  3  BCE  no_rescaler  ZTF  stream_stream_tde
+128 2  BCE  no_rescaler  ZTF  stream_stream_tde
+128 3  BCE  no_rescaler  ZTF  stream_stream_tde
+128 4  BCE  no_rescaler  ZTF  stream_stream_tde
+256 3  BCE  no_rescaler  ZTF  stream_stream_tde
+256 4  BCE  no_rescaler  ZTF  stream_stream_tde
+512 3  BCE  no_rescaler  ZTF  stream_stream_tde
+512 4  BCE  no_rescaler  ZTF  stream_stream_tde
+64  2  BCE  no_rescaler  ZTF  tde_analytical
+64  3  BCE  no_rescaler  ZTF  tde_analytical
+128 2  BCE  no_rescaler  ZTF  tde_analytical
+128 3  BCE  no_rescaler  ZTF  tde_analytical
+128 4  BCE  no_rescaler  ZTF  tde_analytical
+256 3  BCE  no_rescaler  ZTF  tde_analytical
+256 4  BCE  no_rescaler  ZTF  tde_analytical
+512 3  BCE  no_rescaler  ZTF  tde_analytical
+512 4  BCE  no_rescaler  ZTF  tde_analytical
+64  2  BCE  no_rescaler  ZTF  tde_fallback
+64  3  BCE  no_rescaler  ZTF  tde_fallback
+128 2  BCE  no_rescaler  ZTF  tde_fallback
+128 3  BCE  no_rescaler  ZTF  tde_fallback
+128 4  BCE  no_rescaler  ZTF  tde_fallback
+256 3  BCE  no_rescaler  ZTF  tde_fallback
+256 4  BCE  no_rescaler  ZTF  tde_fallback
+512 3  BCE  no_rescaler  ZTF  tde_fallback
+512 4  BCE  no_rescaler  ZTF  tde_fallback
+)

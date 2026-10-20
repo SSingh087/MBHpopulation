@@ -1,0 +1,18 @@
+log = LOG_FILES/train_SNR.$(num_neurons)_$(layers)_$(loss_type)_$(rescaler_flag).log
+error = ERROR_FILES/train_SNR.$(num_neurons)_$(layers)_$(loss_type)_$(rescaler_flag).err
+output = OUTPUT_FILES/train_SNR.$(num_neurons)_$(layers)_$(loss_type)_$(rescaler_flag).out
+
+
+executable = EXECUTABLES/train_SNR.sh
+getenv = True
+
+request_GPUs = 1
+request_cpus = 1
+request_memory = 2GB
+
+arguments = $(num_neurons) $(layers) $(loss_type) $(rescaler_flag)
+
+queue num_neurons, layers, loss_type, rescaler_flag from (
+2048 4 MSE no_rescaler
+)
+
