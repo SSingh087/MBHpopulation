@@ -22,9 +22,10 @@ class SelectionFunction:
         self.names = names
 
     @classmethod
-    def load(cls, population, channel, directory=SELECTION_DIR, device="cpu"):
-        """Load <directory>/<population>_<channel>/{model.pth, names.json}."""
-        folder = os.path.join(directory, f"{population}_{channel}")
+    def load(cls, population, channel, tde_model=None, directory=SELECTION_DIR, device="cpu"):
+        """Load <directory>/<population>_<channel>[_<tde_model>]/{model.pth, names.json}."""
+        tag = f"{channel}_{tde_model}" if channel != "EMRI" and tde_model else channel
+        folder = os.path.join(directory, f"{population}_{tag}")
         with open(os.path.join(folder, "model.pth"), "rb") as f:
             model = pickle.load(f)
         with open(os.path.join(folder, "names.json")) as f:

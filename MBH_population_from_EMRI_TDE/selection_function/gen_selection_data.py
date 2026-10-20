@@ -13,7 +13,7 @@ import numpy as np
 sys.path.insert(0, os.path.abspath('./'))
 sys.path.insert(0, os.path.abspath('./hierarchical_inference'))
 sys.path.insert(0, os.path.abspath('./selection_function'))
-from common import CHANNELS, channel_names, load_prior_bounds, emri_detection_probability, tde_detection_probability
+from common import CHANNELS, channel_tag, channel_names, load_prior_bounds, emri_detection_probability, tde_detection_probability
 from cosmology import CosmologyModel
 from utils import make_dist, get_nested_from_flat
 
@@ -28,6 +28,11 @@ parser.add_argument("--T_OBS_EMRI", type=float, default=6.0)
 parser.add_argument("--MODEL_PATH", type=str, help="detection network (EMRI: SNR network)")
 parser.add_argument("--SCALING_PATH", type=str, help="EMRI snr_scaling.json")
 parser.add_argument("--SNR_THRESHOLD", type=float, default=20.0)
+parser.add_argument("--TDE_MODEL", type=str, default="tde_fallback", help="TDE light-curve model of the TDE channels")
+parser.add_argument("--num_neurons", type=int, help="width of the TDE classifier to load")
+parser.add_argument("--layers", type=int, help="depth of the TDE classifier to load")
+parser.add_argument("--DETECTION_THRESHOLD", type=float, default=0.5)
+parser.add_argument("--Z_GAL_MAX", type=float, default=4.0, help="redshift cut of the survey")
 parser.add_argument("--OUT_DIR", type=str, default="./data/selection_function")
 args = parser.parse_args()
 
@@ -66,7 +71,7 @@ def detection_probability(draws):
     """Per-event detection probability of the channel for population draws."""
     if args.CHANNEL == "EMRI":
         return emri_detection_probability(complete_emri(draws), args)
-    return tde_detection_probability(draws, args.CHANNEL.split("_")[1], args)
+    return tde_detection_probability(draws, args.CHANNEL.split("_")[1], args, rng)
 
 
 lam = np.array([[rng.uniform(*bounds[n]) for n in names] for _ in range(args.N_LAMBDA)])
@@ -78,7 +83,7 @@ for k in range(args.N_LAMBDA):
     # components without a free hyperparameter in this channel are fixed at the prior mid-point
     for n, (lo, hi) in bounds.items():
         flat.setdefault(n, 0.5 * (lo + hi))
-    nested, _ = get_nested_from_flat(flat, args.POPULATION, "use_sigma", "hannah", "uniform")
+    nested, _ = get_nested_from_flat(flat, args.POPULATION)
     draws = {key: np.asarray(v.detach().cpu()) for key, v in popdist.draw_samples(nested, size=args.N_EVENTS).items()}
     p = detection_probability(draws)
     alpha = max(p.mean(), 1e-12)
@@ -86,6 +91,6 @@ for k in range(args.N_LAMBDA):
     log_alpha_err[k] = np.sqrt((1 - alpha) / (alpha * len(p)))   # binomial error on log alpha
 
 os.makedirs(args.OUT_DIR, exist_ok=True)
-out = f"{args.OUT_DIR}/data_{args.POPULATION}_{args.CHANNEL}_{args.CHUNK:04d}.npz"
+out = f"{args.OUT_DIR}/data_{args.POPULATION}_{channel_tag(args.CHANNEL, args.TDE_MODEL)}_{args.CHUNK:04d}.npz"
 np.savez(out, lam=lam, log_alpha=log_alpha, log_alpha_err=log_alpha_err, names=np.array(names))
 print(f"wrote {args.N_LAMBDA} points to {out}")

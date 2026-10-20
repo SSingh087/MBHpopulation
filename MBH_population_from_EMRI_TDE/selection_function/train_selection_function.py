@@ -10,6 +10,8 @@ import numpy as np
 import torch
 
 sys.path.insert(0, os.path.abspath('../poplar'))
+sys.path.insert(0, os.path.abspath('./selection_function'))
+from common import channel_tag
 from poplar.nn.networks import LinearModel
 from poplar.nn.rescaling import ZScoreRescaler
 from poplar.nn.training import train, train_test_split
@@ -17,6 +19,7 @@ from poplar.nn.training import train, train_test_split
 parser = argparse.ArgumentParser()
 parser.add_argument("--POPULATION", type=str, required=True, choices=["A", "B"])
 parser.add_argument("--CHANNEL", type=str, required=True)
+parser.add_argument("--TDE_MODEL", type=str, default="tde_fallback")
 parser.add_argument("--DATA_DIR", type=str, default="./data/selection_function")
 parser.add_argument("--num_neurons", type=int, default=256)
 parser.add_argument("--layers", type=int, default=4)
@@ -27,9 +30,10 @@ parser.add_argument("--n_batches", type=int, default=100)
 parser.add_argument("--device", type=str, default="cuda")
 args = parser.parse_args()
 
-files = sorted(glob.glob(f"{args.DATA_DIR}/data_{args.POPULATION}_{args.CHANNEL}_*.npz"))
+tag = channel_tag(args.CHANNEL, args.TDE_MODEL)
+files = sorted(glob.glob(f"{args.DATA_DIR}/data_{args.POPULATION}_{tag}_[0-9]*.npz"))
 if not files:
-    raise RuntimeError(f"No training chunks for {args.POPULATION}_{args.CHANNEL} in {args.DATA_DIR}")
+    raise RuntimeError(f"No training chunks for {args.POPULATION}_{tag} in {args.DATA_DIR}")
 chunks = [np.load(f) for f in files]
 names = [str(n) for n in chunks[0]["names"]]
 x = torch.as_tensor(np.concatenate([c["lam"] for c in chunks]), device=args.device).float()
@@ -44,7 +48,7 @@ xtrain, xtest, ytrain, ytest = train_test_split([x, y], args.train_test_frac)
 optimiser = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=1e-6)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimiser, mode="min", patience=10, factor=0.5)
 
-out_dir = f"{args.DATA_DIR}/{args.POPULATION}_{args.CHANNEL}"
+out_dir = f"{args.DATA_DIR}/{args.POPULATION}_{tag}"
 os.makedirs(out_dir, exist_ok=True)
 train(model, data=[xtrain, ytrain, xtest, ytest], n_epochs=args.n_epochs, n_batches=args.n_batches,
       loss_function=torch.nn.SmoothL1Loss(), optimiser=optimiser, update_every=args.n_epochs // 10,

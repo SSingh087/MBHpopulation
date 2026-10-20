@@ -13,22 +13,8 @@ from cosmology import CosmologyModel
 
 cosmo_model = CosmologyModel()
 
-# ============================================================
-# Per-TDE-model config -- MUST match training_TDE_detectability/
-# gen_TDE_params.py and prep_TDE_params_detectability.py exactly (same
-# MODELS list, same extra-param ranges, same key names), since
-# calculate_SNR_TDE.py feeds these events through the classifiers
-# trained on that data.
-# bpl_cooling_envelope and gaussianrise_cooling_envelope are excluded:
-# both crash deterministically (KeyError: 'bands') under redback's
-# SimulateOpticalTransient (confirmed still broken in redback 1.18.0).
-# ============================================================
-MODELS = [
-    "cooling_envelope",
-    "stream_stream_tde",
-    "tde_analytical",
-    "tde_fallback",
-]
+sys.path.insert(0, os.path.abspath('./data_generation'))
+from tde_detect_model import MODELS, loguniform, sample_extra_params
 
 # ============================================================
 # Argument parsing
@@ -90,11 +76,6 @@ alpha_min, alpha_max = args.alpha
 beta_min, beta_max = args.beta
 
 
-def loguniform(low, high, size, rng):
-    """Log-uniform samples between low and high."""
-    return np.exp(rng.uniform(np.log(low), np.log(high), size))
-
-
 eta_samples = loguniform(eta_min, eta_max, n_events, rng)
 alpha_samples = loguniform(alpha_min, alpha_max, n_events, rng)
 beta_samples = rng.uniform(beta_min, beta_max, size=n_events)
@@ -107,28 +88,7 @@ beta_samples = rng.uniform(beta_min, beta_max, size=n_events)
 # Ranges/citations match training_TDE_detectability/gen_TDE_params.py.
 # ============================================================
 MODEL = args.TDE_model
-extra_data = {}
-
-if MODEL == "stream_stream_tde":
-    extra_data["peak_time"] = loguniform(5.0, 40.0, n_events, rng)
-    extra_data["sigma_t"] = loguniform(5.0, 30.0, n_events, rng)
-
-elif MODEL == "tde_analytical":
-    extra_data["mej"] = loguniform(0.1, 5.0, n_events, rng)
-    extra_data["vej"] = loguniform(3000.0, 15000.0, n_events, rng)
-    extra_data["kappa"] = rng.uniform(0.1, 1.0, size=n_events)
-    extra_data["kappa_gamma"] = loguniform(0.0001, 10000.0, n_events, rng)
-    extra_data["temperature_floor"] = rng.uniform(10000.0, 50000.0, size=n_events)
-    extra_data["l0"] = loguniform(1e51, 1e60, n_events, rng)
-    extra_data["t_0_turn"] = loguniform(0.0001, 500.0, n_events, rng)
-
-elif MODEL == "tde_fallback":
-    extra_data["tvisc"] = loguniform(1.0, 30.0, n_events, rng)
-    extra_data["bb"] = rng.uniform(0.0, 2.0, size=n_events)
-    extra_data["rph0"] = loguniform(1e-4, 1e4, n_events, rng)
-    extra_data["lphoto"] = rng.uniform(0.0, 2.0, size=n_events)
-
-# cooling_envelope: no extra params beyond the shared set.
+extra_data = sample_extra_params(MODEL, n_events, rng)
 
 print(f"Sampled extra params for model '{MODEL}': {list(extra_data.keys())}")
 

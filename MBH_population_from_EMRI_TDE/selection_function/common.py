@@ -22,6 +22,11 @@ EMRI_ONLY = {
 PRIOR_STEM = {"xc": "XC_M", "lam_z_gal": "Z_GAL_LAM"}
 
 
+def channel_tag(channel, tde_model=None):
+    """Folder/file tag of a channel; TDE channels depend on the TDE light-curve model."""
+    return f"{channel}_{tde_model}" if channel != "EMRI" and tde_model else channel
+
+
 def channel_names(population, channel):
     """Hyperparameters the channel's selection function depends on."""
     return SHARED[population] + (EMRI_ONLY[population] if channel == "EMRI" else [])
@@ -56,9 +61,34 @@ def emri_detection_probability(events, args):
     return (snr > args.SNR_THRESHOLD).astype(float)
 
 
-def tde_detection_probability(events, survey, args):
-    """Detection probability of the (TDE model, survey) classifier for a dict of complete TDE parameters.
+_CLASSIFIERS = {}
 
-    Uses the same classifier, inputs and scaling as data_generation/calculate_SNR_TDE.py.
+
+def tde_detection_probability(draws, survey, args, rng):
+    """Detection indicator (classifier probability > threshold) for TDEs with population draws `draws`.
+
+    The remaining parameters (sky position, t0 inside the survey window, eta/alpha/beta and the
+    model-specific ones) are drawn as in data_generation/gen_TDE_params.py; the classifier and its
+    scaling are those used by data_generation/calculate_SNR_TDE.py.
     """
-    raise NotImplementedError("wrap the classifier call of data_generation/calculate_SNR_TDE.py here")
+    import torch
+    sys.path.insert(0, os.path.abspath('./data_generation'))
+    from tde_detect_model import (SURVEY_WINDOWS, load_classifier, predict_detection_prob,
+                                  sample_extra_params, sample_transient_params)
+    from utils import TRAIN_DIR_TDE
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    key = (args.TDE_MODEL, survey)
+    if key not in _CLASSIFIERS:
+        _CLASSIFIERS[key] = load_classifier(TRAIN_DIR_TDE, args.TDE_MODEL, survey,
+                                            args.num_neurons, args.layers, device)
+    classifier, scaling, feature_keys = _CLASSIFIERS[key]
+
+    n = len(draws["z_gal"])
+    t_lo, t_hi = SURVEY_WINDOWS[survey]
+    catalog = {"lgMBH_mass": draws["lgMBH_mass"], "z_gal": draws["z_gal"],
+               "ra_rad": rng.uniform(0, 2 * np.pi, n), "dec_rad": np.arcsin(rng.uniform(-1, 1, n)),
+               "t0_mjd_transient": rng.uniform(t_lo, t_hi, n),
+               **sample_transient_params(n, rng), **sample_extra_params(args.TDE_MODEL, n, rng)}
+    prob, _ = predict_detection_prob(classifier, scaling, feature_keys, catalog, device)
+    return ((prob > args.DETECTION_THRESHOLD) & (draws["z_gal"] <= args.Z_GAL_MAX)).astype(float)

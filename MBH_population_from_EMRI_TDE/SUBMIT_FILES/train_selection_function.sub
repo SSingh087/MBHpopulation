@@ -1,16 +1,16 @@
 executable     = ./EXECUTABLES/train_selection_function.sh
 getenv         = True
-arguments      = $(population) $(channel)
+arguments      = $(population) $(channel) $(tde_model)
 
 request_cpus   = 1
 request_gpus   = 1
 request_memory = 16GB
 
-queue population,channel from (
-A EMRI
-A TDE_ZTF
-A TDE_LSST
-B EMRI
-B TDE_ZTF
-B TDE_LSST
+queue population,channel,tde_model from (
+A EMRI tde_fallback
+A TDE_ZTF tde_fallback
+A TDE_LSST tde_fallback
+B EMRI tde_fallback
+B TDE_ZTF tde_fallback
+B TDE_LSST tde_fallback
 )

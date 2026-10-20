@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Detection probability of each generated TDE for a survey (ZTF/LSST) using the trained detectability classifier."""
 
-import os, sys, pickle, argparse
+import os, sys, argparse
 import numpy as np
 import h5py
 import torch
@@ -10,44 +10,8 @@ sys.path.insert(0, os.path.abspath('../poplar'))
 sys.path.insert(0, os.path.abspath('./'))
 from utils import ASTROPHYSICAL_DATA_DIR, TDE_DATA_FILE_NAME, TRAIN_DIR_TDE, MERGER_MODEL_CHOICES
 
-# ─────────────────────────────────────────────────────────────
-# Per-TDE-model config -- MUST match training_TDE_detectability/
-# prep_TDE_params_detectability.py exactly (same MODELS list, same
-# SHARED_KEYS order, same EXTRA_PARAM_SCALING), since this is the
-# classifier each event's row gets run through below.
-# ─────────────────────────────────────────────────────────────
-MODELS = [
-    "cooling_envelope",
-    "stream_stream_tde",
-    "tde_analytical",
-    "tde_fallback",
-]
-
-SHARED_KEYS = ["lgMBH", "z_gal", "ra_rad", "dec_rad", "eta", "alpha", "beta", "t0_mjd_transient"]
-
-EXTRA_PARAM_SCALING = {
-    "cooling_envelope":   [],
-    "stream_stream_tde":  [("peak_time", "log"), ("sigma_t", "log")],
-    "tde_analytical":     [("mej", "log"), ("vej", "log"), ("kappa", "linear"),
-                            ("kappa_gamma", "log"), ("temperature_floor", "linear"),
-                            ("l0", "log"), ("t_0_turn", "log")],
-    "tde_fallback":       [("tvisc", "log"), ("bb", "linear"),
-                            ("rph0", "log"), ("lphoto", "linear")],
-}
-
-# Map: training key -> catalog key (catalog produced by data_generation/gen_TDE_params.py)
-KEY_MAP = {
-    'alpha':   'alpha',
-    'beta':    'beta',
-    'dec_rad': 'dec_rad',
-    'eta':     'eta',
-    'lgMBH':   'lgMBH_mass',
-    'ra_rad':  'ra_rad',
-    't0_mjd_transient': 't0_mjd_transient',
-    'z_gal':   'z_gal',
-    # extra params share the same name in both the training catalog and
-    # the population catalog (see gen_TDE_params.py)
-}
+sys.path.insert(0, os.path.abspath('./data_generation'))
+from tde_detect_model import MODELS, SURVEY_WINDOWS, load_classifier, predict_detection_prob
 
 # ─────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
@@ -83,46 +47,13 @@ args = parser.parse_args()
 DETECTION_THRESHOLD = args.DETECTION_THRESHOLD
 MODEL = args.TDE_model
 
-MODEL_PATH      = (f"{TRAIN_DIR_TDE}/1E6_events/"
-                    f"TDE_DETECT_BCE_no_rescaler_{MODEL}_{args.num_neurons}_{args.layers}_10_{args.SURVEY}/"
-                    f"best_final_model/model/model.pth")
-TRAIN_H5_PATH   = f"{TRAIN_DIR_TDE}/1E6_events/TDE_params_1E6_{args.SURVEY}_{MODEL}.h5"
-
 DATA_PATH = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/{TDE_DATA_FILE_NAME}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.merger_model}_{MODEL}_{args.UNIVERSE_MODEL}.h5"
 OUT_PATH  = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/TDE_SNRs_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}_{args.merger_model}_{MODEL}_{args.UNIVERSE_MODEL}.h5"
 
-if not os.path.exists(MODEL_PATH):
-    raise RuntimeError(
-        f"Trained classifier checkpoint missing: {MODEL_PATH}\n"
-        f"Train it via training_TDE_detectability/train_TDE_detectability.sub "
-        f"({MODEL}, neurons={args.num_neurons}, layers={args.layers}, SURVEY={args.SURVEY}).")
-
-extra_cols = EXTRA_PARAM_SCALING[MODEL]
-feature_keys = SHARED_KEYS + [k for k, _ in extra_cols]
-
-SCALING = {}
-with h5py.File(TRAIN_H5_PATH, "r") as f:
-    for key in SHARED_KEYS:
-        data = f[key][:]
-        if key in ("eta", "alpha"):
-            SCALING[key] = ("log", np.log10(data).min(), np.log10(data).max(), -1.0, 1.0)
-        else:
-            SCALING[key] = ("linear", data.min(), data.max(), 0.0, 1.0)
-    for key, kind in extra_cols:
-        data = f[key][:]
-        if kind == "log":
-            SCALING[key] = ("log", np.log10(data).min(), np.log10(data).max(), -1.0, 1.0)
-        else:
-            SCALING[key] = ("linear", data.min(), data.max(), 0.0, 1.0)
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+classifier, SCALING, feature_keys = load_classifier(TRAIN_DIR_TDE, MODEL, args.SURVEY, args.num_neurons, args.layers, device)
 print(SCALING)
 
-
-def rescale_between(x, x_min, x_max, t_min, t_max):
-    """Exact replica of the training script rescale_between()."""
-    if x_max == x_min:
-        return np.full_like(x, t_min, dtype=float)
-    return (x - x_min) / (x_max - x_min) * (t_max - t_min) + t_min
 
 # ─────────────────────────────────────────────────────────────
 # Load catalog
@@ -132,12 +63,6 @@ with h5py.File(DATA_PATH, "r") as f:
     catalog = {k: f[k][:] for k in f.keys()}
 n_events = len(catalog["z_gal"])
 print(f"  {n_events} events")
-
-# ── Survey observing windows (MJD) ────────────────────────────
-SURVEY_WINDOWS = {
-    "ZTF":  (58200, 61396),   # 23 Mar 2018 → Dec 2026
-    "LSST": (60827, 64423),   # Jun 2025   → Jun 2035
-}
 
 # ── 1. Redshift cut ───────────────────────────────────────────
 z = catalog["z_gal"]
@@ -172,50 +97,10 @@ if n_events == 0:
     exit()
 
 # ─────────────────────────────────────────────────────────────
-# Build scaled input matrix
-# ─────────────────────────────────────────────────────────────
-X = np.zeros((n_events, len(feature_keys)), dtype=np.float32)
-
-for col, train_key in enumerate(feature_keys):
-    cat_key = KEY_MAP.get(train_key, train_key)
-    raw = catalog[cat_key].astype(float)
-
-    kind, x_min, x_max, t_min, t_max = SCALING[train_key]
-    vals = np.log10(raw) if kind == "log" else raw
-    X[:, col] = rescale_between(vals, x_min, x_max, t_min, t_max)
-
-    n_out = ((X[:, col] < t_min) | (X[:, col] > t_max)).sum()
-    if n_out > 0:
-        print(f"  [WARN] {train_key}: {n_out} events ({n_out/n_events:.1%}) "
-              f"outside training range — model extrapolates")
-
-print(f"Input matrix: {X.shape}  min={X.min():.3f}  max={X.max():.3f}")
-
-# ─────────────────────────────────────────────────────────────
-# Load model (pickle — not torch.load)
-# ─────────────────────────────────────────────────────────────
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Loading model on {device}")
-
-with open(MODEL_PATH, 'rb') as f:
-    model = pickle.load(f)
-model.to(device)
-model.eval()
-
-# ─────────────────────────────────────────────────────────────
-# Batched inference
-# ─────────────────────────────────────────────────────────────
-X_tensor   = torch.tensor(X, dtype=torch.float32)
-probs_list = []
-
-with torch.no_grad():
-    for i in range(0, n_events, args.batch_size):
-        batch  = X_tensor[i : i + args.batch_size].to(device)
-        logits = model(batch)
-        probs  = torch.sigmoid(logits).reshape(-1).cpu().numpy()
-        probs_list.append(probs)
-
-detection_prob = np.concatenate(probs_list).astype(np.float32) if probs_list else np.array([], dtype=np.float32)
+# Detection probabilities from the trained classifier
+detection_prob, outside = predict_detection_prob(classifier, SCALING, feature_keys, catalog, device, args.batch_size)
+if outside.any():
+    print(f"  [WARN] {outside.sum()} events ({outside.mean():.1%}) outside the training range -- model extrapolates")
 
 if n_events > 0:
     print(f"\nDetected (p>0.5): {(detection_prob > 0.5).sum()} / {n_events} "

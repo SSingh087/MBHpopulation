@@ -34,6 +34,7 @@ parser.add_argument('--GALAXIES',        type=int, required=True)
 parser.add_argument('--SOURCE',          type=str, required=True,
                     choices=['EMRI', 'TDE', 'EMRI_TDE'])
 parser.add_argument('--SURVEY',          type=str, default='None',
+parser.add_argument('--TDE_MODEL', type=str, default='tde_fallback', help='TDE light-curve model of the selection function')
                     choices=['ZTF', 'LSST', 'ALL', 'None'])
 parser.add_argument("--mbh_mass_method", type=str, required=True, default="use_sigma", choices=["use_sigma", "use_lgMgal"])
 parser.add_argument("--nucleation_method", type=str, required=True, default="hannah", choices=["hannah", "neumayer"])
@@ -194,7 +195,7 @@ class PopulationModel(Model):
             self.tde_data  = popdist.data['TDE']
 
         self.sel_emri = SelectionFunction.load("B", "EMRI") if has_EMRI else None
-        self.sel_tde  = {s: SelectionFunction.load("B", f"TDE_{s}") for s in tde_counts} if has_TDE else {}
+        self.sel_tde  = {s: SelectionFunction.load("B", f"TDE_{s}", args.TDE_MODEL) for s in tde_counts} if has_TDE else {}
 
         self.names  = self._param_names()
         self.bounds = self._bounds()
