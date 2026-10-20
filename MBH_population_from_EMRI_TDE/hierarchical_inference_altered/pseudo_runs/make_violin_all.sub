@@ -1,0 +1,16 @@
+# Executable and arguments
+executable      = ./pseudo_runs/make_violin_all.sh
+getenv          = true
+arguments       = ""
+
+# Logs
+log             = LOG_FILES/make_violin_all.log
+error           = ERROR_FILES/make_violin_all.err
+output          = OUTPUT_FILES/make_violin_all.out
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 8GB
+
+queue

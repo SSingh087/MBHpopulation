@@ -1,0 +1,16 @@
+# Executable and arguments
+executable      = ./pseudo_runs/make_violin_scenario.sh
+getenv          = true
+arguments       = $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
+
+# Logs
+log             = LOG_FILES/make_violin_scenario_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).log
+error           = ERROR_FILES/make_violin_scenario_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).err
+output          = OUTPUT_FILES/make_violin_scenario_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).out
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 8GB
+
+queue
