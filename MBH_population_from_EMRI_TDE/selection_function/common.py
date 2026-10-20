@@ -18,7 +18,7 @@ EMRI_ONLY = {
     "B": ["mu_1_MBHSpin", "sigma_1_MBHSpin", "mu_2_MBHSpin", "sigma_2_MBHSpin", "weight_MBHSpin",
           "mu_1_e_pl", "sigma_1_e_pl", "mu_2_e_pl", "sigma_2_e_pl", "weight_e_pl"],
 }
-# priors.sh variable stem that differs from the hyperparameter name
+# run-script variable stem that differs from the hyperparameter name
 PRIOR_STEM = {"xc": "XC_M", "lam_z_gal": "Z_GAL_LAM"}
 
 
@@ -32,8 +32,8 @@ def channel_names(population, channel):
     return SHARED[population] + (EMRI_ONLY[population] if channel == "EMRI" else [])
 
 
-def load_prior_bounds(population, priors_sh="EXECUTABLES/priors.sh"):
-    """{hyperparameter: (low, high)} parsed from the <POP>_PRIOR_<NAME>_LOW/HIGH lines of priors.sh."""
+def load_prior_bounds(population, priors_sh="hierarchical_inference/runs/run_inference.sh"):
+    """{hyperparameter: (low, high)} parsed from the <POP>_PRIOR_<NAME>_LOW/HIGH lines of the inference run script."""
     values = {}
     with open(priors_sh) as f:
         for line in f:

@@ -23,7 +23,7 @@ Uses EMRI observations to infer the properties and distribution of supermassive 
 
 Pipeline that builds a mock galaxy population with nuclear star clusters (NSCs), predicts the EMRI and TDE events each galaxy produces, decides which are detectable by LISA (EMRIs) and ZTF/LSST (TDEs), and infers the MBH population hierarchically from the detected events.
 
-Scripts are written to be run from the `MBH_population_from_EMRI_TDE/` directory. Generated data is expected under `./data` (not tracked).
+Scripts are written to be run from the `MBH_population_from_EMRI_TDE/` directory. Generated data is expected under `./data` (not tracked); the DAGs in `hierarchical_inference*/` run from their own folder, so link `hierarchical_inference*/data` to `../data`.
 
 | Directory / file | Content |
 |---|---|

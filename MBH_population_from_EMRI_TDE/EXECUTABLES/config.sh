@@ -59,4 +59,4 @@ EMRI_SNR_SCALING_PATH=./data/EMRI/PRE_TRAIN_DATA/1E6_events/snr_scaling.json
 EMRI_SNR_THRESHOLD=20
 
 # LISA PSD of the EMRI observing window (training_EMRI_SNR/calculate_PSD.py)
-EMRI_PSD_PATH=./data/EMRI/PRE_TRAIN_DATA/1E6_events/PSD_LISA_6_yr.npy
+EMRI_PSD_PATH=./data/EMRI/PRE_TRAIN_DATA/1E6_events/PSD_LISA_6.0_yr.npy

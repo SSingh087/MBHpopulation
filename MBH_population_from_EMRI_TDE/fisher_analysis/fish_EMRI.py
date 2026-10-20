@@ -80,6 +80,9 @@ def numerical_derivative(response, theta, name, dt):
 def compute_fisher(response, theta, psd, dt):
     """Fisher matrix over PARAMS at theta."""
     derivs = [numerical_derivative(response, theta, p, dt) for p in PARAMS]
+    if derivs[0].shape[1] != psd.shape[-1]:
+        raise ValueError(f"PSD has {psd.shape[-1]} frequency bins but the waveform has {derivs[0].shape[1]}: "
+                         f"generate the PSD for the same observing window and dt (training_EMRI_SNR/calculate_PSD.py)")
     df = 1.0 / (derivs[0].shape[1] * 2 * dt)
     n = len(PARAMS)
     F = np.zeros((n, n))
