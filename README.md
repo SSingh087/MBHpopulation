@@ -19,46 +19,36 @@ Uses EMRI observations to infer the properties and distribution of supermassive 
 
 ---
 
-### 2. **MBH_population_from_EMRI_TDE/** *(Currently Private Research Code)*
+### 2. **MBH_population_from_EMRI_TDE/**
 
-This is the main research directory implementing a complete pipeline for modeling SMBH populations and their detectable signatures through both EMRI and TDE channels. .
+Pipeline that builds a mock galaxy population with nuclear star clusters (NSCs), predicts the EMRI and TDE events each galaxy produces, decides which are detectable by LISA (EMRIs) and ZTF/LSST (TDEs), and infers the MBH population hierarchically from the detected events.
 
-**What to Expect Upon Public Release:**
+Scripts are written to be run from the `MBH_population_from_EMRI_TDE/` directory. Generated data is expected under `./data` (not tracked). The HTCondor files (`SUBMIT_FILES/`, `*/pseudo_runs/`, `*.dag`) write to `LOG_FILES/`, `ERROR_FILES/` and `OUTPUT_FILES/`, which are not tracked: create them before submitting.
 
-This comprehensive pipeline produces several key outputs:
+| Directory / file | Content |
+|---|---|
+| `astrophysical_setup/` | Cosmology, mass functions, NSC, cusp evolution, EMRI/TDE rate and merger models |
+| `utils.py` | Shared helpers and data paths for the generation pipeline |
+| `data_generation/` | Event generation (`sources_num.py`), EMRI/TDE parameters and detection, ZTF/LSST footprints |
+| `data_gen_realistic/` | Event counts for realistic (thinned) observing conditions |
+| `training_EMRI_SNR/` | Neural-network emulator of the EMRI SNR |
+| `training_TDE_detectability/` | Neural-network classifier for TDE detectability per survey and light-curve model |
+| `fisher_analysis/` | Measurement uncertainties (Fisher/pseudo-Fisher) for EMRIs and TDEs |
+| `hierarchical_inference/` | Hierarchical Bayesian inference (populations A and B), with `plots/` for posteriors, violin plots and PPDs |
+| `hierarchical_inference_altered/` | Variant of the inference with a different scenario setup, same layout |
+| `tests/` | Validation: `TEST_merger_rates`, `TEST_time_average`, `PPS_VERIFICATION`, `beta_test` |
+| `plots/` | Diagnostic plots and `plots/paper/` figure scripts |
+| `EXECUTABLES/`, `SUBMIT_FILES/` | Shell wrappers (`config.sh` holds the shared settings) and HTCondor submit files |
+| `make_data_gen_dag.py`, `make_fisher_TDE_dag.py`, `report_universes.py` | Generate the DAGs and pick the best universe across scenarios |
 
-1. **Synthetic SMBH Population Datasets**
-   - 1+ million simulated galaxies with SMBH properties across cosmic history
-   - Full parameter sets including black hole masses, spins, stellar velocities, and merger histories
-   - HDF5 and NumPy formats for easy integration with machine learning and statistical analyses
+**Typical workflow**
 
-2. **Event Rate Predictions**
-   - Detectable EMRI rates as functions of SMBH mass, redshift, and observation time
-   - TDE rates from various stellar environments (ZTF, LSST sensitivity)
-   - Event rate evolution across cosmic time accounting for galaxy mergers and dynamical evolution
+1. Train the surrogates in `training_EMRI_SNR/` and `training_TDE_detectability/`.
+2. `python make_data_gen_dag.py` writes the multi-universe DAG (events, parameters, detection, footprints, `report_universes.py`); submit it with `condor_submit_dag`.
+3. `make_fisher_TDE_dag.py` and `fisher_analysis/` give measurement errors for the detected events.
+4. In `hierarchical_inference/`, `gen_dag.py` writes the inference and plotting DAG.
 
-3. **Trained Neural Network Models**
-   - SNR prediction models for parameter estimation (initial orbital parameters p₀, eccentricity, etc.)
-   - TDE detectability classification models
-   - Models trained on 10⁶ synthetic events with optimized architectures
-
-4. **Fisher Information Analysis**
-   - Parameter measurement uncertainties for EMRI/TDE observations
-   - Sky localization and luminosity distance constraints
-   - Fundamental limits on SMBH population parameter inference
-
-5. **Posterior Distributions & Inference Results**
-   - Hierarchical Bayesian posteriors for population parameters
-   - Comparisons between different population models (Models A, B, MIX)
-   - EMRI-only, TDE-only, and joint EMRI+TDE inference results
-   - Corner plots and posterior predictive distributions
-
-6. **Diagnostic Plots & Validation**
-   - Galaxy stellar mass functions vs. SMBH mass functions
-   - Relaxation timescale evolution
-   - Merger clustering analysis
-   - Population distribution validation
-
+Dependencies include numpy, scipy, h5py, matplotlib, torch, [FastEMRIWaveforms](https://github.com/BlackHolePerturbationToolkit/FastEMRIWaveforms), [redback](https://github.com/nikhil-sarin/redback) and `poplar`.
 
 ---
 
