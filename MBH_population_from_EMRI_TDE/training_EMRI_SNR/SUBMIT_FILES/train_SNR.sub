@@ -1,0 +1,15 @@
+
+
+executable = EXECUTABLES/train_SNR.sh
+getenv = True
+
+request_GPUs = 1
+request_cpus = 1
+request_memory = 2GB
+
+arguments = $(num_neurons) $(layers) $(loss_type) $(rescaler_flag)
+
+queue num_neurons, layers, loss_type, rescaler_flag from (
+2048 4 MSE no_rescaler
+)
+

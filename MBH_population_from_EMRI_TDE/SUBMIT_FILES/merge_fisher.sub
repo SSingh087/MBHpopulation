@@ -1,0 +1,8 @@
+executable     = ./EXECUTABLES/merge_fisher.sh
+getenv         = True
+arguments      = $(source) $(scenario)
+
+request_cpus   = 1
+request_memory = 8GB
+
+queue

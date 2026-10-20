@@ -1,0 +1,13 @@
+
+# Email notifications
+
+# Executable and arguments here 
+executable = EXECUTABLES/preprocess_DATA.sh
+getenv = True
+
+# Resource requirements
+request_cpus = 1
+request_memory = 1GB
+
+# Number of jobs
+queue 1

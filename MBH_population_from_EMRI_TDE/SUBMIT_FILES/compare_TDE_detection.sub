@@ -1,0 +1,12 @@
+# Executable and arguments
+executable      = ./EXECUTABLES/compare_TDE_detection.sh
+getenv          = true
+arguments       = $(N_UNIVERSES) $(MERGER_MODELS)
+
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 8GB
+
+queue 1

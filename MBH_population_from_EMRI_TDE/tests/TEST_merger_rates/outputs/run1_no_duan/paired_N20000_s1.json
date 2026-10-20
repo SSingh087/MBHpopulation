@@ -1,0 +1,138 @@
+{
+ "repo": {
+  "Lambda_TDE": 1200964.1797333478,
+  "Lambda_EMRI": 315.2328472390741,
+  "active_fraction": 0.23736862099531467,
+  "active_frac_mask": 0.29225623874453305,
+  "censored": 0.0,
+  "secs": 0.17419981956481934
+ },
+ "baseline": {
+  "Lambda_TDE": 1200964.1797333478,
+  "Lambda_EMRI": 315.2328472390741,
+  "active_fraction": 0.23736862099531467,
+  "active_frac_mask": 0.29225623874453305,
+  "censored": 0.0,
+  "secs": 0.1749892234802246
+ },
+ "baseline_docM": {
+  "Lambda_TDE": 1154327.6293136908,
+  "Lambda_EMRI": 307.9436913551036,
+  "active_fraction": 0.2319235152589591,
+  "active_frac_mask": 0.2811937226652946,
+  "censored": 0.011396732936558187,
+  "secs": 0.18128156661987305
+ },
+ "mundy17": {
+  "Lambda_TDE": 253526.3153483235,
+  "Lambda_EMRI": 40.330832206572396,
+  "active_fraction": 0.1506268203115107,
+  "active_frac_mask": 0.12233084641111397,
+  "censored": 0.7347093833101178,
+  "secs": 0.18255376815795898
+ },
+ "mundy17_n5e4": {
+  "Lambda_TDE": 275345.8557557991,
+  "Lambda_EMRI": 44.238456466512915,
+  "active_fraction": 0.1527162213498797,
+  "active_frac_mask": 0.12631849755595576,
+  "censored": 0.664556160567304,
+  "secs": 0.17607712745666504
+ },
+ "oleary_9.7": {
+  "Lambda_TDE": 206358.9151085893,
+  "Lambda_EMRI": 28.10389932666894,
+  "active_fraction": 0.14651133341775358,
+  "active_frac_mask": 0.11435554412143041,
+  "censored": 0.8737495251361277,
+  "secs": 0.1858062744140625
+ },
+ "oleary_10.3": {
+  "Lambda_TDE": 290975.0757827444,
+  "Lambda_EMRI": 56.47559033328639,
+  "active_fraction": 0.15043687476256806,
+  "active_frac_mask": 0.1219449446874196,
+  "censored": 0.7798531087754844,
+  "secs": 0.18373894691467285
+ },
+ "oleary_11.0": {
+  "Lambda_TDE": 464353.15507987514,
+  "Lambda_EMRI": 101.49035263581099,
+  "active_fraction": 0.16601240977586426,
+  "active_frac_mask": 0.1512734756881914,
+  "censored": 0.3966063061922249,
+  "secs": 0.1836855411529541
+ },
+ "oleary_mass": {
+  "Lambda_TDE": 234697.77695661483,
+  "Lambda_EMRI": 34.71282229829219,
+  "active_fraction": 0.149423831834874,
+  "active_frac_mask": 0.11847182917417032,
+  "censored": 0.841205521083956,
+  "secs": 0.18767714500427246
+ },
+ "none": {
+  "Lambda_TDE": 159180.52596222717,
+  "Lambda_EMRI": 13.63026695244981,
+  "active_fraction": 0.14334557426870964,
+  "active_frac_mask": 0.10869565217391304,
+  "censored": 1.0,
+  "secs": 0.17253971099853516
+ },
+ "baseline@grid2000": {
+  "Lambda_TDE": 1865977.9867979835,
+  "Lambda_EMRI": 468.8285931957702,
+  "active_fraction": 0.25440040521717106,
+  "active_frac_mask": 0.3266014921533316,
+  "censored": 0.0,
+  "secs": 1.8638768196105957
+ },
+ "mundy17@grid2000": {
+  "Lambda_TDE": 283294.3642500691,
+  "Lambda_EMRI": 51.13787645586362,
+  "active_fraction": 0.15125997214131948,
+  "active_frac_mask": 0.12361718549009519,
+  "censored": 0.7338229707483854,
+  "secs": 1.9165420532226562
+ },
+ "oleary_9.7@grid2000": {
+  "Lambda_TDE": 221404.54277348745,
+  "Lambda_EMRI": 36.45685113117702,
+  "active_fraction": 0.1467012789666962,
+  "active_frac_mask": 0.11474144584512477,
+  "censored": 0.8733696340382424,
+  "secs": 2.1333563327789307
+ },
+ "baseline@k0.05": {
+  "Lambda_TDE": 1031587.9087315315,
+  "Lambda_EMRI": 265.36441201999617,
+  "active_fraction": 0.2274914524502976,
+  "active_frac_mask": 0.2723179830203242,
+  "censored": 0.0,
+  "secs": 0.17325735092163086
+ },
+ "baseline@k1": {
+  "Lambda_TDE": 1694921.3437701976,
+  "Lambda_EMRI": 472.75890400555704,
+  "active_fraction": 0.2615550208940104,
+  "active_frac_mask": 0.3411371237458194,
+  "censored": 0.0,
+  "secs": 0.17290115356445312
+ },
+ "mundy17@k0.05": {
+  "Lambda_TDE": 195365.675792817,
+  "Lambda_EMRI": 26.597211834602057,
+  "active_fraction": 0.1434722046346714,
+  "active_frac_mask": 0.10895291998970928,
+  "censored": 0.7347093833101178,
+  "secs": 0.1749858856201172
+ },
+ "mundy17@k1": {
+  "Lambda_TDE": 393864.68205078214,
+  "Lambda_EMRI": 72.30014673656494,
+  "active_fraction": 0.16892490819298467,
+  "active_frac_mask": 0.15577566246462568,
+  "censored": 0.7347093833101178,
+  "secs": 0.175950288772583
+ }
+}

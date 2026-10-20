@@ -1,0 +1,13 @@
+
+# Executable and arguments
+executable      = ./EXECUTABLES/prepare_TDE_SNRs.sh
+getenv          = true
+arguments       = $(UNIVERSE_MODEL) $(SURVEY) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS) $(TDE_MODEL) $(MERGER_MODELS)
+
+
+
+# Resources
+request_cpus    = 8
+request_memory  = 16GB
+
+queue 1

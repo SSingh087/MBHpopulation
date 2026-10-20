@@ -1,0 +1,13 @@
+
+# Executable and arguments
+executable      = ./EXECUTABLES/gen_TDE_params.sh
+getenv          = true
+arguments       = $(SURVEY) $(MODEL)
+
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 2GB
+
+queue 1

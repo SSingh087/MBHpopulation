@@ -35,7 +35,7 @@ def load_samples(base_path):
         keys = ['xc_M', 'alpha_mu', 'alpha_a', 'beta_a', 'alpha_e0', 'beta_e0']
         return np.vstack([np.array(ps[k]) for k in keys]).T
 
-base_dir = "/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/_pop_A_NO_SF"
+base_dir = "./INFERENCE_DATA/_pop_A_NO_SF"
 samples_all = [
     load_samples(f"{base_dir}/1E2_events/inference"),
     load_samples(f"{base_dir}/1E3_events/inference"),
@@ -91,8 +91,8 @@ E4 = mlines.Line2D([], [], color=pal[0], linewidth=2, label='$10^4$')
 #     bbox_to_anchor=(0.85, 0.93)
 # )
 
-# fig_corner.savefig("/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/2D-posteriors/pop_A_corner.pdf", dpi=500, bbox_inches='tight')
-# fig_corner.savefig("/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/2D-posteriors/pop_A_corner.png", dpi=500, bbox_inches='tight')
+# fig_corner.savefig("./PLOTS/2D-posteriors/pop_A_corner.pdf", dpi=500, bbox_inches='tight')
+# fig_corner.savefig("./PLOTS/2D-posteriors/pop_A_corner.png", dpi=500, bbox_inches='tight')
 
 
 # --- Combined 1D KDE plot grid (like MIX) ---
@@ -139,6 +139,6 @@ for idx, label in enumerate(labels):
 # )
 
 plt.subplots_adjust(left=0.08, right=0.88, top=0.93, bottom=0.01, wspace=0.35, hspace=0.30)
-plt.savefig("/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/1D-posteriors/pop_A_combined_1D_posteriors.pdf", dpi=300, bbox_inches="tight")
-plt.savefig("/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/1D-posteriors/pop_A_combined_1D_posteriors.png", dpi=300, bbox_inches="tight")
+plt.savefig("./PLOTS/1D-posteriors/pop_A_combined_1D_posteriors.pdf", dpi=300, bbox_inches="tight")
+plt.savefig("./PLOTS/1D-posteriors/pop_A_combined_1D_posteriors.png", dpi=300, bbox_inches="tight")
 # plt.show()

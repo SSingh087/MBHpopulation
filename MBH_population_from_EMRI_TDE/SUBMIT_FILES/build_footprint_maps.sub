@@ -1,0 +1,11 @@
+# Executable and arguments
+executable      = ./EXECUTABLES/build_footprint_maps.sh
+getenv          = true
+
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 4GB
+
+queue 1

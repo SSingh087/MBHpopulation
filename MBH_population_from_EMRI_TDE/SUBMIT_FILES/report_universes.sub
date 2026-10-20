@@ -1,0 +1,8 @@
+# Executable and arguments
+executable      = ./EXECUTABLES/report_universes.sh
+getenv          = true
+arguments       = $(N_UNIVERSES) $(MERGER_MODELS)
+# Resources
+request_cpus    = 1
+request_memory  = 4GB
+queue 1

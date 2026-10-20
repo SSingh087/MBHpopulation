@@ -95,7 +95,7 @@ class PopulationDistribution:
         return out
 
 
-base_path = '/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/_pop_MIX_B_B_NO_SF'
+base_path = './INFERENCE_DATA/_pop_MIX_B_B_NO_SF'
 event_dirs = ['1E2_events', '1E3_events']#, '1E4_events']
 samples_all = [load_samples(f'{base_path}/{event}/inference') for event in event_dirs]
 

@@ -1,0 +1,41 @@
+N_gal_true (real galaxy count out to z=8.0): 1.342080e+12
+[INFO] : Mgal is provided. This will compute sigma and MBH from lgMgal using the use_sigma relation.
+[WARNING] : nucleation_occurs is provided. This will override the default nucleation fraction model and use the provided boolean mask. Ensure this is intended behavior.
+[INFO] : Computing lgMBH from sigma using the M-sigma relation.
+[Pilot] lgMBH ∈ [4.0, 7.0] maps to lgMgal ∈ [7.467, 11.188]  (26357 / 71033 nucleated pilot galaxies in range)
+Proposal range: lgMgal ∈ [7.467, 11.188]  (was [6.50, 12.10])
+mc_weight_i range: [0.000e+00, 1.268e+07], median 3.736e+05
+[INFO] : Mgal is provided. This will compute sigma and MBH from lgMgal using the use_sigma relation.
+[WARNING] : nucleation_occurs is provided. This will override the default nucleation fraction model and use the provided boolean mask. Ensure this is intended behavior.
+[INFO] : Computing lgMBH from sigma using the M-sigma relation.
+Active fraction (cusp young enough): 0.150
+Lambda_TDE before active mask: 68754085.4
+Lambda_TDE after  active mask: 268523.4
+Lambda_EMRI before active mask: 9673.1
+Lambda_EMRI after  active mask: 34.3
+N_eff (EMRI): 391.43 out of 1e+05 simulated galaxies
+N_eff (TDE):  1030.96 out of 1e+05 simulated galaxies
+Fraction of GSMF weight in lgMBH [4,7]: 0.184
+N_eff (EMRI): 391
+N_eff (TDE):  1031
+N_eff / N_sim: 0.0039 (EMRI),  0.0103 (TDE)
+Total expected EMRIs, 4.0 < log10(M_BH/Msun) < 7.0: 34.342
+Total expected TDEs, 4.0 < log10(M_BH/Msun) < 7.0: 268523.439
+Total expected EMRIs, z < 8.0 and 4.0 < log10(M_BH/Msun) < 7.0: 34.342
+Total expected TDEs,  z < 5.0 and  4.0 < log10(M_BH/Msun) < 7.0: 258571.670
+{
+ "model": "mundy17",
+ "seed": 42,
+ "galaxies": 100000,
+ "Lambda_TDE": 268523.4388384395,
+ "Lambda_EMRI": 34.34213659856394,
+ "Lambda_TDE_zcut": 258571.67040680544,
+ "Lambda_EMRI_zcut": 34.34213659856394,
+ "active_fraction": 0.14959166222596756,
+ "active_frac_in_MBH_mask": 0.12867878056749352,
+ "censored_frac_zLMM_at_zmax": 0.7369164611552427,
+ "median_cusp_age_Gyr": 0.8620716076666955,
+ "median_t_relax_Gyr": 0.0008813221324112519,
+ "n_eff_TDE": 1030.955058470629,
+ "n_eff_EMRI": 391.43009324826477
+}

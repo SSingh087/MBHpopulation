@@ -1,0 +1,27 @@
+# Executable and arguments
+executable      = ./runs/run_inference.sh
+getenv          = true
+arguments       = $(SOURCE) $(POPULATION) $(SURVEY) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
+
+
+
+# Resources
+request_cpus    = 4
+request_memory  = 16GB
+# request_cpus lowered from 12 on 2026-09-07 to match n_pool=4 in
+# hierarchical_inference_A.py/B.py (was 12) -- see run_inference.sub in the
+# main hierarchical_inference/ directory for the full reasoning.
+# NOTE: lowered from 64GB on 2026-09-07. This directory uses REALISTIC
+# (thinned) event counts
+# -- so its catalogues are much smaller than the main hierarchical_inference/
+# directory's: N_TDE_LSST here is ~1700-2000 vs ~97,246 there (see
+# astrophysical_data/100000/realistic/realistic_event_counts.csv), roughly a
+# 50x difference. The main directory's LSST/ALL jobs (the largest-catalogue,
+# most memory-hungry combos) peaked at 49.15GB despite that much larger
+# dataset; this directory's completed ZTF-only jobs (~43 events) peaked under
+# 1GB. 16GB is a generous multiple of that extrapolated up for the ~40x
+# larger LSST/ALL catalogues, while still far below the proven-safe 56GB used
+# for the full-size dataset. Not yet validated against an actual completed
+# LSST/ALL run in this directory -- watch the first few and raise if needed.
+
+queue
