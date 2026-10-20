@@ -33,7 +33,8 @@ Scripts are written to be run from the `MBH_population_from_EMRI_TDE/` directory
 | `data_gen_realistic/` | Event counts for realistic (thinned) observing conditions |
 | `training_EMRI_SNR/` | Neural-network emulator of the EMRI SNR |
 | `training_TDE_detectability/` | Neural-network classifier for TDE detectability per survey and light-curve model |
-| `fisher_analysis/` | Measurement uncertainties (Fisher) for EMRIs and TDEs |
+| `fisher_analysis/` | Fisher analysis of the detected EMRIs and TDEs, giving per-event posteriors |
+| `selection_function/` | MLP emulator of the selection function alpha(Lambda), used in the inference likelihood |
 | `hierarchical_inference/` | Hierarchical Bayesian inference (populations A and B), with `plots/` for posteriors, violin plots and PPDs |
 | `hierarchical_inference_altered/` | Variant of the inference with a different scenario setup, same layout |
 | `tests/` | Validation: `TEST_merger_rates`, `TEST_time_average`, `PPS_VERIFICATION`, `beta_test` |
@@ -43,10 +44,10 @@ Scripts are written to be run from the `MBH_population_from_EMRI_TDE/` directory
 
 **Typical workflow**
 
-1. Train the surrogates in `training_EMRI_SNR/` and `training_TDE_detectability/`.
-2. `python make_data_gen_dag.py` writes the multi-universe DAG (events, parameters, detection, footprints, `report_universes.py`); submit it with `condor_submit_dag`.
-3. `make_fisher_TDE_dag.py` and `fisher_analysis/` give measurement errors for the detected events.
-4. In `hierarchical_inference/`, `gen_dag.py` writes the inference and plotting DAG.
+1. Train the surrogates in `training_EMRI_SNR/` (EMRI SNR) and `training_TDE_detectability/` (TDE detection).
+2. `python make_data_gen_dag.py` writes the multi-universe DAG (events, parameters, detection with the trained networks, footprints, `report_universes.py`); submit it with `condor_submit_dag`.
+3. `hierarchical_inference/gen_dag.py --with_prepare` writes the inference DAG: the detected events of the best universe are collected (`prepare_data_MEDIAN.py`), a Fisher sub-DAG per scenario and source (`make_fisher_dag.py`, `fisher_analysis/`) gives each event a posterior, and the inference reads these posteriors.
+4. `selection_function/` generates training data for and trains one network per channel and population, which maps the hyperparameters to log alpha; the inference divides each event by it.
 
 Dependencies include numpy, scipy, h5py, matplotlib, torch, [FastEMRIWaveforms](https://github.com/BlackHolePerturbationToolkit/FastEMRIWaveforms), [redback](https://github.com/nikhil-sarin/redback) and `poplar`.
 

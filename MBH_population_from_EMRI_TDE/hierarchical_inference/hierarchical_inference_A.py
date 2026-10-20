@@ -81,6 +81,10 @@ weight_e_pl_min,    weight_e_pl_max    = args.weight_e_pl
 
 lam_z_gal_min,      lam_z_gal_max      = args.lam_z_gal
 
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'selection_function'))
+from selection_function import SelectionFunction
+
 # ── Population setup ──────────────────────────────────────────────────────
 true_x  = get_true_x("A", args.mbh_mass_method, args.nucleation_method, args.occupation_method)
 popdist = make_dist("A")
@@ -105,6 +109,14 @@ elif args.SURVEY == 'ALL':
     data_TDE = {k: torch.cat([ztf[k], lsst[k]], dim=0) for k in ztf}
 
 data_EMRI = emri_torch
+
+# Events per survey (before padding): each TDE is divided by the selection function of its own survey
+if args.SURVEY == 'ALL':
+    tde_counts = {'ZTF': len(ztf['z_gal']), 'LSST': len(lsst['z_gal'])}
+elif args.SURVEY in ['ZTF', 'LSST']:
+    tde_counts = {args.SURVEY: len(tde_torch['z_gal'])}
+else:
+    tde_counts = {}
 
 
 def ensure_min_events(data, min_events=2, label=""):
@@ -188,6 +200,9 @@ class PopulationModel(Model):
         if has_TDE:
             self.tde_data  = popdist.data['TDE']
 
+        self.sel_emri = SelectionFunction.load("A", "EMRI") if has_EMRI else None
+        self.sel_tde  = {s: SelectionFunction.load("A", f"TDE_{s}") for s in tde_counts} if has_TDE else {}
+
         self.names  = self._param_names()
         self.bounds = self._bounds()
 
@@ -252,10 +267,8 @@ class PopulationModel(Model):
             lam=x["lam_z_gal"]
         )
 
-        alpha_EMRI = torch.tensor(1.0, dtype=torch.float32)
-        logL = torch.sum(torch.log(
-            torch.nanmean(pdf_mass * pdf_spin *  pdf_e_pl * pdf_z_gal, dim=1) - torch.log(alpha_EMRI) + 1e-10
-        ))
+        per_event = torch.log(torch.nanmean(pdf_mass * pdf_spin *  pdf_e_pl * pdf_z_gal, dim=1) + 1e-10)
+        logL = torch.sum(per_event) - per_event.numel() * self.sel_emri.log_alpha(x)
         return logL.item()
 
     def TDE_likelihood(self, x):
@@ -271,10 +284,11 @@ class PopulationModel(Model):
             lam=x["lam_z_gal"]
         )
 
-        alpha_TDE = torch.tensor(1.0, dtype=torch.float32)
-        logL = torch.sum(torch.log(
-            torch.nanmean(pdf_mass * pdf_z_gal, dim=1) - torch.log(alpha_TDE) + 1e-10
-        ))
+        per_event = torch.log(torch.nanmean(pdf_mass * pdf_z_gal, dim=1) + 1e-10)
+        # selection term: events split over the surveys in proportion to their original counts
+        n_tot = sum(tde_counts.values())
+        log_alpha = sum(n / n_tot * self.sel_tde[s].log_alpha(x) for s, n in tde_counts.items())
+        logL = torch.sum(per_event) - per_event.numel() * log_alpha
         return logL.item()
 
     @torch.inference_mode()
