@@ -1,0 +1,29 @@
+# Executable and arguments
+executable      = ./pseudo_runs/run_inf_pseudo.sh
+getenv          = true
+arguments       = $(SOURCE) $(POPULATION) $(SURVEY) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
+
+# Logs
+log             = LOG_FILES/run_inference_$(SOURCE)_$(POPULATION)_$(SURVEY)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).log
+error           = ERROR_FILES/run_inference_$(SOURCE)_$(POPULATION)_$(SURVEY)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).err
+output          = OUTPUT_FILES/run_inference_$(SOURCE)_$(POPULATION)_$(SURVEY)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).out
+
+
+# Resources
+request_cpus    = 4
+request_memory  = 56GB
+# NOTE: lowered from 12 on 2026-09-07 -- matches n_pool=4 in
+# hierarchical_inference_A.py/B.py (was 12). request_cpus=12 required an
+# entirely idle 12-core machine, which was rare on the busy shared cluster
+# (most jobs sat idle -- "would match if drained" on 7/10 slots). Each pool
+# worker holds its own copy of the per-event data, so this should also cut
+# memory usage roughly 3x; push both back up if free capacity improves.
+# NOTE: lowered from 64GB on 2026-09-07 -- across all 105 completed inference
+# jobs logged so far, peak usage never exceeded 49.15GB (see LOG_FILES/
+# run_inference_*.log "MemoryUsage of job (MB)"), so 56GB keeps ~7GB margin.
+# At 64GB, two 12-core machines (~64GB machines)
+# were excluded by memory alone, cutting the matchable pool to ~6 machines on
+# a busy shared cluster -- most jobs sat idle waiting for one of those to free
+# up. 56GB brings both back into the eligible set.
+
+queue

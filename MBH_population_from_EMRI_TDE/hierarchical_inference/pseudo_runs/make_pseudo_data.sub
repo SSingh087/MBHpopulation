@@ -1,0 +1,20 @@
+# Executable and arguments
+executable      = ./pseudo_runs/make_pseudo_data.sh
+getenv          = true
+arguments       = $(POPULATION) $(INCLUDE_LSST) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
+
+# Logs
+log             = LOG_FILES/make_pseudo_data_$(POPULATION)_$(INCLUDE_LSST)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).log
+error           = ERROR_FILES/make_pseudo_data_$(POPULATION)_$(INCLUDE_LSST)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).err
+output          = OUTPUT_FILES/make_pseudo_data_$(POPULATION)_$(INCLUDE_LSST)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).out
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 24GB
+# NOTE: raised from 8GB after make_posteriors() switched from np.random.normal+clip
+# to scipy.stats.truncnorm.rvs() (fixes the boundary-pileup bug -- see
+# prep_pseudo_data.py) -- truncnorm's rv_continuous machinery uses noticeably
+# more memory per call; observed peak RSS ~12.3GB on the largest TDE catalogues.
+
+queue

@@ -1,0 +1,68 @@
+# condor_submit_dag test_lambda_bias.dag   (from an env with numpy/scipy/h5py/matplotlib)
+# 32 parallel jobs (pop x 8 scenarios x 2 surveys) -> 1 combine job -> lambda_bias_test/summary_{A,B}.txt + profile_pop{A,B}.png
+JOB lb_A_use_lgMgal_hannah_uniform_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_lgMgal_hannah_uniform_ZTF POP="A" SCEN="use_lgMgal_hannah_uniform" SURVEY="ZTF"
+JOB lb_A_use_lgMgal_hannah_uniform_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_lgMgal_hannah_uniform_LSST POP="A" SCEN="use_lgMgal_hannah_uniform" SURVEY="LSST"
+JOB lb_A_use_sigma_hannah_uniform_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_sigma_hannah_uniform_ZTF POP="A" SCEN="use_sigma_hannah_uniform" SURVEY="ZTF"
+JOB lb_A_use_sigma_hannah_uniform_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_sigma_hannah_uniform_LSST POP="A" SCEN="use_sigma_hannah_uniform" SURVEY="LSST"
+JOB lb_A_use_lgMgal_neumayer_uniform_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_lgMgal_neumayer_uniform_ZTF POP="A" SCEN="use_lgMgal_neumayer_uniform" SURVEY="ZTF"
+JOB lb_A_use_lgMgal_neumayer_uniform_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_lgMgal_neumayer_uniform_LSST POP="A" SCEN="use_lgMgal_neumayer_uniform" SURVEY="LSST"
+JOB lb_A_use_sigma_neumayer_uniform_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_sigma_neumayer_uniform_ZTF POP="A" SCEN="use_sigma_neumayer_uniform" SURVEY="ZTF"
+JOB lb_A_use_sigma_neumayer_uniform_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_sigma_neumayer_uniform_LSST POP="A" SCEN="use_sigma_neumayer_uniform" SURVEY="LSST"
+JOB lb_A_use_lgMgal_hannah_varying_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_lgMgal_hannah_varying_ZTF POP="A" SCEN="use_lgMgal_hannah_varying" SURVEY="ZTF"
+JOB lb_A_use_lgMgal_hannah_varying_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_lgMgal_hannah_varying_LSST POP="A" SCEN="use_lgMgal_hannah_varying" SURVEY="LSST"
+JOB lb_A_use_sigma_hannah_varying_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_sigma_hannah_varying_ZTF POP="A" SCEN="use_sigma_hannah_varying" SURVEY="ZTF"
+JOB lb_A_use_sigma_hannah_varying_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_sigma_hannah_varying_LSST POP="A" SCEN="use_sigma_hannah_varying" SURVEY="LSST"
+JOB lb_A_use_lgMgal_neumayer_varying_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_lgMgal_neumayer_varying_ZTF POP="A" SCEN="use_lgMgal_neumayer_varying" SURVEY="ZTF"
+JOB lb_A_use_lgMgal_neumayer_varying_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_lgMgal_neumayer_varying_LSST POP="A" SCEN="use_lgMgal_neumayer_varying" SURVEY="LSST"
+JOB lb_A_use_sigma_neumayer_varying_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_sigma_neumayer_varying_ZTF POP="A" SCEN="use_sigma_neumayer_varying" SURVEY="ZTF"
+JOB lb_A_use_sigma_neumayer_varying_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_A_use_sigma_neumayer_varying_LSST POP="A" SCEN="use_sigma_neumayer_varying" SURVEY="LSST"
+JOB lb_B_use_lgMgal_hannah_uniform_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_lgMgal_hannah_uniform_ZTF POP="B" SCEN="use_lgMgal_hannah_uniform" SURVEY="ZTF"
+JOB lb_B_use_lgMgal_hannah_uniform_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_lgMgal_hannah_uniform_LSST POP="B" SCEN="use_lgMgal_hannah_uniform" SURVEY="LSST"
+JOB lb_B_use_sigma_hannah_uniform_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_sigma_hannah_uniform_ZTF POP="B" SCEN="use_sigma_hannah_uniform" SURVEY="ZTF"
+JOB lb_B_use_sigma_hannah_uniform_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_sigma_hannah_uniform_LSST POP="B" SCEN="use_sigma_hannah_uniform" SURVEY="LSST"
+JOB lb_B_use_lgMgal_neumayer_uniform_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_lgMgal_neumayer_uniform_ZTF POP="B" SCEN="use_lgMgal_neumayer_uniform" SURVEY="ZTF"
+JOB lb_B_use_lgMgal_neumayer_uniform_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_lgMgal_neumayer_uniform_LSST POP="B" SCEN="use_lgMgal_neumayer_uniform" SURVEY="LSST"
+JOB lb_B_use_sigma_neumayer_uniform_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_sigma_neumayer_uniform_ZTF POP="B" SCEN="use_sigma_neumayer_uniform" SURVEY="ZTF"
+JOB lb_B_use_sigma_neumayer_uniform_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_sigma_neumayer_uniform_LSST POP="B" SCEN="use_sigma_neumayer_uniform" SURVEY="LSST"
+JOB lb_B_use_lgMgal_hannah_varying_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_lgMgal_hannah_varying_ZTF POP="B" SCEN="use_lgMgal_hannah_varying" SURVEY="ZTF"
+JOB lb_B_use_lgMgal_hannah_varying_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_lgMgal_hannah_varying_LSST POP="B" SCEN="use_lgMgal_hannah_varying" SURVEY="LSST"
+JOB lb_B_use_sigma_hannah_varying_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_sigma_hannah_varying_ZTF POP="B" SCEN="use_sigma_hannah_varying" SURVEY="ZTF"
+JOB lb_B_use_sigma_hannah_varying_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_sigma_hannah_varying_LSST POP="B" SCEN="use_sigma_hannah_varying" SURVEY="LSST"
+JOB lb_B_use_lgMgal_neumayer_varying_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_lgMgal_neumayer_varying_ZTF POP="B" SCEN="use_lgMgal_neumayer_varying" SURVEY="ZTF"
+JOB lb_B_use_lgMgal_neumayer_varying_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_lgMgal_neumayer_varying_LSST POP="B" SCEN="use_lgMgal_neumayer_varying" SURVEY="LSST"
+JOB lb_B_use_sigma_neumayer_varying_ZTF ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_sigma_neumayer_varying_ZTF POP="B" SCEN="use_sigma_neumayer_varying" SURVEY="ZTF"
+JOB lb_B_use_sigma_neumayer_varying_LSST ./pseudo_runs/test_lambda_bias.sub
+VARS lb_B_use_sigma_neumayer_varying_LSST POP="B" SCEN="use_sigma_neumayer_varying" SURVEY="LSST"
+JOB lb_combine ./pseudo_runs/combine_lambda_bias.sub
+PARENT lb_A_use_lgMgal_hannah_uniform_ZTF lb_A_use_lgMgal_hannah_uniform_LSST lb_A_use_sigma_hannah_uniform_ZTF lb_A_use_sigma_hannah_uniform_LSST lb_A_use_lgMgal_neumayer_uniform_ZTF lb_A_use_lgMgal_neumayer_uniform_LSST lb_A_use_sigma_neumayer_uniform_ZTF lb_A_use_sigma_neumayer_uniform_LSST lb_A_use_lgMgal_hannah_varying_ZTF lb_A_use_lgMgal_hannah_varying_LSST lb_A_use_sigma_hannah_varying_ZTF lb_A_use_sigma_hannah_varying_LSST lb_A_use_lgMgal_neumayer_varying_ZTF lb_A_use_lgMgal_neumayer_varying_LSST lb_A_use_sigma_neumayer_varying_ZTF lb_A_use_sigma_neumayer_varying_LSST lb_B_use_lgMgal_hannah_uniform_ZTF lb_B_use_lgMgal_hannah_uniform_LSST lb_B_use_sigma_hannah_uniform_ZTF lb_B_use_sigma_hannah_uniform_LSST lb_B_use_lgMgal_neumayer_uniform_ZTF lb_B_use_lgMgal_neumayer_uniform_LSST lb_B_use_sigma_neumayer_uniform_ZTF lb_B_use_sigma_neumayer_uniform_LSST lb_B_use_lgMgal_hannah_varying_ZTF lb_B_use_lgMgal_hannah_varying_LSST lb_B_use_sigma_hannah_varying_ZTF lb_B_use_sigma_hannah_varying_LSST lb_B_use_lgMgal_neumayer_varying_ZTF lb_B_use_lgMgal_neumayer_varying_LSST lb_B_use_sigma_neumayer_varying_ZTF lb_B_use_sigma_neumayer_varying_LSST CHILD lb_combine
