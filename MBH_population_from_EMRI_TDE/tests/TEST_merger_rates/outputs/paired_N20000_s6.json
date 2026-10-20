@@ -1,0 +1,162 @@
+{
+ "repo": {
+  "Lambda_TDE": 1173885.538276652,
+  "Lambda_EMRI": 296.9159012962431,
+  "active_fraction": 0.24001771815478073,
+  "active_frac_mask": 0.30290190035952747,
+  "censored": 6.327912421692084e-05,
+  "secs": 0.1771717071533203
+ },
+ "baseline": {
+  "Lambda_TDE": 1173885.538276652,
+  "Lambda_EMRI": 296.9159012962431,
+  "active_fraction": 0.24001771815478073,
+  "active_frac_mask": 0.30290190035952747,
+  "censored": 6.327912421692084e-05,
+  "secs": 0.17949509620666504
+ },
+ "baseline_docM": {
+  "Lambda_TDE": 1148101.988829147,
+  "Lambda_EMRI": 298.3999623316056,
+  "active_fraction": 0.23438587609947478,
+  "active_frac_mask": 0.29160246533127887,
+  "censored": 0.009681706005188888,
+  "secs": 0.18442583084106445
+ },
+ "mundy17": {
+  "Lambda_TDE": 239318.7034312102,
+  "Lambda_EMRI": 32.396540329203674,
+  "active_fraction": 0.15224957286591154,
+  "active_frac_mask": 0.1285310734463277,
+  "censored": 0.7344175156615832,
+  "secs": 0.19028115272521973
+ },
+ "mundy17_n5e4": {
+  "Lambda_TDE": 258004.7785887165,
+  "Lambda_EMRI": 39.040239163941,
+  "active_fraction": 0.15433778396506992,
+  "active_frac_mask": 0.13263995891114536,
+  "censored": 0.666645573625261,
+  "secs": 0.1883399486541748
+ },
+ "oleary_9.7": {
+  "Lambda_TDE": 218681.8139504646,
+  "Lambda_EMRI": 24.906243267729675,
+  "active_fraction": 0.1493387331519332,
+  "active_frac_mask": 0.12313816127375449,
+  "censored": 0.8707207492248308,
+  "secs": 0.1969594955444336
+ },
+ "oleary_10.3": {
+  "Lambda_TDE": 251216.85390732676,
+  "Lambda_EMRI": 37.25641192735932,
+  "active_fraction": 0.15174333987217617,
+  "active_frac_mask": 0.12737544940934772,
+  "censored": 0.7810542302094539,
+  "secs": 0.28133130073547363
+ },
+ "oleary_11.0": {
+  "Lambda_TDE": 434648.84183304216,
+  "Lambda_EMRI": 90.0630786489073,
+  "active_fraction": 0.1688919825349617,
+  "active_frac_mask": 0.16050333846944018,
+  "censored": 0.398848319939252,
+  "secs": 0.2118673324584961
+ },
+ "oleary_mass": {
+  "Lambda_TDE": 239782.19719876093,
+  "Lambda_EMRI": 36.43375115708699,
+  "active_fraction": 0.15174333987217617,
+  "active_frac_mask": 0.1266050333846944,
+  "censored": 0.8400303739796241,
+  "secs": 0.19697356224060059
+ },
+ "none": {
+  "Lambda_TDE": 169446.49072788737,
+  "Lambda_EMRI": 13.808363326012692,
+  "active_fraction": 0.1452255900778333,
+  "active_frac_mask": 0.11594761171032357,
+  "censored": 1.0,
+  "secs": 0.1959395408630371
+ },
+ "duan24_pl": {
+  "Lambda_TDE": 478621.72272251314,
+  "Lambda_EMRI": 99.67006119454149,
+  "active_fraction": 0.1912927925077517,
+  "active_frac_mask": 0.20570107858243453,
+  "censored": 0.011580079731696512,
+  "secs": 0.1885213851928711
+ },
+ "duan24_plexp": {
+  "Lambda_TDE": 511607.40141849534,
+  "Lambda_EMRI": 109.95759708289398,
+  "active_fraction": 0.19325444535847625,
+  "active_frac_mask": 0.20955315870570107,
+  "censored": 0.01866734164399165,
+  "secs": 0.19683051109313965
+ },
+ "baseline@grid2000": {
+  "Lambda_TDE": 1907073.2243347876,
+  "Lambda_EMRI": 460.9527646443964,
+  "active_fraction": 0.25647029045118014,
+  "active_frac_mask": 0.3360297894196199,
+  "censored": 6.327912421692084e-05,
+  "secs": 2.1819255352020264
+ },
+ "mundy17@grid2000": {
+  "Lambda_TDE": 269638.5857427344,
+  "Lambda_EMRI": 41.960623796635346,
+  "active_fraction": 0.1530722014807315,
+  "active_frac_mask": 0.13020030816640987,
+  "censored": 0.7336581661709802,
+  "secs": 2.224547863006592
+ },
+ "oleary_9.7@grid2000": {
+  "Lambda_TDE": 239095.68833850394,
+  "Lambda_EMRI": 28.814614286928013,
+  "active_fraction": 0.1496551287730178,
+  "active_frac_mask": 0.12378017462763226,
+  "censored": 0.87053091185218,
+  "secs": 2.465954065322876
+ },
+ "duan24_plexp@grid2000": {
+  "Lambda_TDE": 602560.2888191019,
+  "Lambda_EMRI": 126.66111745592443,
+  "active_fraction": 0.19698791368727456,
+  "active_frac_mask": 0.2170005136106831,
+  "censored": 0.01803455040182244,
+  "secs": 2.2887816429138184
+ },
+ "baseline@k0.05": {
+  "Lambda_TDE": 1001450.8432554416,
+  "Lambda_EMRI": 245.77375915568146,
+  "active_fraction": 0.23065240777067644,
+  "active_frac_mask": 0.2838983050847458,
+  "censored": 6.327912421692084e-05,
+  "secs": 0.17860984802246094
+ },
+ "baseline@k1": {
+  "Lambda_TDE": 1684438.095109736,
+  "Lambda_EMRI": 443.599330076377,
+  "active_fraction": 0.26438018097829524,
+  "active_frac_mask": 0.3519517205957884,
+  "censored": 6.327912421692084e-05,
+  "secs": 0.2009568214416504
+ },
+ "mundy17@k0.05": {
+  "Lambda_TDE": 192773.15921695306,
+  "Lambda_EMRI": 24.878945427448947,
+  "active_fraction": 0.14421312409036258,
+  "active_frac_mask": 0.11440677966101695,
+  "censored": 0.7344175156615832,
+  "secs": 0.18954157829284668
+ },
+ "mundy17@k1": {
+  "Lambda_TDE": 386606.30421668576,
+  "Lambda_EMRI": 68.06499973177907,
+  "active_fraction": 0.17123331013098778,
+  "active_frac_mask": 0.1652542372881356,
+  "censored": 0.7344175156615832,
+  "secs": 0.18661165237426758
+ }
+}

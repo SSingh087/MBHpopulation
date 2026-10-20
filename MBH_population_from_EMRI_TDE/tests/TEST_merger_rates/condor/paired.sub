@@ -1,0 +1,26 @@
+# Paired merger-model test: one job per seed (independent galaxy populations).
+# Submit from the repo root:   condor_submit tests/TEST_merger_rates/condor/paired.sub
+executable      = ./tests/TEST_merger_rates/condor/paired.sh
+getenv          = true
+
+# $(SEED) $(N)   (N = galaxies; 20000 is quick, 100000 = repo default in EXECUTABLES/config.sh)
+arguments  = $(SEED) $(N)
+
+# Logs
+log             = LOG_FILES/merger_test_$(N)_$(SEED).log
+error           = ERROR_FILES/merger_test_$(N)_$(SEED).err
+output          = OUTPUT_FILES/merger_test_$(N)_$(SEED).out
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 16GB
+
+queue SEED,N from (
+  1 20000
+  2 20000
+  3 20000
+  4 20000
+  5 20000
+  6 20000
+)

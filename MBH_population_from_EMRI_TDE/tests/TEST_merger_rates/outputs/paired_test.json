@@ -1,0 +1,90 @@
+{
+ "repo": {
+  "Lambda_TDE": 1170821.9995852988,
+  "Lambda_EMRI": 319.6745809868705,
+  "active_fraction": 0.23505779096359478,
+  "active_frac_mask": 0.2987179487179487,
+  "censored": 6.180851721367204e-05,
+  "secs": 0.6478066444396973
+ },
+ "baseline": {
+  "Lambda_TDE": 1170821.9995852988,
+  "Lambda_EMRI": 319.6745809868705,
+  "active_fraction": 0.23505779096359478,
+  "active_frac_mask": 0.2987179487179487,
+  "censored": 6.180851721367204e-05,
+  "secs": 0.6202435493469238
+ },
+ "baseline_docM": {
+  "Lambda_TDE": 1130200.2102187704,
+  "Lambda_EMRI": 311.1501734813031,
+  "active_fraction": 0.23085481179306508,
+  "active_frac_mask": 0.29,
+  "censored": 0.012361703442734408,
+  "secs": 0.5349195003509521
+ },
+ "mundy17": {
+  "Lambda_TDE": 244939.80553548006,
+  "Lambda_EMRI": 37.24801367450035,
+  "active_fraction": 0.1484022498300266,
+  "active_frac_mask": 0.12435897435897436,
+  "censored": 0.7368811422213981,
+  "secs": 0.567561149597168
+ },
+ "mundy17_n5e4": {
+  "Lambda_TDE": 267421.21339010255,
+  "Lambda_EMRI": 43.99553960226278,
+  "active_fraction": 0.1505655479325051,
+  "active_frac_mask": 0.1285897435897436,
+  "censored": 0.6625873045305644,
+  "secs": 0.7115356922149658
+ },
+ "oleary_9.7": {
+  "Lambda_TDE": 204782.9324312827,
+  "Lambda_EMRI": 26.763451545942043,
+  "active_fraction": 0.1450027813832746,
+  "active_frac_mask": 0.11794871794871795,
+  "censored": 0.8745905185734594,
+  "secs": 0.8233802318572998
+ },
+ "oleary_10.3": {
+  "Lambda_TDE": 262198.8808273998,
+  "Lambda_EMRI": 43.102607212958276,
+  "active_fraction": 0.14827863279559925,
+  "active_frac_mask": 0.12397435897435898,
+  "censored": 0.785524445268558,
+  "secs": 0.5153465270996094
+ },
+ "oleary_11.0": {
+  "Lambda_TDE": 432616.2823682308,
+  "Lambda_EMRI": 93.69050604950453,
+  "active_fraction": 0.16348352803016256,
+  "active_frac_mask": 0.15333333333333332,
+  "censored": 0.3952654675814327,
+  "secs": 0.6154277324676514
+ },
+ "oleary_mass": {
+  "Lambda_TDE": 242393.79273996092,
+  "Lambda_EMRI": 38.011011662382415,
+  "active_fraction": 0.1476605476234625,
+  "active_frac_mask": 0.12179487179487179,
+  "censored": 0.842820940725632,
+  "secs": 0.6842055320739746
+ },
+ "none": {
+  "Lambda_TDE": 150970.36818086117,
+  "Lambda_EMRI": 12.275582277822883,
+  "active_fraction": 0.14135607886766796,
+  "active_frac_mask": 0.11076923076923077,
+  "censored": 1.0,
+  "secs": 0.5133633613586426
+ },
+ "baseline@grid2000": {
+  "Lambda_TDE": 2024526.1298710438,
+  "Lambda_EMRI": 499.42762857018016,
+  "active_fraction": 0.252549601335064,
+  "active_frac_mask": 0.335,
+  "censored": 6.180851721367204e-05,
+  "secs": 20.40074396133423
+ }
+}
