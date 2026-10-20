@@ -6,6 +6,7 @@ import argparse
 import warnings
 warnings.filterwarnings("ignore")
 
+import json
 import numpy as np
 import glob, h5py
 
@@ -86,3 +87,8 @@ np.save(f'{output_dir}/snrs_dist_scaled_COMBINED.npy', SNRs_dist_scaled_COMBINED
 np.save(f'{output_dir}/snrs_dist_log_scaled_COMBINED.npy', SNRs_dist_log_scaled_COMBINED)
 np.save(f'{output_dir}/snrs_log_minmax_rescaled_COMBINED.npy', SNRs_log_minmax_rescaled_COMBINED)
 np.save(f'{output_dir}/snrs_dist_log_minmax_rescaled_COMBINED.npy', SNRs_dist_log_minmax_rescaled_COMBINED)
+
+# bounds needed to invert the network output back to SNR (see data_generation/calculate_SNR_EMRI.py)
+with open(f'{output_dir}/snr_scaling.json', 'w') as f:
+    json.dump({"y_min": float(np.min(SNRs_dist_log_scaled_COMBINED)),
+               "y_max": float(np.max(SNRs_dist_log_scaled_COMBINED))}, f)

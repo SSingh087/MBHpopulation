@@ -52,3 +52,8 @@ TDE_ARCH_LAYERS_tde_fallback_ZTF=4
 TDE_ARCH_NEURONS_tde_fallback_LSST=128
 TDE_ARCH_LAYERS_tde_fallback_LSST=4
 
+
+# Trained EMRI SNR network (training_EMRI_SNR/) and the scaling saved with its training set
+EMRI_SNR_MODEL_PATH=./data/EMRI/PRE_TRAIN_DATA/1E6_events/MODEL_theta_SNR_best/best_final_model/model/model.pth
+EMRI_SNR_SCALING_PATH=./data/EMRI/PRE_TRAIN_DATA/1E6_events/snr_scaling.json
+EMRI_SNR_THRESHOLD=20

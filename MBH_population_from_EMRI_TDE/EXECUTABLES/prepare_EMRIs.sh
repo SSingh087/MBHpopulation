@@ -38,13 +38,16 @@ python ./data_generation/gen_EMRI_params.py \
 
 echo "Calculating SNRs for EMRI events"
 
-python ./data_generation/calculate_SNR_EMRI_pseudo.py \
+python ./data_generation/calculate_SNR_EMRI.py \
     --UNIVERSE_MODEL "$UNIVERSE_MODEL" \
     --GALAXIES $GALAXIES \
     --mbh_mass_method "$MBH_MASS_METHODS" \
     --nucleation_method "$NUCLEATION_METHODS" \
     --occupation_method "$OCCUPATION_METHODS" \
     --merger_model "$MERGER_MODELS" \
+    --MODEL_PATH "$EMRI_SNR_MODEL_PATH" \
+    --SCALING_PATH "$EMRI_SNR_SCALING_PATH" \
+    --SNR_THRESHOLD "$EMRI_SNR_THRESHOLD"
 
 # # == Fisher matrix calculation ==
 

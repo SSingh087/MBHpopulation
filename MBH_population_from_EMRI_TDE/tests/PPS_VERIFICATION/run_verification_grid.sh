@@ -87,10 +87,11 @@ for scen in "${SCENARIOS[@]}"; do
     --mbh_mass_method "$MBH" --nucleation_method "$NUC" --occupation_method "$OCC" --merger_model "$MERGER_MODEL" \
     --SEED "$VERIFY_SEED"
 
-  $PYTHON ./data_generation/calculate_SNR_EMRI_pseudo.py \
+  $PYTHON ./data_generation/calculate_SNR_EMRI.py \
     --UNIVERSE_MODEL "$VERIFY_UNIVERSE" \
     --GALAXIES "$VERIFY_GALAXIES" \
-    --mbh_mass_method "$MBH" --nucleation_method "$NUC" --occupation_method "$OCC" --merger_model "$MERGER_MODEL"
+    --mbh_mass_method "$MBH" --nucleation_method "$NUC" --occupation_method "$OCC" --merger_model "$MERGER_MODEL" \
+    --MODEL_PATH "$EMRI_SNR_MODEL_PATH" --SCALING_PATH "$EMRI_SNR_SCALING_PATH" --SNR_THRESHOLD "$EMRI_SNR_THRESHOLD"
 
   for MODEL in "${TDE_MODELS[@]}"; do
     $PYTHON ./data_generation/gen_TDE_params.py \
