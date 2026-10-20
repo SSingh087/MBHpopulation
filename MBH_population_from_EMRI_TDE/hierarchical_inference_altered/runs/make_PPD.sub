@@ -1,5 +1,5 @@
 # Executable and arguments
-executable      = ./pseudo_runs/make_PPD_plots.sh
+executable      = ./runs/make_PPD_plots.sh
 getenv          = true
 arguments       = $(POPULATION) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
 

@@ -53,7 +53,7 @@ if args.CASES.strip().lower() != "all":
     keep = {s.strip() for s in args.CASES.split(",") if s.strip()}
     excluded_cases |= {label for (_s, _v, label, _c) in SOURCE_SURVEY_COMBOS if label not in keep}
 
-base_dir = f"./data/pseudo_inference_data/{args.GALAXIES}"
+base_dir = f"./data/inference_data/{args.GALAXIES}"
 outdir = f"{base_dir}/PLOTS/violin-posteriors"
 os.makedirs(outdir, exist_ok=True)
 

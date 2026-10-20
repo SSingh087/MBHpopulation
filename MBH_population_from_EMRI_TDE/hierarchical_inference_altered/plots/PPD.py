@@ -26,7 +26,7 @@ parser.add_argument('--NO_CACHE', action='store_true',
 
 args = parser.parse_args()
 
-base_dir = f"./data/altered_inference_data/pseudo_inference_data/{args.GALAXIES}"
+base_dir = f"./data/inference_data/{args.GALAXIES}"
 scenario_tag = f"{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}"
 outdir = f"{base_dir}/PLOTS/PPD/{scenario_tag}"
 os.makedirs(outdir, exist_ok=True)

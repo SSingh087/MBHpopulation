@@ -33,7 +33,7 @@ Scripts are written to be run from the `MBH_population_from_EMRI_TDE/` directory
 | `data_gen_realistic/` | Event counts for realistic (thinned) observing conditions |
 | `training_EMRI_SNR/` | Neural-network emulator of the EMRI SNR |
 | `training_TDE_detectability/` | Neural-network classifier for TDE detectability per survey and light-curve model |
-| `fisher_analysis/` | Measurement uncertainties (Fisher/pseudo-Fisher) for EMRIs and TDEs |
+| `fisher_analysis/` | Measurement uncertainties (Fisher) for EMRIs and TDEs |
 | `hierarchical_inference/` | Hierarchical Bayesian inference (populations A and B), with `plots/` for posteriors, violin plots and PPDs |
 | `hierarchical_inference_altered/` | Variant of the inference with a different scenario setup, same layout |
 | `tests/` | Validation: `TEST_merger_rates`, `TEST_time_average`, `PPS_VERIFICATION`, `beta_test` |

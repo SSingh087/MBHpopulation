@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 Produces the per-scenario event COUNTS (not events) that this pipeline's
-own make_events script should draw, replacing prep_pseudo_data.py's
+own make_events script should draw, replacing
 N_EMRI = len(true_detected_data_EMRI_<scenario>.h5) etc.
 
 Counts are computed directly from the realistic (redshift-bin-thinned)

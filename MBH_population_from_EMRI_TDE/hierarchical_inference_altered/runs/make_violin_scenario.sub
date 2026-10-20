@@ -1,5 +1,5 @@
 # Executable and arguments
-executable      = ./pseudo_runs/make_violin_scenario.sh
+executable      = ./runs/make_violin_scenario.sh
 getenv          = true
 arguments       = $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
 

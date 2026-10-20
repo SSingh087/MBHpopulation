@@ -84,20 +84,20 @@ popdist = make_dist("B")
 
 # ── Load data ─────────────────────────────────────────────────────────────
 data_EMRI, data_TDE = {}, {}
-base = f'./data/altered_inference_data/pseudo_inference_data/{args.GALAXIES}'
+base = f'./data/inference_data/{args.GALAXIES}'
 
 def load_torch(path):
     """Load a torch tensor file."""
     return torch.load(path, map_location='cpu')
 
-emri_torch = load_torch(f'{base}/true_data_EMRI_pseudo_data_B_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
+emri_torch = load_torch(f'{base}/fisher_posteriors_EMRI_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
 
 if args.SURVEY in ['ZTF', 'LSST']:
-    tde_torch = load_torch(f'{base}/true_data_TDE_{args.SURVEY}_pseudo_data_B_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
+    tde_torch = load_torch(f'{base}/fisher_posteriors_TDE_{args.SURVEY}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
     data_TDE  = tde_torch
 elif args.SURVEY == 'ALL':
-    ztf  = load_torch(f'{base}/true_data_TDE_ZTF_pseudo_data_B_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
-    lsst = load_torch(f'{base}/true_data_TDE_LSST_pseudo_data_B_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
+    ztf  = load_torch(f'{base}/fisher_posteriors_TDE_ZTF_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
+    lsst = load_torch(f'{base}/fisher_posteriors_TDE_LSST_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.pt')
     data_TDE = {k: torch.cat([ztf[k], lsst[k]], dim=0) for k in ztf}
 
 data_EMRI = emri_torch

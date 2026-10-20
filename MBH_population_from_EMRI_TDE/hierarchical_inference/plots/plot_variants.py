@@ -40,7 +40,7 @@ args = parser.parse_args()
 
 matplotlib.rcParams.update({"font.size": 11, "mathtext.fontset": "cm", "axes.spines.top": False,
                             "axes.spines.right": False})
-base_dir = f"./data/pseudo_inference_data/{args.GALAXIES}"
+base_dir = f"./data/inference_data/{args.GALAXIES}"
 outdir = "plots/plot_variants"
 os.makedirs(outdir, exist_ok=True)
 rng = np.random.default_rng(0)
@@ -50,7 +50,7 @@ SCEN_TAGS = [MODEL_LABELS[t] for t in SCEN]
 CASES = [c[2] for c in SOURCE_SURVEY_COMBOS]
 CCOLOR = {c[2]: c[3] for c in SOURCE_SURVEY_COMBOS}
 
-# Prior bounds actually used (pseudo_runs/run_inf_pseudo.sh).  All priors are uniform.
+# Prior bounds actually used (runs/run_inference.sh).  All priors are uniform.
 PRIOR = {
     "A": {"xc": (4, 7), "lam_schechter": (6.5, 22),
           "alpha_1_MBHSpin": (0.5, 5), "alpha_2_MBHSpin": (1, 15), "beta_1_MBHSpin": (0.5, 15),

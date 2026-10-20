@@ -58,7 +58,7 @@ if args.MODE in ("single", "grouped"):
     if missing:
         parser.error(f"--MODE {args.MODE} requires --{'/--'.join(missing)}")
 
-base_dir = f"./data/altered_inference_data/pseudo_inference_data/{args.GALAXIES}"
+base_dir = f"./data/inference_data/{args.GALAXIES}"
 
 
 def save_fig(fig, base_path):

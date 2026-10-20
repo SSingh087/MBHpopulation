@@ -34,6 +34,8 @@ Usage:
     python gen_dag.py > run_inference.dag
 """
 
+import argparse
+
 # Must match utils.SOURCE_SURVEY_COMBOS (source, survey) pairs.
 SOURCE_SURVEY_COMBOS = [
     ("EMRI",     "None"),
@@ -66,9 +68,12 @@ SCENARIOS = [
 POPULATIONS = ["A", "B"]
 
 
-def data_job_name(population, mbh, nuc, occ):
-    """Condor job name for data preparation."""
-    return f"make_pseudo_data_{population}_{mbh}_{nuc}_{occ}"
+FISHER_SOURCES = ["EMRI", "TDE_ZTF", "TDE_LSST"]
+
+
+def fisher_job_name(source, mbh, nuc, occ):
+    """Condor job name of the Fisher sub-DAG."""
+    return f"fisher_{source}_{mbh}_{nuc}_{occ}"
 
 
 def infer_job_name(source, population, survey, mbh, nuc, occ):
@@ -98,22 +103,24 @@ def ppd_job_name(population, mbh, nuc, occ):
 
 def main():
     """Build and write the DAG."""
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--galaxies", type=int, default=100000)
+    cli = ap.parse_args()
     lines = []
 
-    lines.append("# ============= MAKE DATA (one per population x scenario) =========")
-    lines.append("# make_pseudo_data.py's output filenames are population+scenario")
-    lines.append("# specific (true_data_EMRI_pseudo_data_{POP}_{mbh}_{nuc}_{occ}.h5)")
-    data_names_by_pop_scenario = {}  # (pop, mbh, nuc, occ) -> job_name
-    for population in POPULATIONS:
-        for mbh, nuc, occ in SCENARIOS:
-            name = data_job_name(population, mbh, nuc, occ)
-            data_names_by_pop_scenario[(population, mbh, nuc, occ)] = name
-            lines.append(f"JOB {name} ./pseudo_runs/make_pseudo_data.sub")
-            lines.append(
-                f'VARS {name} POPULATION="{population}" MBH_MASS_METHODS="{mbh}" NUCLEATION_METHODS="{nuc}" INCLUDE_LSST="1" OCCUPATION_METHODS="{occ}"'
-            )
+    lines.append("# ============= FISHER POSTERIORS (one sub-DAG per scenario and source) =========")
+    lines.append("# fisher_analysis builds the per-event posteriors of the detected events; the sub-DAG is")
+    lines.append("# written by make_fisher_dag.py (PRE script) once the detected catalogue exists.")
+    fisher_names_by_scenario = {}  # (mbh, nuc, occ) -> [node, ...]
+    for mbh, nuc, occ in SCENARIOS:
+        scen = f"{mbh}_{nuc}_{occ}"
+        fisher_names_by_scenario[(mbh, nuc, occ)] = []
+        for src in FISHER_SOURCES:
+            name = fisher_job_name(src, mbh, nuc, occ)
+            fisher_names_by_scenario[(mbh, nuc, occ)].append(name)
+            lines.append(f"SUBDAG EXTERNAL {name} fisher_{src}_{scen}.dag DIR ..")
+            lines.append(f"SCRIPT PRE {name} python make_fisher_dag.py --GALAXIES {cli.galaxies} --SOURCE {src} --SCENARIO {scen}")
     lines.append("")
-
     lines.append("# ================ INFERENCE JOBS ==========================")
     infer_names_by_pop_scenario = {}  # (pop, mbh, nuc, occ) -> [job_name, ...]
 
@@ -123,7 +130,7 @@ def main():
             for source, survey in SOURCE_SURVEY_COMBOS:
                 name = infer_job_name(source, population, survey, mbh, nuc, occ)
                 names.append(name)
-                lines.append(f"JOB {name} ./pseudo_runs/run_inf_pseudo.sub")
+                lines.append(f"JOB {name} ./runs/run_inference.sub")
                 lines.append(
                     f'VARS {name} SOURCE="{source}" POPULATION="{population}" '
                     f'SURVEY="{survey}" MBH_MASS_METHODS="{mbh}" NUCLEATION_METHODS="{nuc}" OCCUPATION_METHODS="{occ}"'
@@ -139,7 +146,7 @@ def main():
         for mbh, nuc, occ in SCENARIOS:
             name = posterior_job_name(population, mbh, nuc, occ)
             posterior_names_by_pop_scenario[(population, mbh, nuc, occ)] = name
-            lines.append(f"JOB {name} ./pseudo_runs/make_posterior_plots.sub")
+            lines.append(f"JOB {name} ./runs/make_posterior_plots.sub")
             lines.append(
                 f'VARS {name} POPULATION="{population}" '
                 f'MBH_MASS_METHODS="{mbh}" NUCLEATION_METHODS="{nuc}" OCCUPATION_METHODS="{occ}"'
@@ -151,7 +158,7 @@ def main():
     for mbh, nuc, occ in SCENARIOS:
         name = violin_scenario_job_name(mbh, nuc, occ)
         violin_scenario_names[(mbh, nuc, occ)] = name
-        lines.append(f"JOB {name} ./pseudo_runs/make_violin_scenario.sub")
+        lines.append(f"JOB {name} ./runs/make_violin_scenario.sub")
         lines.append(
             f'VARS {name} MBH_MASS_METHODS="{mbh}" NUCLEATION_METHODS="{nuc}" OCCUPATION_METHODS="{occ}"'
         )
@@ -159,7 +166,7 @@ def main():
 
     lines.append("# ----------------- grand combined (all-scenarios) violin job -----------------")
     violin_all_name = violin_all_job_name()
-    lines.append(f"JOB {violin_all_name} ./pseudo_runs/make_violin_all.sub")
+    lines.append(f"JOB {violin_all_name} ./runs/make_violin_all.sub")
     lines.append("")
 
     lines.append("# ----------------- PPD plotting jobs (run last) -----------------")
@@ -168,7 +175,7 @@ def main():
         for mbh, nuc, occ in SCENARIOS:
             name = ppd_job_name(population, mbh, nuc, occ)
             ppd_names_by_pop_scenario[(population, mbh, nuc, occ)] = name
-            lines.append(f"JOB {name} ./pseudo_runs/make_PPD.sub")
+            lines.append(f"JOB {name} ./runs/make_PPD.sub")
             lines.append(
                 f'VARS {name} POPULATION="{population}" '
                 f'MBH_MASS_METHODS="{mbh}" NUCLEATION_METHODS="{nuc}" OCCUPATION_METHODS="{occ}"'
@@ -177,12 +184,12 @@ def main():
 
     lines.append("# ----------------- DAG structure -----------------")
 
-    # data -> inference
+    # Fisher -> inference
     for population in POPULATIONS:
         for mbh, nuc, occ in SCENARIOS:
-            data_name = data_names_by_pop_scenario[(population, mbh, nuc, occ)]
+            fisher_names = fisher_names_by_scenario[(mbh, nuc, occ)]
             infer_names = infer_names_by_pop_scenario[(population, mbh, nuc, occ)]
-            lines.append(f"PARENT {data_name} CHILD {' '.join(infer_names)}")
+            lines.append(f"PARENT {' '.join(fisher_names)} CHILD {' '.join(infer_names)}")
 
     # inference -> posterior (1D+2D), per population x scenario
     for population in POPULATIONS:

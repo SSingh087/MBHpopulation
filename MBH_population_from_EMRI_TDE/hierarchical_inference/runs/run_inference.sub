@@ -1,5 +1,5 @@
 # Executable and arguments
-executable      = ./pseudo_runs/run_inf_pseudo.sh
+executable      = ./runs/run_inference.sh
 getenv          = true
 arguments       = $(SOURCE) $(POPULATION) $(SURVEY) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
 

@@ -28,7 +28,7 @@ ap.add_argument("--ASINH", type=int, default=1, help="1 = right panel uses an as
 ap.add_argument("--PAD", type=float, default=0.25, help="fractional padding of the zoom window")
 a = ap.parse_args()
 keep = [s.strip() for s in a.CASES.split(",")]; zoom_cases = {s.strip() for s in a.ZOOM_CASES.split(",")}
-base = f"./data/pseudo_inference_data/{a.GALAXIES}"
+base = f"./data/inference_data/{a.GALAXIES}"
 outdir = f"{base}/PLOTS/violin-posteriors"; os.makedirs(outdir, exist_ok=True)
 labels = get_latex_labels(a.POPULATION)
 case_order = [l for (_s, _v, l, _c) in SOURCE_SURVEY_COMBOS if l in keep]

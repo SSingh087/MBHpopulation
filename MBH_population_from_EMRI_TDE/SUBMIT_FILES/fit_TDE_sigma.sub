@@ -1,8 +1,0 @@
-executable = ./EXECUTABLES/fit_TDE_sigma.sh
-getenv     = True
-
-request_cpus   = 1
-request_memory = 4GB
-
-
-queue

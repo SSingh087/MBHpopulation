@@ -88,7 +88,7 @@ def save_fig(fig, base_path):
 
 
 # ── Shared data loading ─────────────────────────────────────────────────────
-base_dir = f"./data/pseudo_inference_data/{args.GALAXIES}"
+base_dir = f"./data/inference_data/{args.GALAXIES}"
 scenario_tag = f"{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}"
 
 combos = load_available_combos(

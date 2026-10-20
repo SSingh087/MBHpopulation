@@ -1,7 +1,7 @@
 # Executable and arguments
-executable      = ./pseudo_runs/make_violin_all.sh
+executable      = ./runs/make_violin.sh
 getenv          = true
-arguments       = ""
+arguments       = $(POPULATION)
 
 
 

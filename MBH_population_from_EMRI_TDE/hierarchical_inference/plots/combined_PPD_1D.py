@@ -58,7 +58,7 @@ parser.add_argument('--DRAW_SIZE', type=int, default=500, help="samples per cata
 parser.add_argument('--POST_NCOLS', type=int, default=3, help="columns in the 1D-posterior grid")
 args = parser.parse_args()
 
-base_dir = f"./data/pseudo_inference_data/{args.GALAXIES}"
+base_dir = f"./data/inference_data/{args.GALAXIES}"
 scenario_tag = f"{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}"
 outdir = f"{base_dir}/PLOTS/combined/{scenario_tag}"
 os.makedirs(outdir, exist_ok=True)
