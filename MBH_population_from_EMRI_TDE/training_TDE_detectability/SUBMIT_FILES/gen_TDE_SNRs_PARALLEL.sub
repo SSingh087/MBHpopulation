@@ -2,9 +2,6 @@ executable   = ./EXECUTABLES/gen_TDE_SNRs_PARALLEL.sh
 getenv       = true
 arguments    = $(SURVEY) $(MODEL) $(CHUNK_ID) $(N_CHUNKS)
 
-log    = LOG_FILES/snr_$(SURVEY)_$(MODEL)_chunk$(CHUNK_ID).log
-error  = ERROR_FILES/snr_$(SURVEY)_$(MODEL)_chunk$(CHUNK_ID).err
-output = OUTPUT_FILES/snr_$(SURVEY)_$(MODEL)_chunk$(CHUNK_ID).out
 
 
 request_cpus   = 12

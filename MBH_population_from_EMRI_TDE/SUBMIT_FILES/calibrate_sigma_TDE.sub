@@ -6,8 +6,5 @@ arguments  = $(survey) $(chunk) $(nchunks) $(nevents)
 request_cpus   = 1
 request_memory = 4GB
 
-log    = LOG_FILES/calibrate_sigma_TDE_$(survey)_$(chunk).log
-output = OUTPUT_FILES/calibrate_sigma_TDE_$(survey)_$(chunk).out
-error  = ERROR_FILES/calibrate_sigma_TDE_$(survey)_$(chunk).err
 
 queue

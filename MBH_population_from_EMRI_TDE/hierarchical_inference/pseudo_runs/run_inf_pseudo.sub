@@ -3,10 +3,6 @@ executable      = ./pseudo_runs/run_inf_pseudo.sh
 getenv          = true
 arguments       = $(SOURCE) $(POPULATION) $(SURVEY) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
 
-# Logs
-log             = LOG_FILES/run_inference_$(SOURCE)_$(POPULATION)_$(SURVEY)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).log
-error           = ERROR_FILES/run_inference_$(SOURCE)_$(POPULATION)_$(SURVEY)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).err
-output          = OUTPUT_FILES/run_inference_$(SOURCE)_$(POPULATION)_$(SURVEY)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).out
 
 
 # Resources

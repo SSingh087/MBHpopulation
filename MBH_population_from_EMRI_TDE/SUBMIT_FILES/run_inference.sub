@@ -4,10 +4,6 @@ executable      = ./EXECUTABLES/run_inference.sh
 getenv          = true
 arguments       = $(SOURCE) $(POPULATION) $(SURVEY)
 
-# Logs
-log             = LOG_FILES/run_inference_$(SOURCE)_$(POPULATION)_$(SURVEY).log
-error           = ERROR_FILES/run_inference_$(SOURCE)_$(POPULATION)_$(SURVEY).err
-output          = OUTPUT_FILES/run_inference_$(SOURCE)_$(POPULATION)_$(SURVEY).out
 
 
 # Resources

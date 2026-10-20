@@ -3,10 +3,6 @@ executable      = ./pseudo_runs/make_PPD_plots.sh
 getenv          = true
 arguments       = $(POPULATION) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
 
-# Logs
-log             = LOG_FILES/make_PPD_$(POPULATION)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).log
-error           = ERROR_FILES/make_PPD_$(POPULATION)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).err
-output          = OUTPUT_FILES/make_PPD_$(POPULATION)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).out
 
 
 # Resources

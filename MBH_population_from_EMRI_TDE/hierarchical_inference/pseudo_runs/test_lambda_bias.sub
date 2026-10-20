@@ -2,9 +2,6 @@ executable      = ./pseudo_runs/test_lambda_bias.sh
 getenv          = true
 arguments       = $(POP) $(SCEN) $(SURVEY)
 
-log             = LOG_FILES/test_lambda_bias_$(POP)_$(SCEN)_$(SURVEY).log
-error           = ERROR_FILES/test_lambda_bias_$(POP)_$(SCEN)_$(SURVEY).err
-output          = OUTPUT_FILES/test_lambda_bias_$(POP)_$(SCEN)_$(SURVEY).out
 
 
 request_cpus    = 2

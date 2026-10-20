@@ -1,9 +1,6 @@
 executable      = ./pseudo_runs/combine_lambda_bias.sh
 getenv          = true
 
-log             = LOG_FILES/combine_lambda_bias.log
-error           = ERROR_FILES/combine_lambda_bias.err
-output          = OUTPUT_FILES/combine_lambda_bias.out
 
 request_cpus    = 1
 request_memory  = 4GB

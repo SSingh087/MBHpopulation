@@ -6,10 +6,6 @@ getenv          = true
 # $(SEED) $(N)   (N = galaxies; 20000 is quick, 100000 = repo default in EXECUTABLES/config.sh)
 arguments  = $(SEED) $(N)
 
-# Logs
-log             = LOG_FILES/merger_test_$(N)_$(SEED).log
-error           = ERROR_FILES/merger_test_$(N)_$(SEED).err
-output          = OUTPUT_FILES/merger_test_$(N)_$(SEED).out
 
 
 # Resources

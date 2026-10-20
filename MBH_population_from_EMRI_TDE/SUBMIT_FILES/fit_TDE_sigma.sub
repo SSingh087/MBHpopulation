@@ -4,8 +4,5 @@ getenv     = True
 request_cpus   = 1
 request_memory = 4GB
 
-log    = LOG_FILES/fit_TDE_sigma.log
-output = OUTPUT_FILES/fit_TDE_sigma.out
-error  = ERROR_FILES/fit_TDE_sigma.err
 
 queue

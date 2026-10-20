@@ -3,10 +3,6 @@ executable      = ./pseudo_runs/make_pseudo_data.sh
 getenv          = true
 arguments       = $(POPULATION) $(INCLUDE_LSST) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
 
-# Logs
-log             = LOG_FILES/make_pseudo_data_$(POPULATION)_$(INCLUDE_LSST)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).log
-error           = ERROR_FILES/make_pseudo_data_$(POPULATION)_$(INCLUDE_LSST)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).err
-output          = OUTPUT_FILES/make_pseudo_data_$(POPULATION)_$(INCLUDE_LSST)_$(MBH_MASS_METHODS)_$(NUCLEATION_METHODS)_$(OCCUPATION_METHODS).out
 
 
 # Resources

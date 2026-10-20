@@ -1,8 +1,5 @@
 
 
-log = LOG_FILES/gen_inject_params_$(EXEC_TYPE).log
-error = ERROR_FILES/gen_inject_params_$(EXEC_TYPE).err
-output = OUTPUT_FILES/gen_inject_params_$(EXEC_TYPE).out
 
 # Email notifications
 
