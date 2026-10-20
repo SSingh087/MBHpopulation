@@ -1,72 +1,42 @@
-#!/usr/bin/env python
-"""
-Runs once, after every batch node in the DAG has completed. Reads all
-fisher_batch_*.h5 files and merges them into the same three output
-files the old single-process script produced:
-    fisher_results_TDE_{SURVEY}_{suffix}.h5
-    true_data_TDE_{SURVEY}_{suffix}.h5
-    noisy_data_TDE_{SURVEY}_{suffix}.h5
-"""
+"""Merge the TDE Fisher batch files into the posterior file read by the hierarchical inference."""
+import argparse
+import glob
+import os
+import sys
 
-import glob, argparse, sys, os
-sys.path.insert(0, os.path.abspath('./'))
-from utils import FISHER_DATA_DIR
-import numpy as np
 import h5py
+import numpy as np
+import torch
+
+sys.path.insert(0, os.path.abspath('./'))
+from utils import INFERENCE_DATA_DIR
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--GALAXIES",      type=int, required=True)
-parser.add_argument("--SURVEY",        type=str, default="ztf")
-parser.add_argument("--mbh_mass_method", type=str, required=False, default="M_sigma", choices=["use_sigma", "use_lgMgal"])
-parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--GALAXIES", type=int, required=True)
+parser.add_argument("--SURVEY", type=str, required=True)
+parser.add_argument("--SCENARIO", type=str, required=True,
+                    help="{mbh_mass_method}_{nucleation_method}_{occupation_method}")
 args = parser.parse_args()
 
-loc      = f"{FISHER_DATA_DIR}/{args.GALAXIES}"
+loc = f"{INFERENCE_DATA_DIR}/{args.GALAXIES}"
+tag = f"TDE_{args.SURVEY.upper()}_{args.SCENARIO}"
+files = sorted(glob.glob(f"{loc}/fisher_batches/{tag}_*.h5"))
+if not files:
+    raise RuntimeError(f"No batch files for {tag} in {loc}/fisher_batches -- did the Fisher DAG run?")
 
-batch_files = sorted(glob.glob(f"{loc}/batches/fisher_batch_*.h5"))
-if not batch_files:
-    raise RuntimeError(f"No batch files found in {loc}/batches -- did the DAG run?")
+keys = ["lgMBH_mass", "z_gal"]
+merged = {k: [] for k in keys}
+for fn in files:
+    with h5py.File(fn, "r") as hf:
+        if "z_gal" not in hf:
+            continue
+        for k in keys:
+            merged[k].append(hf[k][()])
+merged = {k: np.concatenate(v).astype(np.float32) for k, v in merged.items()}
 
-print(f"Merging {len(batch_files)} batch files...")
-
-PARAMS = ["redshift", "mbh_6", "stellar_mass", "eta", "alpha", "beta"]
-
-fisher_out = h5py.File(f"{loc}/fisher_results_TDE_{args.SURVEY.upper()}_{args.mbh_mass_method}_{args.nucleation_method}.h5", "w")
-true_samples_by_param = {p: [] for p in PARAMS}
-noisy_samples_by_param = {p: [] for p in PARAMS}
-
-n_events_total = 0
-n_events_ok = 0
-
-for bf in batch_files:
-    with h5py.File(bf, "r") as hf:
-        n_events_total += hf.attrs.get("n_events_in_batch", 0)
-        for event_key in hf.keys():
-            n_events_ok += 1
-            eg = hf[event_key]
-            out_g = fisher_out.create_group(event_key)
-            for name in ["fisher_matrix", "covariance_matrix", "errors", "truths",
-                         "fisher_matrix_new", "covariance_matrix_new", "errors_new", "truths_new"]:
-                out_g.create_dataset(name, data=eg[name][()])
-
-            true_samples_by_param_local = eg["true_samples"][()]   # (N_SAMPLES, n_params)
-            noisy_samples_by_param_local = eg["noisy_samples"][()]
-            for i, p in enumerate(PARAMS):
-                true_samples_by_param[p].append(true_samples_by_param_local[:, i])
-                noisy_samples_by_param[p].append(noisy_samples_by_param_local[:, i])
-
-fisher_out.attrs["n_events_total"] = n_events_total
-fisher_out.attrs["n_events_ok"]    = n_events_ok
-fisher_out.close()
-
-with h5py.File(f"{loc}/true_data_TDE_{args.SURVEY.upper()}_{args.mbh_mass_method}_{args.nucleation_method}.h5", "w") as hf_true, \
-     h5py.File(f"{loc}/noisy_data_TDE_{args.SURVEY.upper()}_{args.mbh_mass_method}_{args.nucleation_method}.h5", "w") as hf_noisy:
-    for p in PARAMS:
-        true_arr = np.vstack(true_samples_by_param[p])
-        noisy_arr = np.vstack(noisy_samples_by_param[p])
-        hf_true.create_dataset(p, data=true_arr, compression="gzip")
-        hf_noisy.create_dataset(p, data=noisy_arr, compression="gzip")
-        print(f"[SAVED] '{p}' shape {true_arr.shape} (true) / {noisy_arr.shape} (noisy)")
-
-print(f"\n[DONE] Merged {n_events_ok}/{n_events_total} events across {len(batch_files)} batches.")
-print(f"Outputs written to {loc}/")
+out = f"{loc}/fisher_posteriors_{tag}"
+with h5py.File(out + ".h5", "w") as hf:
+    for k, v in merged.items():
+        hf.create_dataset(k, data=v, compression="gzip")
+torch.save({k: torch.from_numpy(v) for k, v in merged.items()}, out + ".pt")
+print(f"Merged {len(files)} batches, {merged['z_gal'].shape[0]} events -> {out}.(h5|pt)")

@@ -26,7 +26,7 @@ import numpy as np
 import h5py
 
 sys.path.insert(0, os.path.abspath('./'))
-from utils import ASTROPHYSICAL_DATA_DIR, FISHER_DATA_DIR
+from utils import INFERENCE_DATA_DIR
 from fish_TDE import *
 from utils_fisher import *
 
@@ -41,22 +41,22 @@ parser.add_argument("--BATCH_ID",       type=int, required=True)
 parser.add_argument("--PLOT_CORNER",     type=int, default=0, choices=[0, 1], help="1=save true+noisy corner plots per event, 0=skip")
 parser.add_argument("--PLOT_FISHER",     type=int, default=0, choices=[0, 1], help="1=save true+noisy Fisher-matrix heatmaps per event, 0=skip")
 parser.add_argument("--PLOT_COVARIANCE", type=int, default=0, choices=[0, 1], help="1=save true+noisy covariance-matrix heatmaps per event, 0=skip")
-parser.add_argument("--mbh_mass_method", type=str, required=False, default="M_sigma", choices=["use_sigma", "use_lgMgal"])
-parser.add_argument("--nucleation_method", type=str, required=False, default="hannah", choices=["hannah", "neumayer"])
+parser.add_argument("--SCENARIO", type=str, required=True,
+                    help="{mbh_mass_method}_{nucleation_method}_{occupation_method}")
 args = parser.parse_args()
 args.PLOT_CORNER     = bool(args.PLOT_CORNER)
 args.PLOT_FISHER     = bool(args.PLOT_FISHER)
 args.PLOT_COVARIANCE = bool(args.PLOT_COVARIANCE)
 
-loc      = f"{FISHER_DATA_DIR}/{args.GALAXIES}"
-os.makedirs(f"{loc}/batches", exist_ok=True)
+loc      = f"{INFERENCE_DATA_DIR}/{args.GALAXIES}"
+os.makedirs(f"{loc}/fisher_batches", exist_ok=True)
 
 ANY_PLOTTING = args.PLOT_CORNER or args.PLOT_FISHER or args.PLOT_COVARIANCE
 if ANY_PLOTTING:
     plot_dir = f"{loc}/plots/batch_{args.BATCH_ID:05d}"
     os.makedirs(plot_dir, exist_ok=True)
 
-SNR_PATH = f"{ASTROPHYSICAL_DATA_DIR}/{args.GALAXIES}/TDE_SNRs_{args.SURVEY.upper()}_{args.mbh_mass_method}_{args.nucleation_method}.h5"
+SNR_PATH = f"{loc}/detected_catalog_TDE_{args.SURVEY.upper()}_{args.SCENARIO}.h5"
 
 N_SAMPLES_PER_THETA = 2000
 SIM_FN, SURVEY_STR = choose_simulator(args.SURVEY)
@@ -206,13 +206,20 @@ for local_i in range(n_events):
     if r is not None:
         results.append(r)
 
-out_path = f"{loc}/batches/fisher_batch_{args.BATCH_ID:05d}_{args.mbh_mass_method}_{args.nucleation_method}.h5"
+out_path = f"{loc}/fisher_batches/TDE_{args.SURVEY.upper()}_{args.SCENARIO}_{args.BATCH_ID:05d}.h5"
 with h5py.File(out_path, "w") as hf:
     hf.attrs["batch_id"]  = args.BATCH_ID
     hf.attrs["start_idx"] = args.START_IDX
     hf.attrs["end_idx"]   = end
     hf.attrs["n_events_in_batch"] = n_events
     hf.attrs["n_events_ok"] = len(results)
+
+    # Posteriors for the inference: samples centred on the noisy observation, in population-level keys
+    hf.create_dataset("event_index", data=np.array([r["global_idx"] for r in results]))
+    if results:
+        noisy = np.stack([r["noisy_samples"] for r in results])      # (n_events, n_samples, n_params)
+        hf.create_dataset("z_gal", data=noisy[:, :, PARAMS.index("redshift")])
+        hf.create_dataset("lgMBH_mass", data=noisy[:, :, PARAMS.index("mbh_6")] + 6)
 
     for r in results:
         g = hf.create_group(f"event_{r['global_idx']}")

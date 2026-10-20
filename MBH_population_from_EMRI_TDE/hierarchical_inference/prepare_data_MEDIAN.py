@@ -99,6 +99,13 @@ print("EMRI data:")
 print("=======================")
 
 emri_data = {}
+SCENARIO = f"{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}"
+
+# Full-parameter copy of the detected events: the input of the Fisher stage.
+with h5py.File(EMRI_SNR_PATH, "r") as hf, h5py.File(f"{OUT_DIR}/detected_catalog_EMRI_{SCENARIO}.h5", "w") as cat:
+    for key in hf.keys():
+        if key != "SNR_all":
+            cat.create_dataset(key, data=hf[key][()])
 
 with h5py.File(EMRI_SNR_PATH, "r") as hf, \
      h5py.File(f"{OUT_DIR}/true_detected_data_EMRI_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.h5", "w") as hf_out:
@@ -128,6 +135,10 @@ for survey in ["ZTF", "LSST"]:
 
     tde_path = TDE_SNR_PATH_ZTF if survey == "ZTF" else TDE_SNR_PATH_LSST
     tde_data = {}
+
+    with h5py.File(tde_path, "r") as hf, h5py.File(f"{OUT_DIR}/detected_catalog_TDE_{survey}_{SCENARIO}.h5", "w") as cat:
+        for key in hf.keys():
+            cat.create_dataset(key, data=hf[key][()])
 
     with h5py.File(tde_path, "r") as hf, \
          h5py.File(f"{OUT_DIR}/true_detected_data_TDE_{survey}_{args.mbh_mass_method}_{args.nucleation_method}_{args.occupation_method}.h5", "w") as hf_out:

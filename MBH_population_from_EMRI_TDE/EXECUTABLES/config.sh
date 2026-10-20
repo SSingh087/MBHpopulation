@@ -57,3 +57,6 @@ TDE_ARCH_LAYERS_tde_fallback_LSST=4
 EMRI_SNR_MODEL_PATH=./data/EMRI/PRE_TRAIN_DATA/1E6_events/MODEL_theta_SNR_best/best_final_model/model/model.pth
 EMRI_SNR_SCALING_PATH=./data/EMRI/PRE_TRAIN_DATA/1E6_events/snr_scaling.json
 EMRI_SNR_THRESHOLD=20
+
+# LISA PSD of the EMRI observing window (training_EMRI_SNR/calculate_PSD.py)
+EMRI_PSD_PATH=./data/EMRI/PRE_TRAIN_DATA/1E6_events/PSD_LISA_6_yr.npy

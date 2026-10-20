@@ -49,16 +49,4 @@ python ./data_generation/calculate_SNR_EMRI.py \
     --SCALING_PATH "$EMRI_SNR_SCALING_PATH" \
     --SNR_THRESHOLD "$EMRI_SNR_THRESHOLD"
 
-# # == Fisher matrix calculation ==
-
-# echo "Calculating Fisher matrices for EMRI events"
-
-# python ./fisher_analysis/eval_EMRI_fisher.py \
-#   --GALAXIES $GALAXIES \
-#   --OBSERVING_WINDOW $T_OBS_EMRI \
-#   # required only when plotting. Cannot be set to false
-#   # just comment because of the action="store_true" in the argument parser.
-#   # --PLOT_CORNER True \
-#   # --PLOT_FISHER True \
-#   # --PLOT_COVARIANCE True \
-#   # --PLOT_HISTOGRAMS True 
+# Fisher analysis of the detected events runs after the best universe is chosen (see make_fisher_dag.py).
