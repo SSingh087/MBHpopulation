@@ -1,0 +1,15 @@
+# Executable and arguments
+executable      = ./EXECUTABLES/pull_real_tde_catalog.sh
+getenv          = true
+
+# Logs
+log             = LOG_FILES/pull_real_tde_catalog.log
+error           = ERROR_FILES/pull_real_tde_catalog.err
+output          = OUTPUT_FILES/pull_real_tde_catalog.out
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 2GB
+
+queue 1

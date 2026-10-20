@@ -1,0 +1,15 @@
+# Executable and arguments
+executable      = ./EXECUTABLES/build_footprint_maps.sh
+getenv          = true
+
+# Logs
+log             = LOG_FILES/build_footprint_maps.log
+error           = ERROR_FILES/build_footprint_maps.err
+output          = OUTPUT_FILES/build_footprint_maps.out
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 4GB
+
+queue 1
