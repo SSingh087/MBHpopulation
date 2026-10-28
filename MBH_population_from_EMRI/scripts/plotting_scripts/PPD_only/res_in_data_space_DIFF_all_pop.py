@@ -219,7 +219,7 @@ def compute_hist(data, bins):
 # for POP in ['A', 'B', 'A_B']:
 for POP in ['A_B']:
     print("POP", POP)
-    base_dir = f"/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/_pop_{POP}_NO_SF_DIFF_POP"
+    base_dir = f"./INFERENCE_DATA/_pop_{POP}_NO_SF_DIFF_POP"
 
     # Inner loop: which (different) population was used to create the data
     for DIFF_POP in ['A', 'B', 'A_B']:
@@ -356,5 +356,5 @@ for POP in ['A_B']:
         ax[1,1].set_xlim(0.1, 0.7)
 
         plt.tight_layout()
-        plt.savefig(f'/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/PPD/PPD_{POP}_DIFF_POP_{DIFF_POP}_hist.png', dpi=300)
-        plt.savefig(f'/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/PPD/PPD_{POP}_DIFF_POP_{DIFF_POP}_hist.pdf', dpi=300)
+        plt.savefig(f'./PLOTS/PPD/PPD_{POP}_DIFF_POP_{DIFF_POP}_hist.png', dpi=300)
+        plt.savefig(f'./PLOTS/PPD/PPD_{POP}_DIFF_POP_{DIFF_POP}_hist.pdf', dpi=300)

@@ -1,0 +1,12 @@
+# Executable and arguments
+executable      = ./runs/make_violin.sh
+getenv          = true
+arguments       = $(POPULATION)
+
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 8GB
+
+queue

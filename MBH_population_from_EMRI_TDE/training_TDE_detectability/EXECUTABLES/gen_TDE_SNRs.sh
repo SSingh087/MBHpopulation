@@ -1,0 +1,27 @@
+#!/bin/sh
+
+. EXECUTABLES/config.sh
+
+MIN_DETECTIONS=2
+
+# SURVEY can be from ZTF LSST
+SURVEY=$1
+MODEL=$2
+
+
+if [ "$SURVEY" = "LSST" ]; then
+    Z_MIN=$Z_GAL_MIN_LSST
+    Z_MAX=$Z_GAL_MAX_LSST
+else
+    Z_MIN=$Z_GAL_MIN_ZTF
+    Z_MAX=$Z_GAL_MAX_ZTF
+fi
+
+
+LENGTH_OF_TDE_VAR="LENGTH_OF_TDE_${SURVEY}"
+LENGTH_OF_TDE=$(eval echo \$${LENGTH_OF_TDE_VAR})
+
+BANDS_VAR="BANDS_${SURVEY}"
+BANDS=$(eval echo \$$BANDS_VAR)
+
+python calculate_SNR_TDE.py --events $EVENTS --LENGTH_OF_TDE $LENGTH_OF_TDE --MIN_DETECTIONS $MIN_DETECTIONS --SURVEY "$SURVEY" --BANDS $BANDS --Z_MIN $Z_MIN --Z_MAX $Z_MAX --model $MODEL

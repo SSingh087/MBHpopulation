@@ -1,0 +1,9 @@
+executable   = ./EXECUTABLES/gen_TDE_SNRs_PARALLEL.sh
+getenv       = true
+arguments    = $(SURVEY) $(MODEL) $(CHUNK_ID) $(N_CHUNKS)
+
+
+
+request_cpus   = 12
+request_memory = 28GB
+queue 1

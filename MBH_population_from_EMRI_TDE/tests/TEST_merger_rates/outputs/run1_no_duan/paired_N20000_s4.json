@@ -1,0 +1,138 @@
+{
+ "repo": {
+  "Lambda_TDE": 1185138.0413415204,
+  "Lambda_EMRI": 277.3833278236964,
+  "active_fraction": 0.23537702607470048,
+  "active_frac_mask": 0.2932233960319505,
+  "censored": 6.406560317765392e-05,
+  "secs": 0.18597817420959473
+ },
+ "baseline": {
+  "Lambda_TDE": 1185138.0413415204,
+  "Lambda_EMRI": 277.3833278236964,
+  "active_fraction": 0.23537702607470048,
+  "active_frac_mask": 0.2932233960319505,
+  "censored": 6.406560317765392e-05,
+  "secs": 0.26024413108825684
+ },
+ "baseline_docM": {
+  "Lambda_TDE": 1132051.6958162324,
+  "Lambda_EMRI": 268.65060154163757,
+  "active_fraction": 0.22961112178871165,
+  "active_frac_mask": 0.2816284462767328,
+  "censored": 0.011147414952911782,
+  "secs": 0.21129846572875977
+ },
+ "mundy17": {
+  "Lambda_TDE": 299135.37062911154,
+  "Lambda_EMRI": 37.74210096430428,
+  "active_fraction": 0.1480556089435582,
+  "active_frac_mask": 0.12471012625611956,
+  "censored": 0.7412390287654558,
+  "secs": 0.20595335960388184
+ },
+ "mundy17_n5e4": {
+  "Lambda_TDE": 314559.4350792634,
+  "Lambda_EMRI": 40.90905343700777,
+  "active_fraction": 0.15061823307066435,
+  "active_frac_mask": 0.12934810615820666,
+  "censored": 0.669934012428727,
+  "secs": 0.19928193092346191
+ },
+ "oleary_9.7": {
+  "Lambda_TDE": 255360.14783910115,
+  "Lambda_EMRI": 26.83233016008562,
+  "active_fraction": 0.14433980395925428,
+  "active_frac_mask": 0.11749549085287297,
+  "censored": 0.8771862387084375,
+  "secs": 0.21021223068237305
+ },
+ "oleary_10.3": {
+  "Lambda_TDE": 305018.6234239356,
+  "Lambda_EMRI": 38.91328029575183,
+  "active_fraction": 0.1477993465308476,
+  "active_frac_mask": 0.12406596238082969,
+  "censored": 0.7871740662438337,
+  "secs": 0.18566274642944336
+ },
+ "oleary_11.0": {
+  "Lambda_TDE": 461836.7592403641,
+  "Lambda_EMRI": 73.40165641594099,
+  "active_fraction": 0.16221410724581972,
+  "active_frac_mask": 0.15073434681783046,
+  "censored": 0.3976551989236979,
+  "secs": 0.1968064308166504
+ },
+ "oleary_mass": {
+  "Lambda_TDE": 279911.963090562,
+  "Lambda_EMRI": 33.87068048431688,
+  "active_fraction": 0.14683836248318277,
+  "active_frac_mask": 0.12123164132955423,
+  "censored": 0.8435517970401691,
+  "secs": 0.18715620040893555
+ },
+ "none": {
+  "Lambda_TDE": 188157.95764189656,
+  "Lambda_EMRI": 14.507132848222163,
+  "active_fraction": 0.14049586776859505,
+  "active_frac_mask": 0.1106673537748003,
+  "censored": 1.0,
+  "secs": 0.17763352394104004
+ },
+ "baseline@grid2000": {
+  "Lambda_TDE": 1875481.6537759742,
+  "Lambda_EMRI": 428.6425145627916,
+  "active_fraction": 0.251393426869114,
+  "active_frac_mask": 0.32517392424632824,
+  "censored": 6.406560317765392e-05,
+  "secs": 1.8890917301177979
+ },
+ "mundy17@grid2000": {
+  "Lambda_TDE": 330019.35094779247,
+  "Lambda_EMRI": 42.16625115754732,
+  "active_fraction": 0.14856813376897943,
+  "active_frac_mask": 0.12574078845658335,
+  "censored": 0.740662438336857,
+  "secs": 1.9615583419799805
+ },
+ "oleary_9.7@grid2000": {
+  "Lambda_TDE": 294274.4169390878,
+  "Lambda_EMRI": 33.76469206973884,
+  "active_fraction": 0.14485232878467552,
+  "active_frac_mask": 0.11852615305333677,
+  "censored": 0.8768659106925492,
+  "secs": 2.237807512283325
+ },
+ "baseline@k0.05": {
+  "Lambda_TDE": 1031101.8905671183,
+  "Lambda_EMRI": 232.74753294925438,
+  "active_fraction": 0.226215644820296,
+  "active_frac_mask": 0.2750579747487761,
+  "censored": 6.406560317765392e-05,
+  "secs": 0.17847228050231934
+ },
+ "baseline@k1": {
+  "Lambda_TDE": 1667002.2952432032,
+  "Lambda_EMRI": 429.80538683914415,
+  "active_fraction": 0.2598500864885643,
+  "active_frac_mask": 0.3423086833290389,
+  "censored": 6.406560317765392e-05,
+  "secs": 0.17717456817626953
+ },
+ "mundy17@k0.05": {
+  "Lambda_TDE": 262478.38918442157,
+  "Lambda_EMRI": 30.946838049515684,
+  "active_fraction": 0.14158498302261516,
+  "active_frac_mask": 0.11285751095078587,
+  "censored": 0.7412390287654558,
+  "secs": 0.17983150482177734
+ },
+ "mundy17@k1": {
+  "Lambda_TDE": 431379.0427649863,
+  "Lambda_EMRI": 61.20934679275875,
+  "active_fraction": 0.16804407713498623,
+  "active_frac_mask": 0.1607833032723525,
+  "censored": 0.7412390287654558,
+  "secs": 0.18182778358459473
+ }
+}

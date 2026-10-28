@@ -1,0 +1,311 @@
+#!/usr/bin/env python
+"""Shared inference utilities: scenario/model names, result loading, PPD cache and population distributions."""
+
+import os, sys
+sys.path.insert(0, os.path.abspath('../../poplar'))
+from poplar.distributions import *
+import numpy as np
+
+import h5py
+import seaborn as sns
+
+device = "cpu"
+
+
+scenarios = ["H_lgMgal_U", "H_sigma_U", "N_lgMgal_U", "N_sigma_U", 
+             "H_lgMgal_V", "H_sigma_V", "N_lgMgal_V", "N_sigma_V"]
+
+SCENARIO_KEY = {
+    ("use_sigma", "hannah", "uniform"):    "H_sigma_U",
+    ("use_lgMgal", "hannah", "uniform"):   "H_lgMgal_U",
+    ("use_sigma", "neumayer", "uniform"):  "N_sigma_U",
+    ("use_lgMgal", "neumayer", "uniform"): "N_lgMgal_U",
+    ("use_sigma", "hannah", "varying"):    "H_sigma_V",
+    ("use_lgMgal", "hannah", "varying"):   "H_lgMgal_V",
+    ("use_sigma", "neumayer", "varying"):  "N_sigma_V",
+    ("use_lgMgal", "neumayer", "varying"): "N_lgMgal_V",
+}
+
+# Paper-facing model names (cross product of MBH-mass relation x nucleation
+# model x occupation model) -- must match the "Model name" table in the
+# paper (M_bullet-M_star = use_lgMgal, M_bullet-sigma = use_sigma; Hannah
+# et al. = hannah, Neumayer et al. = neumayer; Uniform f_occ=1 = uniform,
+# Varying = varying).
+MODEL_LABELS = {
+    ("use_lgMgal", "hannah",   "uniform"): "M1",
+    ("use_sigma",  "hannah",   "uniform"): "M2",
+    ("use_lgMgal", "neumayer", "uniform"): "M3",
+    ("use_sigma",  "neumayer", "uniform"): "M4",
+    ("use_lgMgal", "hannah",   "varying"): "M5",
+    ("use_sigma",  "hannah",   "varying"): "M6",
+    ("use_lgMgal", "neumayer", "varying"): "M7",
+    ("use_sigma",  "neumayer", "varying"): "M8",
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+FLAT_KEYMAP = {
+    "A": {
+        "lgMBH_mass": {"xc": "xc", "lam_schechter": "lam_schechter"},
+        "MBHspin": {"alpha_1": "alpha_1_MBHSpin", "alpha_2": "alpha_2_MBHSpin",
+                    "beta_1": "beta_1_MBHSpin", "beta_2": "beta_2_MBHSpin",
+                    "weight": "weight_MBHSpin"},
+        "e_pl": {"alpha_1": "alpha_1_e_pl", "alpha_2": "alpha_2_e_pl",
+                 "beta_1": "beta_1_e_pl", "beta_2": "beta_2_e_pl",
+                 "weight": "weight_e_pl"},
+        "z_gal": {"lam": "lam_z_gal"},
+    },
+    "B": {
+        "lgMBH_mass": {"lam": "lambda_M"},
+        "MBHspin": {"mu_1": "mu_1_MBHSpin", "sigma_1": "sigma_1_MBHSpin",
+                    "mu_2": "mu_2_MBHSpin", "sigma_2": "sigma_2_MBHSpin",
+                    "weight": "weight_MBHSpin"},
+        "e_pl": {"mu_1": "mu_1_e_pl", "sigma_1": "sigma_1_e_pl",
+                 "mu_2": "mu_2_e_pl", "sigma_2": "sigma_2_e_pl",
+                 "weight": "weight_e_pl"},
+        "z_gal": {"lam": "lam_z_gal"},
+    },
+    "MIX": {},
+}
+
+
+def get_nested_from_flat(flat_dict, pop, mbh_mass_method=None, nucleation_method=None, occupation_method=None):
+    """Nested {component: {subkey: value}} dict for PopulationDistribution.draw_samples(), from one flat row.
+
+    Returns (nested, missing_components): a component whose hyperparameters are not all in flat_dict
+    has its values set to None, is listed in missing_components, and is skipped when drawing (the
+    source's data carries no information about it). The scenario arguments are kept for compatibility.
+    """
+    nested, missing_components = {}, []
+    for component, subkeymap in FLAT_KEYMAP[pop].items():
+        if all(flatname in flat_dict for flatname in subkeymap.values()):
+            nested[component] = {subkey: flat_dict[flatname] for subkey, flatname in subkeymap.items()}
+        else:
+            nested[component] = {subkey: None for subkey in subkeymap}
+            missing_components.append(component)
+    return nested, missing_components
+
+
+pal = sns.color_palette(palette="colorblind").as_hex()
+
+# (source, survey, label, color)
+# survey="None" for EMRI-only runs, matching the directory naming
+# convention f"{SOURCE}_pop_{POPULATION}_{SURVEY}_{mbh_mass_method}_{nucleation_method}".
+SOURCE_SURVEY_COMBOS = [
+    ("EMRI",     "None", "EMRI",            pal[4]),
+    ("TDE",      "ZTF",  "TDE (ZTF)",       pal[2]),
+    ("TDE",      "LSST", "TDE (LSST)",      pal[0]),
+    ("TDE",      "ALL",  "TDE (ALL)",       pal[6]),
+    ("EMRI_TDE", "ZTF",  "EMRI+TDE (ZTF)",  pal[3]),
+    ("EMRI_TDE", "LSST", "EMRI+TDE (LSST)", pal[1]),
+    ("EMRI_TDE", "ALL",  "EMRI+TDE (ALL)",  pal[5]),
+]
+
+
+def result_path(base_dir: str, source: str, survey: str, population: str,
+                 mbh_mass_method: str, nucleation_method: str, occupation_method: str) -> str:
+    """Must match the `output` directory built in hierarchical_inference_A.py
+    / hierarchical_inference_B.py:
+        f"{base}/{SOURCE}_pop_{POP}_{SURVEY}_{mbh_mass_method}_{nucleation_method}"
+    """
+    return (f"{base_dir}/{source}_pop_{population}_{survey}"
+            f"_{mbh_mass_method}_{nucleation_method}_{occupation_method}/result.hdf5")
+
+
+def load_samples_dict(path: str) -> dict:
+    """Read every field actually present in this run's posterior_samples
+    table, instead of assuming a fixed schema. Raises on missing/malformed
+    files -- caller decides whether to skip."""
+    with h5py.File(path, "r") as hf:
+        ds = hf["posterior_samples"]
+        return {name: np.asarray(ds[name]) for name in ds.dtype.names}
+
+
+def load_available_combos(base_dir: str, population: str,
+                           mbh_mass_method: str, nucleation_method: str,
+                           occupation_method: str, combos=SOURCE_SURVEY_COMBOS) -> list:
+    """Try to load every (source, survey) combo's result.hdf5 for this
+    (population, mbh_mass_method, nucleation_method) scenario. Any combo
+    that fails to load is skipped with a warning -- it does NOT stop the
+    other combos from loading, and does NOT require touching this
+    function or any plotting script.
+
+    Returns a list of dicts (only the combos that loaded successfully):
+        {"source", "survey", "label", "color", "samples"}
+    in the same order as `combos`.
+    """
+    available = []
+    for source, survey, label, color in combos:
+        path = result_path(base_dir, source, survey, population,
+                            mbh_mass_method, nucleation_method, occupation_method)
+        try:
+            samples = load_samples_dict(path)
+        except (FileNotFoundError, OSError, KeyError) as exc:
+            print(f"[skip] {label} (pop {population}, {mbh_mass_method}/{nucleation_method}/{occupation_method}): "
+                  f"could not load {path} ({exc})")
+            continue
+        if not samples:
+            print(f"[skip] {label} (pop {population}): {path} has no posterior_samples fields")
+            continue
+        available.append({
+            "source": source, "survey": survey, "label": label,
+            "color": color, "samples": samples,
+        })
+    if not available:
+        print(f"[warn] No combos loaded for pop {population}, "
+              f"{mbh_mass_method}/{nucleation_method}/{occupation_method} under {base_dir}")
+    return available
+
+
+# ====================================================================
+# PPD disk cache. PPD.py's per-(combo, key) histogram stacks are
+# expensive to recompute (NSAMPLES posterior draws x DRAW_SIZE catalogue
+# draws, per combo, per key, per scenario). Cache them to disk keyed by
+# (population, scenario, source label, key) so repeat plotting runs
+# reuse them instead of recomputing from scratch every time.
+# ====================================================================
+
+def ppd_cache_dir(base_dir: str, population: str,
+                   mbh_mass_method: str, nucleation_method: str, occupation_method: str) -> str:
+    """Directory of the PPD cache."""
+    d = f"{base_dir}/PPD_CACHE/{population}_{mbh_mass_method}_{nucleation_method}_{occupation_method}"
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def ppd_cache_path(base_dir: str, population: str,
+                    mbh_mass_method: str, nucleation_method: str, occupation_method: str,
+                    source_label: str, key: str) -> str:
+    """File path of the PPD cache."""
+    safe_label = source_label.replace(" ", "_").replace("(", "").replace(")", "")
+    d = ppd_cache_dir(base_dir, population, mbh_mass_method, nucleation_method, occupation_method)
+    return f"{d}/{safe_label}__{key}.npz"
+
+
+def load_ppd_cache(cache_path: str):
+    """Returns (centers, hist_stack) if a valid cache file exists, else None."""
+    if not os.path.exists(cache_path):
+        return None
+    try:
+        with np.load(cache_path) as data:
+            return data["centers"], data["hist_stack"]
+    except (OSError, KeyError, ValueError) as exc:
+        print(f"[warn] PPD cache at {cache_path} unreadable ({exc}) -- recomputing")
+        return None
+
+
+def save_ppd_cache(cache_path: str, centers: np.ndarray, hist_stack: np.ndarray) -> None:
+    """Save histogram stacks to the PPD cache."""
+    tmp_path = cache_path[:-len(".npz")] + ".tmp.npz"  # np.savez appends .npz unless the name already ends in it
+    np.savez(tmp_path, centers=centers, hist_stack=hist_stack)
+    os.replace(tmp_path, cache_path)  # atomic write, avoids half-written cache on crash
+
+
+def make_dist(pop):
+
+    """Build the population distributions for the population."""
+    if pop == "A":
+        DIST = {
+                "lgMBH_mass": FixedLimitSchechterFunction([4, 7], device=device),
+                "MBHspin": DoubleBetaDistribution([0.01, 0.99], device=device),
+                "e_pl": DoubleBetaDistribution([0.01, 0.99], device=device),
+                "z_gal": FixedLimitsPowerLaw([0.01, 8.0], device=device),
+            }
+        return PopulationDistribution(distributions=DIST, data=None)
+
+    elif pop == "B":
+        DIST = {
+                "lgMBH_mass": FixedLimitsPowerLaw([4, 7], device=device),
+                "MBHspin": DoubleGaussianDistribution([0.01, 0.99], device=device),
+                "e_pl": DoubleGaussianDistribution([0.01, 0.99], device=device),
+                "z_gal": FixedLimitsPowerLaw([0.01, 8.0], device=device),
+            }
+        return PopulationDistribution(distributions=DIST, data=None)
+
+    elif pop == "MIX":
+        DIST = {}
+        return PopulationDistribution(distributions=DIST, data=None)
+
+    raise ValueError(f"Unknown population: {pop}")
+
+
+
+
+def load_posterior_samples_dynamic(hf):
+    """Read whatever fields actually exist in posterior_samples, instead of
+    assuming a fixed schema. EMRI-only / TDE-only runs legitimately have
+    fewer fields than EMRI_TDE runs."""
+    ds = hf['posterior_samples']
+    return {name: np.array(ds[name]) for name in ds.dtype.names}
+
+
+def get_latex_labels(pop):
+
+    """LaTeX labels of the hyperparameters."""
+    if pop == "A":
+        return {
+            "xc": r"$x_c$",
+            "lam_schechter": r"$\lambda_{x_c}$",
+
+            "alpha_1_MBHSpin": r"$\alpha_{1,a}$",
+            "alpha_2_MBHSpin": r"$\alpha_{2,a}$",
+            "beta_1_MBHSpin": r"$\beta_{1,a}$",
+            "beta_2_MBHSpin": r"$\beta_{2,a}$",
+            "weight_MBHSpin": r"$w_a$",
+
+            "alpha_1_e_pl": r"$\alpha_{1,e}$",
+            "alpha_2_e_pl": r"$\alpha_{2,e}$",
+            "beta_1_e_pl": r"$\beta_{1,e}$",
+            "beta_2_e_pl": r"$\beta_{2,e}$",
+            "weight_e_pl": r"$w_e$",
+
+            "lam_z_gal": r"$\lambda_z$",
+        }
+
+    if pop == "B":
+        return {
+            "lambda_M": r"$\lambda_M$",
+
+            "mu_1_MBHSpin": r"$\mu_{1,a}$",
+            "sigma_1_MBHSpin": r"$\sigma_{1,a}$",
+            "mu_2_MBHSpin": r"$\mu_{2,a}$",
+            "sigma_2_MBHSpin": r"$\sigma_{2,a}$",
+            "weight_MBHSpin": r"$w_a$",
+
+            "mu_1_e_pl": r"$\mu_{1,e}$",
+            "sigma_1_e_pl": r"$\sigma_{1,e}$",
+            "mu_2_e_pl": r"$\mu_{2,e}$",
+            "sigma_2_e_pl": r"$\sigma_{2,e}$",
+            "weight_e_pl": r"$w_e$",
+
+            "lam_z_gal": r"$\lambda_z$",
+        }
+
+    if pop == "MIX":
+        return {}
+
+
+
+
+class PopulationDistribution:
+    """Population distribution built from hyperparameters."""
+    # this will work until we make mass dependance explicit.
+    def __init__(self, distributions, data=None) -> None:
+        self.distributions = distributions
+        self.data = data
+
+    def draw_samples(self, x, size):
+        """Draw samples from the population for hyperparameters x (components with None values are skipped)."""
+        return {name: self.distributions[name].draw_samples(**x[name], size=size)
+                for name in ('lgMBH_mass', 'MBHspin', 'e_pl', 'z_gal')
+                if all(v is not None for v in x[name].values())}

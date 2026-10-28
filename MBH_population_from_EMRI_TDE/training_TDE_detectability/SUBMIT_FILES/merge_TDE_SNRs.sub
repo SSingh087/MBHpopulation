@@ -1,0 +1,9 @@
+executable   = ./EXECUTABLES/merge_TDE_SNRs.sh
+getenv       = true
+arguments    = $(SURVEY) $(N_CHUNKS)
+
+
+
+request_cpus   = 1
+request_memory = 16GB
+queue 1

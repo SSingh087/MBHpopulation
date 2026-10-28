@@ -1,0 +1,14 @@
+
+# Executable and arguments
+executable      = ./EXECUTABLES/prepare_TDE_data.sh
+getenv          = true
+
+arguments  = $(UNIVERSE_MODEL) $(SEED) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS) $(TDE_MODEL) $(MERGER_MODELS)
+
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 8GB
+
+queue 1

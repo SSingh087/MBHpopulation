@@ -57,7 +57,7 @@ def load_samples(base_path):
 
 # --- Load all sample sets ---
 event_counts = ['1E2', '1E3', '1E4']
-base_dir = "/home/singh087/UofG/work/Code/test_EMRI_population/HPC_DATA/_pop_MIX_A_B_NO_SF"
+base_dir = "./INFERENCE_DATA/_pop_MIX_A_B_NO_SF"
 samples_all = [
     load_samples(f"{base_dir}/{ev}_events/inference") for ev in event_counts
 ]
@@ -102,8 +102,8 @@ E4 = mlines.Line2D([],[], color=pal[0], linewidth=2,label='$10^4$')
 
 fig_corner.legend(handles=[E2, E3, E4], loc='upper right', fontsize=40, title_fontsize=50, frameon=False, title='Injected Events', bbox_to_anchor=(0.85, 0.93))
 
-fig_corner.savefig(f'/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/2D-posteriors/pop_MIX_A_B.pdf',dpi=500, bbox_inches='tight')
-fig_corner.savefig(f'/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/2D-posteriors/pop_MIX_A_B.png',dpi=500, bbox_inches='tight')
+fig_corner.savefig(f'./PLOTS/2D-posteriors/pop_MIX_A_B.pdf',dpi=500, bbox_inches='tight')
+fig_corner.savefig(f'./PLOTS/2D-posteriors/pop_MIX_A_B.png',dpi=500, bbox_inches='tight')
 
 
 
@@ -147,6 +147,6 @@ handles = [plt.Line2D([], [], color=c, lw=2, label=lbl) for c, lbl in zip(colors
 fig.legend(handles=handles, loc='upper right', fontsize=20, title='Events', title_fontsize=22, frameon=False, bbox_to_anchor=(0.85, 0.93))
 
 plt.subplots_adjust(left=0.08, right=0.88, top=0.93, bottom=0.08, wspace=0.35, hspace=0.50)
-plt.savefig("/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/1D-posteriors/pop_MIX_A_B_combined_1D_posteriors.pdf", dpi=300, bbox_inches="tight")
-plt.savefig("/data/wiay/postgrads/shashwat/EMRI_data/INFERENCE_DATA/PLOTS/1D-posteriors/pop_MIX_A_B_combined_1D_posteriors.png", dpi=300, bbox_inches="tight")
+plt.savefig("./PLOTS/1D-posteriors/pop_MIX_A_B_combined_1D_posteriors.pdf", dpi=300, bbox_inches="tight")
+plt.savefig("./PLOTS/1D-posteriors/pop_MIX_A_B_combined_1D_posteriors.png", dpi=300, bbox_inches="tight")
 # plt.show()

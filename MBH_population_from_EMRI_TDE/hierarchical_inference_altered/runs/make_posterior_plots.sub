@@ -1,0 +1,12 @@
+# Executable and arguments
+executable      = ./runs/make_posterior_plots.sh
+getenv          = true
+arguments       = $(POPULATION) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS)
+
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 8GB
+
+queue

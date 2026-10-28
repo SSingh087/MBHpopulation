@@ -1,0 +1,13 @@
+
+# Executable and arguments
+executable      = ./EXECUTABLES/prepare_data_for_inference.sh
+getenv          = true
+arguments       = $(TDE_MODEL) $(BEST_UNIVERSE) $(MBH_MASS_METHODS) $(NUCLEATION_METHODS) $(OCCUPATION_METHODS) $(MERGER_MODELS)
+
+
+
+# Resources
+request_cpus    = 1
+request_memory  = 8GB
+
+queue 1
