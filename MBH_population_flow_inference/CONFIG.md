@@ -131,3 +131,17 @@ Full source run: `python sources/make_dag.py --n_universes 10000 --per_job 50` (
 config 00 = baseline 6/64/8/64/4096/1e-3) -> `select_best.py` (lowest validation NLL; ranking + comparison plots; winner copied to `models/flow_<pop>_best/`)
 -> `acceptance.py --tag _best` after 5 CPU jobs simulate the held-out universes. Validation = universes with id % 10 == 0.
 Flow conditions on Lambda directly (the DeepSets catalog embedding is not needed for p(x | Lambda); it returns for the inference stage).
+
+## Part 2: detectability models (copied 2026-11-06)
+
+Models: `models/detectability/` (data dir); plots: `plots/detectability/`.
+
+**EMRI SNR network** (`emri_snr/model.pth`, = `LISA_selection_function/lisa_snr_package/model/model.pth`, d3_w256, L1 loss, wd 1e-5, 2000 ep; held-out median error 0.083 dex in log10 SNR, p90 0.44 dex).
+Inputs (raw): M, mu, a, e0, p0, Y0, t_back (+ z via Planck18 D_L). Network predicts SNR*D_L. Interface: `lisa_snr_package/snr_model.py`.
+Training coverage: lgM 3.5-7, mu 3-120, a 0-1, e0 0-1, p0 3.4-260, Y0 -1..1, t_back 1-10 yr, **z 0.001-7**.
+Versus our sources: lgMBH 4-7 OK, sBH 10 OK, t_back = T_SIGNAL in [1,6] OK, z>7 is 0.6% of EMRIs (treat as undetected). **e0 and p0 are not in the source catalogue**: need the FEW backward integration (or an e_plunge -> (p0,e0) emulator) at Part 2.
+
+**TDE detectability classifiers** (8 BCE MLPs, `tde/<lightcurve>_<neurons>_<layers>_10_<SURVEY>/`, 4 light-curve models x ZTF/LSST).
+Trained lgM 4-7 (matches ours), **z 0-0.5 for ZTF and 0-4 for LSST**. Our TDE sources go to z<8: 98.6% are above z=0.5 and 11.7% above z=4.
+Detection fraction in the last training bins is small (ZTF z 0.4-0.5: 0.04-0.18; LSST z 3.5-4: 0.003-0.22), so events beyond the training z can be treated as undetected, with the tde_analytical / stream_stream_tde models (detection fraction flat ~0.2 out to z=4) the caveat.
+Inputs besides lgMBH and z are nuisance parameters (ra, dec, eta, alpha, beta, t0, light-curve extras) drawn from priors in the old `gen_TDE_params.py`; survey windows ZTF MJD 58200-61396, LSST 60827-64423.
