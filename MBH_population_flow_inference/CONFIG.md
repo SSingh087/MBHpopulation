@@ -145,3 +145,5 @@ Versus our sources: lgMBH 4-7 OK, sBH 10 OK, t_back = T_SIGNAL in [1,6] OK, z>7 
 Trained lgM 4-7 (matches ours), **z 0-0.5 for ZTF and 0-4 for LSST**. Our TDE sources go to z<8: 98.6% are above z=0.5 and 11.7% above z=4.
 Detection fraction in the last training bins is small (ZTF z 0.4-0.5: 0.04-0.18; LSST z 3.5-4: 0.003-0.22), so events beyond the training z can be treated as undetected, with the tde_analytical / stream_stream_tde models (detection fraction flat ~0.2 out to z=4) the caveat.
 Inputs besides lgMBH and z are nuisance parameters (ra, dec, eta, alpha, beta, t0, light-curve extras) drawn from priors in the old `gen_TDE_params.py`; survey windows ZTF MJD 58200-61396, LSST 60827-64423.
+
+**Decision (user, 2026-11-06): TDE light-curve model = `tde_fallback`** (LSST `tde_fallback_128_4_10_LSST`, ZTF `tde_fallback_512_4_10_ZTF`). Its detection fraction is ~0 at the top of the trained z range (LSST z>3: <=0.7%; ZTF z 0.4-0.5: ~4%), so events beyond z=4 (LSST) / z=0.5 (ZTF) are simply treated as undetected.
