@@ -70,11 +70,9 @@ def spline_1d(x, params, K, tail, inverse=False):
     const = math.log(math.exp(1 - MIN_D) - 1)
     ud = F.pad(ud, (1, 1), value=const)
     inside = (x >= -tail) & (x <= tail)
-    y = x.clone(); ld = torch.zeros_like(x)
-    if inside.any():
-        yi, li = _rqs(x[inside], uw[inside], uh[inside], ud[inside], inverse, -tail, tail, -tail, tail)
-        y[inside] = yi; ld[inside] = li
-    return y, ld
+    xc = x.clamp(-tail, tail)                       # evaluate everywhere (no masking / host sync), select afterwards
+    yi, li = _rqs(xc, uw, uh, ud, inverse, -tail, tail, -tail, tail)
+    return torch.where(inside, yi, x), torch.where(inside, li, torch.zeros_like(li))
 
 
 def _mlp(i, o, h, nl=2):
