@@ -20,18 +20,20 @@ Joint inference of the MBH population from EMRIs detected by LISA and tidal disr
 
 ## Highlighted results
 
-**Adding TDEs sharpens the MBH mass and redshift constraints.** The 90% posterior width of the shared hyperparameters, relative to the hyperprior range, for EMRIs alone and with ZTF and/or LSST TDEs added. Grey lines are the eight scenarios and the black line their median, annotated with the median gain over EMRIs only. LSST brings gains of about 5–15 in the mass and redshift parameters.
+**Adding TDEs sharpens the MBH mass and redshift constraints.** The 90% posterior width of the hyperparameters, relative to the hyperprior range, for EMRIs alone and with ZTF and/or LSST TDEs added. Grey lines are the eight scenarios and the black line their median, annotated with the median gain over EMRIs only. LSST gives the largest gains: about 3.5 in the mass-function turnover x_c, 7 in the mass slope of Model B, and 15 in the redshift evolution kappa_z. ZTF adds less.
 
 ![Improvement of constraints with TDE catalogues](./highlights/constraint_improvement.png)
 
-**Information gained.** The information gain from hyperprior to hyperposterior for each catalogue combination, for both models.
+**Information gained.** The information gain from hyperprior to hyperposterior for each catalogue, for both models. LSST TDEs alone are more informative than EMRIs alone, and combining EMRIs with LSST TDEs gives the most.
 
 ![Information gain per catalogue](./highlights/info_budget.png)
 
-**Detected counts.** Detected EMRIs against detected TDEs for the eight scenarios. LSST detects thousands of TDEs per few EMRIs, while ZTF detects tens to hundreds.
+**Shared hyperparameter posteriors** for Model A in each of the eight scenarios, for the four catalogue combinations.
 
-![EMRI and TDE detection counts](./highlights/emri_tde_detection_counts.png)
+![Shared hyperparameter posteriors, Model A](./highlights/shared_posteriors_model_A.png)
 
-**Hyperparameter posteriors** for every scenario and catalogue combination.
+![Shared hyperparameter posteriors, Model B](./highlights/shared_posteriors_model_B.png)
 
-![Shared hyperparameter posteriors](./highlights/shared_hyperparameter_posteriors.png)
+**EMRIs constrain spin and plunge eccentricity.** Posterior predictive distributions of the MBH spin and plunge eccentricity from the EMRI catalogue (Model A), one colour per scenario, against the generated catalogues (dotted).
+
+![Spin and eccentricity posterior predictive, Model A](./highlights/emri_spin_ecc_ppd_model_A.png)

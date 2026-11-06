@@ -11,7 +11,7 @@ The work proceeds in two steps, one per subfolder:
 | Project | Question | Highlight |
 | --- | --- | --- |
 | [`MBH_population_from_EMRI`](./MBH_population_from_EMRI) | How well can LISA EMRIs alone constrain the population, with 10²–10⁴ detections and the selection function included? | Hyperparameters are recovered, with widths shrinking as the catalogue grows |
-| [`MBH_population_from_EMRI_TDE`](./MBH_population_from_EMRI_TDE) | What do realistic, astrophysically-motivated EMRI and TDE catalogues give, alone and combined? | Adding LSST TDEs tightens mass and redshift constraints by a factor of about 5–15 over EMRIs alone |
+| [`MBH_population_from_EMRI_TDE`](./MBH_population_from_EMRI_TDE) | What do realistic, astrophysically-motivated EMRI and TDE catalogues give, alone and combined? | Adding LSST TDEs tightens mass and redshift constraints by a factor of about 3.5–15 over EMRIs alone |
 
 ![Improvement of constraints with TDE catalogues](./MBH_population_from_EMRI_TDE/highlights/constraint_improvement.png)
 
