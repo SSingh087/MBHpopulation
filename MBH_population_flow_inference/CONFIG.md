@@ -115,7 +115,7 @@ Code (git repo `SSingh087/MBHpopulation`, folder `MBH_population_flow_inference/
 `/home/2673888s/EMRI_TDE_flow_inference/` keeps `papers/` and `chat*.txt`, which are NOT committed, plus symlinks to CONFIG.md/PLAN.md):
 - `src/` importable library code (`source_sim.py`: EMRI + TDE source simulator)
 - `sources/` source generation: `run_smoke_test.py`, `validate_against_old.py`, `run_chunk.py` (condor worker), `make_dag.py` (DAG writer)
-- `flow/` from-scratch PyTorch conditional spline flow (`flows.py`, `test_flow.py`; data/training/acceptance scripts to come)
+- `flow/` from-scratch PyTorch conditional spline flow: `flows.py`, `test_flow.py`, `common.py`, `build_dataset.py`, `plot_training_data.py`, `train_flow.py`, `diagnostics.py`, `make_sweep_dag.py` (hyperparameter-sweep DAG), `select_best.py`, `acceptance.py`
 - `CONFIG.md`, `PLAN.md`
 
 Data `/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference/`:
@@ -123,3 +123,11 @@ Data `/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference/`:
 - `dag/<name>/` (DAG, .sub, wrapper), `logs/<name>/` (condor logs; validation/smoke JSON in `logs/`), `plots/`, `models/`
 
 Full source run: `python sources/make_dag.py --n_universes 10000 --per_job 50` (master seed 2026; universe g fully determined by (master_seed, g); resumable).
+
+## Flow training plan (hyperparameter sweep)
+
+`flow/make_sweep_dag.py --n_configs 12` writes a DAG (not submitted): per population, 12 random-search configurations
+(n_layers {4,6,8,10}, hidden {32,64,128,256}, spline bins {6,8,12,16}, context width {32,64,128}, batch {2048,4096,8192}, lr log-uniform 3e-4..3e-3;
+config 00 = baseline 6/64/8/64/4096/1e-3) -> `select_best.py` (lowest validation NLL; ranking + comparison plots; winner copied to `models/flow_<pop>_best/`)
+-> `acceptance.py --tag _best` after 5 CPU jobs simulate the held-out universes. Validation = universes with id % 10 == 0.
+Flow conditions on Lambda directly (the DeepSets catalog embedding is not needed for p(x | Lambda); it returns for the inference stage).

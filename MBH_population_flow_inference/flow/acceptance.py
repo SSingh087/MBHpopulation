@@ -17,8 +17,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import DATA, POPS, FIDUCIAL, LAMBDA_NAMES, LAM_LABELS, XTransform, LamScaler, lam_dict_to_array
-from flows import ConditionalFlow
+from common import DATA, POPS, FIDUCIAL, LAMBDA_NAMES, LAM_LABELS, LamScaler, lam_dict_to_array
 import plotting
 
 TEST_LAMBDAS = {
@@ -34,7 +33,8 @@ ap.add_argument("--n_univ", type=int, default=20, help="held-out universes simul
 ap.add_argument("--workers", type=int, default=5)
 ap.add_argument("--seed_base", type=int, default=90_000_000)
 ap.add_argument("--max_plot", type=int, default=50_000)
-ap.add_argument("--tag", default="", help="model tag, e.g. '_quick'")
+ap.add_argument("--tag", default="", help="model tag: models are read from models/flow_<pop><tag>/best.pt (sweep winner: _best)")
+ap.add_argument("--sim_only", default=None, help="only simulate+cache the held-out universes of this test Lambda name, then exit (DAG stage)")
 ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
 args = ap.parse_args()
 out = f"{DATA}/plots/acceptance{args.tag}"; os.makedirs(out, exist_ok=True)
@@ -55,6 +55,7 @@ def _sim_one(task):
 sims = {}
 todo = []
 for k, (name, lam) in enumerate(TEST_LAMBDAS.items()):
+    if args.sim_only and name != args.sim_only: continue
     f = f"{HELD}/{name}_n{args.n_univ}.npz"
     if os.path.exists(f):
         d = np.load(f); sims[name] = {key: d[key] for key in d.files}
@@ -75,14 +76,16 @@ if todo:
         np.savez(f"{HELD}/{names[k]}_n{args.n_univ}.npz", **d); sims[names[k]] = d
     print(f"  done in {time.time()-t0:.0f}s", flush=True)
 
+if args.sim_only:
+    print("simulated/cached held-out universes for", args.sim_only); sys.exit(0)
+
 # ---------------- (b) flows
+from diagnostics import load_flow
 dev = torch.device(args.device); ls = LamScaler(); flows = {}
 for pop in POPS:
     mp_ = f"{DATA}/models/flow_{pop}{args.tag}/best.pt"
     if not os.path.exists(mp_): print("no model for", pop, "->", mp_); continue
-    ck = torch.load(mp_, map_location=dev); c = ck["cfg"]
-    fl = ConditionalFlow(c["d"], 6, n_layers=c["n_layers"], hidden=c["hidden"], K=c["K"], tail=c["tail"]).to(dev); fl.load_state_dict(ck["model"]); fl.eval()
-    xt = XTransform(POPS[pop]["bounds"], ck["x_mean"], ck["x_std"]); flows[pop] = (fl, xt, ck["epoch"], ck["val"])
+    fl, xt, ck = load_flow(mp_, dev); flows[pop] = (fl, xt, ck["epoch"], ck["val"])
 
 def flow_draw(pop, lam, n):
     fl, xt, _, _ = flows[pop]
