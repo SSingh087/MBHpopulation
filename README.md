@@ -6,6 +6,15 @@ This repository contains analyses of the supermassive black hole (MBH) populatio
 
 MBHs in galactic nuclei are the source of both EMRIs and TDEs, so the two channels trace the same underlying population and probe it in complementary ways: EMRIs through the MBH mass, spin, the eccentricity of the orbit at plunge and the redshift distribution, and TDEs through the MBH mass and the redshift distribution. We ask what the detected events can tell us about the MBH population, and how much is gained by combining both channels.
 
+The work proceeds in two steps, one per subfolder:
+
+| Project | Question | Highlight |
+| --- | --- | --- |
+| [`MBH_population_from_EMRI`](./MBH_population_from_EMRI) | How well can LISA EMRIs alone constrain the population, with 10²–10⁴ detections and the selection function included? | Hyperparameters are recovered, with widths shrinking as the catalogue grows |
+| [`MBH_population_from_EMRI_TDE`](./MBH_population_from_EMRI_TDE) | What do realistic, astrophysically-motivated EMRI and TDE catalogues give, alone and combined? | Adding LSST TDEs tightens mass and redshift constraints by a factor of about 3.5–15 over EMRIs alone |
+
+![Improvement of constraints with TDE catalogues](./MBH_population_from_EMRI_TDE/highlights/constraint_improvement.png)
+
 ## Approach
 
 1. **Mock universes.** Galaxies are drawn from the cosmological mass functions, each with a nuclear star cluster and an MBH, for different MBH mass relations, nucleation and occupation fractions, and galaxy merger-rate models. The cusp evolution gives the EMRI and TDE events each galaxy produces.
@@ -24,8 +33,12 @@ If you use this work, please cite:
     eprint = "2508.16399",
     archivePrefix = "arXiv",
     primaryClass = "gr-qc",
-    month = "8",
-    year = "2025"
+    doi = "10.1088/1742-6596/3177/1/012113",
+    journal = "J. Phys. Conf. Ser.",
+    volume = "3177",
+    number = "1",
+    pages = "012113",
+    year = "2026"
 }
 ```
 
