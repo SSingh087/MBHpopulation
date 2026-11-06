@@ -28,12 +28,6 @@ Joint inference of the MBH population from EMRIs detected by LISA and tidal disr
 
 ![Information gain per catalogue](./highlights/info_budget.png)
 
-**Shared hyperparameter posteriors** for Model A in each of the eight scenarios, for the four catalogue combinations.
+**Shared hyperparameter posteriors** for each scenario and catalogue combination, for Model A (top) and Model B (bottom).
 
-![Shared hyperparameter posteriors, Model A](./highlights/shared_posteriors_model_A.png)
-
-![Shared hyperparameter posteriors, Model B](./highlights/shared_posteriors_model_B.png)
-
-**EMRIs constrain spin and plunge eccentricity.** Posterior predictive distributions of the MBH spin and plunge eccentricity from the EMRI catalogue (Model A), one colour per scenario, against the generated catalogues (dotted).
-
-![Spin and eccentricity posterior predictive, Model A](./highlights/emri_spin_ecc_ppd_model_A.png)
+![Shared hyperparameter posteriors](./highlights/shared_hyperparameter_posteriors.png)
