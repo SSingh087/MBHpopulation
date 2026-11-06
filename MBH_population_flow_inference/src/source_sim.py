@@ -12,7 +12,7 @@ only the pieces that must depend on Lambda are re-written here:
   * one seeded numpy Generator for everything we control (old: global np.random mixed in)
     -- the old LastMajorMerger sampler still uses global np.random, so we also np.random.seed(seed).
 
-Fixed for v1 (CONFIG.md): use_sigma, hannah nucleation, oleary21 merger model, T_obs=6 yr, z<8,
+Fixed for v1 (see CONFIG.md, kept outside the repo): use_sigma, hannah nucleation, oleary21 merger model, T_obs=6 yr, z<8,
 4 < lgMBH <= 7, sBH = 10 Msun.  NO detectability here (that is Part 2).
 """
 import os, sys, time

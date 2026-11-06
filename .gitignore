@@ -16,3 +16,5 @@ OUTPUT_FILES/
 *.pkl
 .claude/
 .otter/
+.nfs*
+__pycache__/

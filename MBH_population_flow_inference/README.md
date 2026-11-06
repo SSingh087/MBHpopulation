@@ -6,7 +6,7 @@ normalisation `A`, slope `B`, intrinsic scatter, and the occupation-fraction par
 `theta`. The nucleation fraction is fixed. The flow is intended to replace the phenomenological
 population-shape fit in the hierarchical inference of `../MBH_population_from_EMRI_TDE`.
 
-See `CONFIG.md` (settings, priors, decisions) and `PLAN.md` (findings from the existing code).
+Project notes (settings, priors, decisions, findings from the old code) are kept outside the repo in `/home/2673888s/EMRI_TDE_flow_inference/{CONFIG,PLAN}.md`.
 
 ## Layout
 
