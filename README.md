@@ -33,8 +33,12 @@ If you use this work, please cite:
     eprint = "2508.16399",
     archivePrefix = "arXiv",
     primaryClass = "gr-qc",
-    month = "8",
-    year = "2025"
+    doi = "10.1088/1742-6596/3177/1/012113",
+    journal = "J. Phys. Conf. Ser.",
+    volume = "3177",
+    number = "1",
+    pages = "012113",
+    year = "2026"
 }
 ```
 
