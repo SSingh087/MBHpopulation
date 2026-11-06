@@ -3,7 +3,7 @@ Usage: python detectability/make_p0e0_dag.py --n_chunks 100 --n_keep 2000 ; then
 (Not submitted by this script.)"""
 import argparse, os
 DATA = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference"; CODE = os.path.dirname(os.path.abspath(__file__))
-ap = argparse.ArgumentParser(); ap.add_argument("--n_chunks", type=int, default=100); ap.add_argument("--n_keep", type=int, default=2000)
+ap = argparse.ArgumentParser(); ap.add_argument("--n_chunks", type=int, default=400); ap.add_argument("--n_keep", type=int, default=500)
 ap.add_argument("--epochs", type=int, default=300); a = ap.parse_args()
 name = "p0e0_emulator"; dag = f"{DATA}/dag/{name}"; logs = f"{DATA}/logs/{name}"; out = f"{DATA}/simulations/p0e0_traj"
 for d in (dag, logs, out): os.makedirs(d, exist_ok=True)
