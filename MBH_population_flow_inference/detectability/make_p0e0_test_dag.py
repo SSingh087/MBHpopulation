@@ -9,8 +9,7 @@ PY = "/home/2673888s/.conda/envs/redback_few/bin/python"; N = 16
 def wrapper(fn, body): open(f"{dag}/{fn}", "w").write("#!/bin/bash\nexport PYTHONPATH=/home/2673888s/poplar\nexport MPLBACKEND=Agg\n" + body + "\n"); os.chmod(f"{dag}/{fn}", 0o755)
 wrapper("gen.sh", f'{PY} {CODE}/gen_traj_chunk.py --chunk "$1" --n_keep 50 --max_wall_s 900 --out_dir {out}')
 wrapper("train.sh", f'{PY} {CODE}/train_p0e0_emulator.py --data_dir {out} --out_name _test_p0e0 --epochs 40')
-sub = lambda ex, args, cpus, mem, gpus, tag: (f"universe = vanilla\nexecutable = {dag}/{ex}\narguments = {args}\nrequest_cpus = {cpus}\nrequest_memory = {mem}\nrequest_gpus = {gpus}\n"
-                                              f"getenv = True\noutput = {logs}/{tag}.out\nerror = {logs}/{tag}.err\nlog = {logs}/{name}.log\nqueue\n")
+sub = lambda ex, args, cpus, mem, gpus, tag: (f"universe = vanilla\nexecutable = {dag}/{ex}\narguments = {args}\nrequest_cpus = {cpus}\nrequest_memory = {mem}\nrequest_gpus = {gpus}\n" + ("require_gpus = Capability >= 7.0 && Capability < 9.0\n" if gpus else "") + f"getenv = True\noutput = {logs}/{tag}.out\nerror = {logs}/{tag}.err\nlog = {logs}/{name}.log\nqueue\n")
 open(f"{dag}/gen.sub", "w").write(sub("gen.sh", "$(chunk)", 1, "2GB", 0, "gen_$(chunk)"))
 open(f"{dag}/train.sub", "w").write(sub("train.sh", "", 2, "8GB", 1, "train"))
 with open(f"{dag}/{name}.dag", "w") as f:
