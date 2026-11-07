@@ -10,7 +10,8 @@ ap = argparse.ArgumentParser(); ap.add_argument("--gpu", type=int, default=1); a
 ap.add_argument("--dt", type=float, default=15.0); ap.add_argument("--max_events", type=int, default=6); a = ap.parse_args()
 from few.waveform import GenerateEMRIWaveform
 from stableemrifisher.fisher import StableEMRIFisher
-wave = GenerateEMRIWaveform("Pn5AAKWaveform", return_list=True, inspiral_kwargs=dict(DENSE_STEPPING=0, max_init_len=int(1e7), err=1e-10, use_rk4=True),
+# use_rk4=True makes sigma_M ~5000x too small (cond ~1e17); see emri_validation_repro.py (configs D vs B)
+wave = GenerateEMRIWaveform("Pn5AAKWaveform", return_list=True, inspiral_kwargs=dict(DENSE_STEPPING=0, max_init_len=int(1e7), err=1e-10, use_rk4=False),
                             sum_kwargs=dict(use_gpu=bool(a.gpu), pad_output=True), use_gpu=bool(a.gpu))
 rows = []
 for f in sorted(glob.glob(f"{a.bank_dir}/chunk_*.npz")):

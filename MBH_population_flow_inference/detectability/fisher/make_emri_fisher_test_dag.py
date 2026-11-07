@@ -3,14 +3,14 @@
 Look at: logs/emri_fisher_test/summary.out (timing, failures, cond numbers) and plots/detectability/emri_fisher/test_*.png"""
 import os, argparse
 ap = argparse.ArgumentParser(); ap.add_argument("--n_chunks", type=int, default=8); ap.add_argument("--n_events", type=int, default=4)
-ap.add_argument("--live_dangerously", type=int, default=0); ap.add_argument("--max_wall_s", type=float, default=2400); args = ap.parse_args()
+ap.add_argument("--live_dangerously", type=int, default=0); ap.add_argument("--target_snr", type=float, default=0.0); ap.add_argument("--traj_dir", default="/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference/simulations/p0e0_test2"); ap.add_argument("--max_wall_s", type=float, default=2400); args = ap.parse_args()
 DATA = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference"; CODE = os.path.dirname(os.path.abspath(__file__))
-name = "emri_fisher_test"; dag = f"{DATA}/dag/{name}"; logs = f"{DATA}/logs/{name}"; out = f"{DATA}/simulations/emri_fisher_test"
+name = "emri_fisher_test" + ("2" if args.target_snr > 0 else ""); dag = f"{DATA}/dag/{name}"; logs = f"{DATA}/logs/{name}"; out = f"{DATA}/simulations/{name}"
 for d in (dag, logs, out): os.makedirs(d, exist_ok=True)
 PY = "/home/2673888s/.conda/envs/redback_few/bin/python"
 def wrapper(fn, body): open(f"{dag}/{fn}", "w").write("#!/bin/bash\nexport PYTHONPATH=/home/2673888s/poplar\nexport MPLBACKEND=Agg\n" + body + "\n"); os.chmod(f"{dag}/{fn}", 0o755)
-wrapper("fish.sh", f'{PY} {CODE}/emri_fisher_bank.py --chunk "$1" --n_events {args.n_events} --live_dangerously {args.live_dangerously} --max_wall_s {args.max_wall_s} --traj_dir {DATA}/simulations/p0e0_test2 --out_dir {out}')
-wrapper("summary.sh", f'{PY} {CODE}/summarize_emri_fisher.py --bank_dir {out} --tag test')
+wrapper("fish.sh", f'{PY} {CODE}/emri_fisher_bank.py --chunk "$1" --n_events {args.n_events} --live_dangerously {args.live_dangerously} --max_wall_s {args.max_wall_s} --target_snr {args.target_snr} --traj_dir {args.traj_dir} --out_dir {out}')
+wrapper("summary.sh", f'{PY} {CODE}/summarize_emri_fisher.py --bank_dir {out} --tag {name}')
 GPUREQ = "require_gpus = Capability >= 7.0 && Capability < 9.0\n"   # the RTX 5090 (cc 12.0) is not supported by the installed cupy/nvrtc
 sub = lambda ex, a, cpus, mem, gpus, tag: (f"universe = vanilla\nexecutable = {dag}/{ex}\narguments = {a}\nrequest_cpus = {cpus}\nrequest_memory = {mem}\nrequest_gpus = {gpus}\n"
                                            + (GPUREQ if gpus else "") + f"getenv = True\noutput = {logs}/{tag}.out\nerror = {logs}/{tag}.err\nlog = {logs}/{name}.log\nqueue\n")

@@ -34,8 +34,12 @@ p.add_argument("--co_mass", type=float, default=10.0)
 p.add_argument("--t_obs", type=float, default=6.0, help="observation window [yr]")
 p.add_argument("--t_margin", type=float, default=0.99, help="Fisher T = t_margin * min(T_plunge, t_obs) (avoid the plunge edge)")
 p.add_argument("--dt", type=float, default=15.0)
+p.add_argument("--der_order", type=int, default=2, help="order of the numerical derivatives (package default 2; its MCMC validation uses 6)")
 p.add_argument("--ndelta", type=int, default=8)
 p.add_argument("--live_dangerously", type=int, default=0, help="1: skip the stable-delta search (fast, less safe)")
+p.add_argument("--target_snr", type=float, default=0.0,
+               help=">0: set dist so the Fisher-package SNR is ~target (F = rho^2 Gamma, Gamma independent of distance; the package SNR scales exactly as 1/dist). "
+                    "Errors are then SNR-normalised (sigma*rho) and are rescaled with the SNR NETWORK at application time. 0 = physical dist (old behaviour).")
 p.add_argument("--n_jitter", type=int, default=1, help="number of noisy-estimate (C2) re-evaluations per event")
 p.add_argument("--max_wall_s", type=float, default=5400)
 p.add_argument("--snr_model", default="/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference/models/detectability/emri_snr/model.pth")
@@ -44,6 +48,8 @@ a = p.parse_args()
 sys.path.insert(0, "/home/2673888s/LISA_selection_function/lisa_snr_package")
 os.environ.setdefault("POPLAR_PATH", "/home/2673888s/poplar"); sys.path.insert(0, "/home/2673888s/poplar")
 from snr_model import load_snr_model, build_features
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fisher_cov import covariance
 from astropy.cosmology import Planck18
 from few.waveform import GenerateEMRIWaveform
 from few.utils.utility import get_separatrix
@@ -60,8 +66,9 @@ pool = {k: np.concatenate([r[k] for r in rows]) for k in ["lgM", "a", "Y0", "e0"
 print(f"[pool] {len(pool['lgM'])} trajectory rows from {len(rows)} chunks", flush=True)
 rng = np.random.default_rng([a.master_seed, a.chunk])
 
+# use_rk4=True makes sigma_M ~5000x too small (cond ~1e17); see emri_validation_repro.py (configs D vs B)
 wave = GenerateEMRIWaveform("Pn5AAKWaveform", return_list=True,
-                            inspiral_kwargs=dict(DENSE_STEPPING=0, max_init_len=int(1e7), err=1e-10, use_rk4=True),
+                            inspiral_kwargs=dict(DENSE_STEPPING=0, max_init_len=int(1e7), err=1e-10, use_rk4=False),
                             sum_kwargs=dict(use_gpu=True, pad_output=True), use_gpu=True)
 
 
@@ -96,24 +103,32 @@ def vec(e):
 
 def fisher_at(v, Tb):
     sef = StableEMRIFisher(*[np.float64(x) for x in v], dt=a.dt, T=a.t_margin * Tb, EMRI_waveform_gen=wave,
-                           param_names=NAMES, Ndelta=a.ndelta, live_dangerously=bool(a.live_dangerously),
+                           param_names=NAMES, Ndelta=a.ndelta, der_order=a.der_order, live_dangerously=bool(a.live_dangerously),
                            stats_for_nerds=False, use_gpu=True, filename=None, CovEllipse=False)
     F = np.asarray(sef())
     return F, float(np.sqrt(sef.SNR2))
 
 
+def snr_only(v, Tb):
+    sef = StableEMRIFisher(*[np.float64(x) for x in v], dt=a.dt, T=a.t_margin * Tb, EMRI_waveform_gen=wave, param_names=NAMES, Ndelta=a.ndelta, der_order=a.der_order,
+                           live_dangerously=True, stats_for_nerds=False, use_gpu=True, filename=None, CovEllipse=False)
+    return float(sef.SNRcalc_SEF())
+
+
 def valid(v):
     M, mu, a_, p0, e0, Y0, dist = v[:7]
-    if not (M > 0 and mu > 0 and 0 <= a_ < 0.999 and 0 <= e0 < 0.9 and 0 < abs(Y0) < 1 and dist > 0 and p0 > 0):
+    if not (M > 0 and mu > 0 and 0 <= a_ < 0.999 and 0 <= e0 < 0.95 and 0 < abs(Y0) < 1 and dist > 0 and p0 > 0):
         return False
     return p0 > get_separatrix(a_, e0, Y0) + 0.05
 
 
 def pinv_cov(F):
-    return np.linalg.pinv(0.5 * (F + F.T)), float(np.linalg.cond(F))
+    """covariance via the diagonally-normalised inverse (see fisher_cov.py); returns (C, raw cond).  NOT np.linalg.pinv on the raw matrix."""
+    C, _, cond_raw = covariance(F)
+    return C, cond_raw
 
 
-R = dict(F1=[], C1=[], theta=[], snr1=[], cond1=[], F2=[], C2=[], theta_hat=[], snr2=[], cond2=[],
+R = dict(dist_phys=[], rho_target=[], F1=[], C1=[], theta=[], snr1=[], cond1=[], F2=[], C2=[], theta_hat=[], snr2=[], cond2=[],
          ok=[], ok2=[], wall=[], snr_net=[], Tb=[], z=[])
 path = f"{a.out_dir}/chunk_{a.chunk:04d}.npz"; os.makedirs(a.out_dir, exist_ok=True)
 nan_mat = np.full((P, P), np.nan); nan_vec = np.full(P, np.nan)
@@ -131,7 +146,14 @@ for n in range(a.n_events):
     t1 = time.time(); e = draw_event()
     if e is None:
         print(f"[skip] {n}: no z with SNR > {a.snr_min}", flush=True); continue
-    v = vec(e); row = dict(F1=nan_mat, C1=nan_mat, snr1=np.nan, cond1=np.nan, F2=nan_mat, C2=nan_mat, theta_hat=nan_vec,
+    v = vec(e); dist_phys = float(v[6]); rho_target = np.nan
+    if a.target_snr > 0:
+        try:
+            rho0 = snr_only(v, e["Tb"]); v[6] = dist_phys * rho0 / a.target_snr; rho_target = a.target_snr   # SNR ~ 1/dist exactly
+            print(f"    [target_snr] package SNR at physical dist {rho0:.1f} (network {e['snr_net']:.1f}) -> dist {dist_phys:.4g} -> {v[6]:.4g} Gpc", flush=True)
+        except Exception as ex:
+            print(f"[fail] {n}: snr_only {type(ex).__name__}: {str(ex)[:150]}", flush=True); continue
+    row = dict(F1=nan_mat, C1=nan_mat, snr1=np.nan, cond1=np.nan, F2=nan_mat, C2=nan_mat, theta_hat=nan_vec,
                            snr2=np.nan, cond2=np.nan, ok=0, ok2=0)
     try:
         F1, s1 = fisher_at(v, e["Tb"]); C1, c1 = pinv_cov(F1)
@@ -142,7 +164,13 @@ for n in range(a.n_events):
         for _ in range(a.n_jitter):                     # C2: Fisher at a noisy estimate
             th = None
             for _try in range(20):
-                cand = rng.multivariate_normal(v, C1, check_valid="ignore")
+                if a.target_snr > 0:        # noise draw with the PHYSICAL covariance: all sigma scale by s = rho_fisher / rho_network; dist also by dist_phys/dist_used
+                    sc = np.full(P, s1 / e["snr_net"]); sc[6] *= dist_phys / v[6]
+                    vp = v.copy(); vp[6] = dist_phys
+                    cand = rng.multivariate_normal(vp, C1 * np.outer(sc, sc), check_valid="ignore")
+                    if valid(cand): cand[6] = v[6] * cand[6] / dist_phys         # back to the fixed-SNR distance scale for the Fisher evaluation
+                else:
+                    cand = rng.multivariate_normal(v, C1, check_valid="ignore")
                 if valid(cand):
                     th = cand; break
             if th is None:
@@ -153,7 +181,11 @@ for n in range(a.n_events):
     except Exception as ex:
         print(f"[fail] {n}: {type(ex).__name__}: {str(ex)[:200]}", flush=True)
     for k in ["F1", "C1", "snr1", "cond1", "F2", "C2", "theta_hat", "snr2", "cond2", "ok", "ok2"]: R[k].append(row[k])
-    R["theta"].append(v); R["wall"].append(time.time() - t1); R["snr_net"].append(e["snr_net"]); R["Tb"].append(e["Tb"]); R["z"].append(e["z"])
+    R["dist_phys"].append(dist_phys); R["rho_target"].append(rho_target); R["theta"].append(v); R["wall"].append(time.time() - t1); R["snr_net"].append(e["snr_net"]); R["Tb"].append(e["Tb"]); R["z"].append(e["z"])
     save()
+    try:      # release cupy's cached blocks between events (long signals grew the pool to ~8 GB and one event hit an OOM on an 11 GB card)
+        import cupy as cp; cp.get_default_memory_pool().free_all_blocks(); cp.get_default_pinned_memory_pool().free_all_blocks()
+    except Exception:
+        pass
 save()
 print(f"wrote {len(R['ok'])} events ({int(np.sum(R['ok']))} ok, {int(np.sum(R['ok2']))} with C2) -> {path}")

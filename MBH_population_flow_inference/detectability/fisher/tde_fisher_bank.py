@@ -81,6 +81,7 @@ for n, (lo, hi) in UNIF.items():
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tde_classifier import TDEClassifier
+from fisher_cov import covariance
 CLF = TDEClassifier(SURVEY)
 LOGU_CLF = {"alpha": (0.01, 0.1)}; UNIF_CLF = {"beta": (1.001, 30.0)}     # classifier inputs only (ignored by tde_fallback itself)
 
@@ -211,8 +212,8 @@ def scan_diag(theta, obs):
 
 
 def cov_from(F):
-    Ft = F + np.diag(PRIOR_PREC)
-    return np.linalg.pinv(0.5 * (Ft + Ft.T)), np.linalg.cond(Ft)
+    C, _, cond_raw = covariance(F, PRIOR_PREC)       # normalised inverse (fisher_cov.py); cond stays the raw one
+    return C, cond_raw
 
 
 KEYS = ["lgM", "z", "ra", "dec", "t0", "eta", "tvisc", "bb", "rph0", "lphoto", "alpha", "beta", "p_detect", "n_prefilter_draws", "from_catalogue"]
