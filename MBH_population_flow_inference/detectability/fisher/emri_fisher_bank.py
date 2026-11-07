@@ -40,6 +40,13 @@ p.add_argument("--live_dangerously", type=int, default=0, help="1: skip the stab
 p.add_argument("--target_snr", type=float, default=0.0,
                help=">0: set dist so the Fisher-package SNR is ~target (F = rho^2 Gamma, Gamma independent of distance; the package SNR scales exactly as 1/dist). "
                     "Errors are then SNR-normalised (sigma*rho) and are rescaled with the SNR NETWORK at application time. 0 = physical dist (old behaviour).")
+p.add_argument("--proposal", choices=["prior", "mixed"], default="prior",
+               help="prior: z log-uniform + trajectory row at random; mixed: a share of events is built from a SOURCE-CATALOGUE EMRI (all universes, equal weight): its (lgM, a, e_plunge) selects the nearest "
+                    "forward-integrated trajectory row (-> Y0, e0, p0, T) and its z is used, kept only if the SNR network gives rho > snr_min")
+p.add_argument("--catalogue_fraction", type=float, default=0.7)
+p.add_argument("--catalogue_file", default="/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference/simulations/consolidated/emri.npz")
+p.add_argument("--max_cat_tries", type=int, default=3000)
+p.add_argument("--reuse_deltas", type=int, default=1, help="1: C2 reuses the stable deltas found for the first Fisher (the noisy estimate is within ~sigma of the truth); skips ~half the cost")
 p.add_argument("--n_jitter", type=int, default=1, help="number of noisy-estimate (C2) re-evaluations per event")
 p.add_argument("--max_wall_s", type=float, default=5400)
 p.add_argument("--snr_model", default="/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference/models/detectability/emri_snr/model.pth")
@@ -62,9 +69,16 @@ snr_net = load_snr_model(a.snr_model)
 # ---- pool of true trajectory rows
 import glob
 rows = [np.load(f) for f in sorted(glob.glob(f"{a.traj_dir}/chunk_*.npz"))]
-pool = {k: np.concatenate([r[k] for r in rows]) for k in ["lgM", "a", "Y0", "e0", "p0", "T"]}
+pool = {k: np.concatenate([r[k] for r in rows]) for k in ["lgM", "a", "Y0", "e0", "p0", "T", "e_plunge"]}
 print(f"[pool] {len(pool['lgM'])} trajectory rows from {len(rows)} chunks", flush=True)
 rng = np.random.default_rng([a.master_seed, a.chunk])
+if a.proposal == "mixed":
+    from scipy.spatial import cKDTree
+    _x = np.load(a.catalogue_file)["x"]                                   # lgM, a, z, e_plunge  (all universes, equal weight per universe)
+    _x = _x[(_x[:, 2] >= a.z_min) & (_x[:, 2] <= a.z_max)]
+    _key = lambda lgM, a_, ep: np.stack([lgM / 3.0, a_ / 1.0, ep / 1.0], -1)   # roughly unit scale: lgM spans 3, a and e_plunge span ~1
+    TREE = cKDTree(_key(pool["lgM"], pool["a"], pool["e_plunge"]))
+    print(f"[proposal] mixed: {len(_x)} catalogue EMRIs, matched to {len(pool['lgM'])} trajectory rows; catalogue_fraction={a.catalogue_fraction}", flush=True)
 
 # use_rk4=True makes sigma_M ~5000x too small (cond ~1e17); see emri_validation_repro.py (configs D vs B)
 wave = GenerateEMRIWaveform("Pn5AAKWaveform", return_list=True,
@@ -78,9 +92,34 @@ def optimal_snr(lgM, mu, a_, e0, p0, Y0, Tb, z):
     return float(snr_net.run_on_dataset(X, n_batches=1).cpu().numpy().ravel()[0] / dl)
 
 
+def finish_event(e, z, snr):
+    Tb = min(e["T"], a.t_obs)
+    e.update(z=z, snr_net=snr, Tb=Tb, dist=float(Planck18.luminosity_distance(z).to("Gpc").value),
+             qS=float(np.arccos(rng.uniform(-1, 1))), phiS=rng.uniform(0, 2 * np.pi),
+             qK=float(np.arccos(rng.uniform(-1, 1))), phiK=rng.uniform(0, 2 * np.pi),
+             Phi_phi0=rng.uniform(0, 2 * np.pi), Phi_theta0=rng.uniform(0, 2 * np.pi), Phi_r0=rng.uniform(0, 2 * np.pi))
+    return e
+
+
+def draw_catalogue_event():
+    """catalogue EMRI -> nearest trajectory row (Y0, e0, p0, T) at the catalogue z; accept if the network SNR clears snr_min"""
+    for _ in range(a.max_cat_tries):
+        c = _x[rng.integers(len(_x))]
+        _, j = TREE.query(_key(c[0], c[1], c[3]), k=8); i = int(rng.choice(j))     # one of the 8 nearest rows, to avoid reusing a single trajectory
+        e = {k: float(pool[k][i]) for k in ["lgM", "a", "Y0", "e0", "p0", "T", "e_plunge"]}
+        snr = optimal_snr(e["lgM"], a.co_mass, e["a"], e["e0"], e["p0"], e["Y0"], min(e["T"], a.t_obs), float(c[2]))
+        if snr > a.snr_min:
+            e = finish_event(e, float(c[2]), snr); e["from_catalogue"] = 1.0; return e
+    return None
+
+
 def draw_event():
+    if a.proposal == "mixed" and rng.random() < a.catalogue_fraction:
+        e = draw_catalogue_event()
+        if e is not None:
+            return e
     i = rng.integers(len(pool["lgM"]))
-    e = {k: float(pool[k][i]) for k in ["lgM", "a", "Y0", "e0", "p0", "T"]}
+    e = {k: float(pool[k][i]) for k in ["lgM", "a", "Y0", "e0", "p0", "T", "e_plunge"]}
     Tb = min(e["T"], a.t_obs)
     for _ in range(a.max_z_tries):
         z = float(np.exp(rng.uniform(np.log(a.z_min), np.log(a.z_max))))
@@ -101,12 +140,12 @@ def vec(e):
                      e["qK"], e["phiK"], e["Phi_phi0"], e["Phi_theta0"], e["Phi_r0"]], dtype=float)
 
 
-def fisher_at(v, Tb):
+def fisher_at(v, Tb, deltas=None):
     sef = StableEMRIFisher(*[np.float64(x) for x in v], dt=a.dt, T=a.t_margin * Tb, EMRI_waveform_gen=wave,
                            param_names=NAMES, Ndelta=a.ndelta, der_order=a.der_order, live_dangerously=bool(a.live_dangerously),
-                           stats_for_nerds=False, use_gpu=True, filename=None, CovEllipse=False)
+                           deltas=deltas, stats_for_nerds=False, use_gpu=True, filename=None, CovEllipse=False)
     F = np.asarray(sef())
-    return F, float(np.sqrt(sef.SNR2))
+    return F, float(np.sqrt(sef.SNR2)), sef.deltas
 
 
 def snr_only(v, Tb):
@@ -128,7 +167,7 @@ def pinv_cov(F):
     return C, cond_raw
 
 
-R = dict(dist_phys=[], rho_target=[], F1=[], C1=[], theta=[], snr1=[], cond1=[], F2=[], C2=[], theta_hat=[], snr2=[], cond2=[],
+R = dict(from_catalogue=[], e_plunge=[], dist_phys=[], rho_target=[], F1=[], C1=[], theta=[], snr1=[], cond1=[], F2=[], C2=[], theta_hat=[], snr2=[], cond2=[],
          ok=[], ok2=[], wall=[], snr_net=[], Tb=[], z=[])
 path = f"{a.out_dir}/chunk_{a.chunk:04d}.npz"; os.makedirs(a.out_dir, exist_ok=True)
 nan_mat = np.full((P, P), np.nan); nan_vec = np.full(P, np.nan)
@@ -156,7 +195,7 @@ for n in range(a.n_events):
     row = dict(F1=nan_mat, C1=nan_mat, snr1=np.nan, cond1=np.nan, F2=nan_mat, C2=nan_mat, theta_hat=nan_vec,
                            snr2=np.nan, cond2=np.nan, ok=0, ok2=0)
     try:
-        F1, s1 = fisher_at(v, e["Tb"]); C1, c1 = pinv_cov(F1)
+        F1, s1, deltas1 = fisher_at(v, e["Tb"]); C1, c1 = pinv_cov(F1)
         row.update(F1=F1, C1=C1, snr1=s1, cond1=c1, ok=1)
         sig = np.sqrt(np.clip(np.diag(C1), 0, None))
         print(f"[ok] {n} lgM={e['lgM']:.2f} a={e['a']:.2f} e0={e['e0']:.2f} z={e['z']:.3f} Tb={e['Tb']:.2f} snr_net={e['snr_net']:.1f} "
@@ -175,13 +214,13 @@ for n in range(a.n_events):
                     th = cand; break
             if th is None:
                 print(f"    [jitter] {n}: no valid noisy estimate in 20 draws", flush=True); break
-            F2, s2 = fisher_at(th, e["Tb"]); C2, c2 = pinv_cov(F2)
+            F2, s2, _ = fisher_at(th, e["Tb"], deltas=deltas1 if a.reuse_deltas else None); C2, c2 = pinv_cov(F2)
             row.update(F2=F2, C2=C2, theta_hat=th, snr2=s2, cond2=c2, ok2=1)
             print(f"    [C2] snr={s2:.1f} cond={c2:.1e} {time.time() - t1:.0f}s", flush=True)
     except Exception as ex:
         print(f"[fail] {n}: {type(ex).__name__}: {str(ex)[:200]}", flush=True)
     for k in ["F1", "C1", "snr1", "cond1", "F2", "C2", "theta_hat", "snr2", "cond2", "ok", "ok2"]: R[k].append(row[k])
-    R["dist_phys"].append(dist_phys); R["rho_target"].append(rho_target); R["theta"].append(v); R["wall"].append(time.time() - t1); R["snr_net"].append(e["snr_net"]); R["Tb"].append(e["Tb"]); R["z"].append(e["z"])
+    R["from_catalogue"].append(e.get("from_catalogue", 0.0)); R["e_plunge"].append(e["e_plunge"]); R["dist_phys"].append(dist_phys); R["rho_target"].append(rho_target); R["theta"].append(v); R["wall"].append(time.time() - t1); R["snr_net"].append(e["snr_net"]); R["Tb"].append(e["Tb"]); R["z"].append(e["z"])
     save()
     try:      # release cupy's cached blocks between events (long signals grew the pool to ~8 GB and one event hit an OOM on an 11 GB card)
         import cupy as cp; cp.get_default_memory_pool().free_all_blocks(); cp.get_default_pinned_memory_pool().free_all_blocks()
