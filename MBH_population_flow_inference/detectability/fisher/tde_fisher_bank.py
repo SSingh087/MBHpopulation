@@ -48,6 +48,7 @@ p.add_argument("--proposal", choices=["prior", "mixed"], default="prior",
 p.add_argument("--catalogue_fraction", type=float, default=0.7, help="share of (lgM,z) draws taken from the catalogue when --proposal mixed")
 p.add_argument("--proposal_file", default="/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference/simulations/consolidated/tde_proposal_subsample.npz")
 p.add_argument("--min_points", type=int, default=5)
+p.add_argument("--workers", type=int, default=0, help=">1: multiprocessing pool inside the job (needs request_cpus >= workers); per-event rng seeds")
 p.add_argument("--max_wall_s", type=float, default=5400)
 p.add_argument("--step_scale", type=float, default=1.0)
 p.add_argument("--check_steps", type=int, default=0, help="1: also store sigma_lgM with steps x2 and x0.4")
@@ -218,10 +219,17 @@ def cov_from(F):
 
 KEYS = ["lgM", "z", "ra", "dec", "t0", "eta", "tvisc", "bb", "rph0", "lphoto", "alpha", "beta", "p_detect", "n_prefilter_draws", "from_catalogue"]
 rec = {k: [] for k in KEYS}; Fs, Cs, npts_l, ok_l, wall_l, cond_l, sa_l, scan_l = [], [], [], [], [], [], [], []
-t_start = time.time()
-for i in range(a.n_events):
-    if time.time() - t_start > a.max_wall_s:
-        print(f"[stop] wall budget reached after {i} events", flush=True); break
+t_start = time.time(); DEADLINE = t_start + a.max_wall_s
+
+
+def process(i):
+    """One event: draw -> classifier pre-filter -> light curve -> Fisher.  With --workers>0 every event has its own rng stream
+    seeded by (master_seed, chunk, survey, event) so the result does not depend on the number of workers."""
+    global rng
+    if time.time() > DEADLINE: return None
+    if a.workers > 0:
+        rng = np.random.default_rng([a.master_seed, a.chunk, 0 if SURVEY == "ZTF" else 1, i])
+        _s = int(rng.integers(2 ** 31)); np.random.seed(_s); import random; random.seed(_s)      # survey simulator (redback) draws from the global streams
     d = draw(); t1 = time.time(); sc = np.full((P, len(a.scan_mults)), np.nan)
     F = np.full((P, P), np.nan); C = np.full((P, P), np.nan); npts = 0; ok = 0; cond = np.nan; salt = np.full(2, np.nan)
     try:
@@ -241,8 +249,28 @@ for i in range(a.n_events):
             print(f"[skip] {i} only {npts} detected points", flush=True)
     except Exception as e:
         print(f"[fail] {i}: {type(e).__name__}: {e}", flush=True)
+    return d, F, C, npts, ok, cond, salt, sc, time.time() - t1
+
+
+def _init_worker():
+    try:
+        import torch; torch.set_num_threads(1)
+    except Exception: pass
+
+
+if a.workers > 1:
+    import multiprocessing as mp
+    with mp.get_context("fork").Pool(a.workers, initializer=_init_worker) as pool:
+        results = list(pool.imap(process, range(a.n_events), chunksize=1))
+else:
+    results = [process(i) for i in range(a.n_events)]
+n_done = sum(r is not None for r in results)
+if n_done < a.n_events: print(f"[stop] wall budget reached: {n_done}/{a.n_events} events done", flush=True)
+for r in results:
+    if r is None: continue
+    d, F, C, npts, ok, cond, salt, sc, wall = r
     for k in KEYS: rec[k].append(d[k])
-    Fs.append(F); Cs.append(C); npts_l.append(npts); ok_l.append(ok); wall_l.append(time.time() - t1)
+    Fs.append(F); Cs.append(C); npts_l.append(npts); ok_l.append(ok); wall_l.append(wall)
     cond_l.append(cond); sa_l.append(salt); scan_l.append(sc)
 
 os.makedirs(a.out_dir, exist_ok=True)
