@@ -17,12 +17,15 @@ DATA = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference"
 PY = "/home/2673888s/.conda/envs/redback_few/bin/python"
 ap = argparse.ArgumentParser()
 ap.add_argument("--n_configs", type=int, default=12); ap.add_argument("--name", default="tde_fisher_flow"); ap.add_argument("--seed", type=int, default=0)
+ap.add_argument("--tag", default="", help="suffix for model/plot names (e.g. _big) so existing winners are not overwritten"); ap.add_argument("--banks", nargs="+", default=["tde_fisher_bank", "tde_fisher_bank_cat"])
+ap.add_argument("--batches", type=int, nargs="+", default=[512, 1024, 2048]); ap.add_argument("--base_batch", type=int, default=1024)
 ap.add_argument("--epochs", type=int, default=300); ap.add_argument("--patience", type=int, default=25)
 args = ap.parse_args()
+args.name = args.name + args.tag; TG = args.tag; BK = " ".join(args.banks)
 dagdir, logdir = f"{DATA}/dag/{args.name}", f"{DATA}/logs/{args.name}"
 os.makedirs(dagdir, exist_ok=True); os.makedirs(logdir, exist_ok=True)
-SPACE = dict(n_layers=[4, 6, 8], hidden=[64, 128, 256], bins=[8, 12, 16], ctx_hidden=[64, 128], batch=[512, 1024, 2048])
-BASE = dict(n_layers=6, hidden=128, bins=8, ctx_hidden=128, batch=1024, lr=1e-3)
+SPACE = dict(n_layers=[4, 6, 8], hidden=[64, 128, 256], bins=[8, 12, 16], ctx_hidden=[64, 128], batch=args.batches)
+BASE = dict(n_layers=6, hidden=128, bins=8, ctx_hidden=128, batch=args.base_batch, lr=1e-3)
 rng = np.random.default_rng(args.seed)
 cfgs, seen = [dict(id="00", **BASE, seed=0)], {tuple(BASE.values())}
 while len(cfgs) < args.n_configs:
@@ -37,10 +40,10 @@ def script(name, body):
     os.chmod(p, os.stat(p).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH); return p
 T = f"{PY} train_tde_fisher_flow.py"
 sh_train = script("run_train.sh", f'CFG=$(case $2 in {" ".join(f"{c["id"]}) echo --n_layers {c["n_layers"]} --hidden {c["hidden"]} --bins {c["bins"]} --ctx_hidden {c["ctx_hidden"]} --batch {c["batch"]} --lr {c["lr"]:.6g} --seed {c["seed"]};;" for c in cfgs)} esac)\n'
-                  f'{T} --survey $1 --epochs {args.epochs} --patience {args.patience} --no_eval --out_name tde_fisher_sweep_$1/cfg_$2 $CFG')
-sh_smoke = script("run_smoke.sh", f'{T} --survey ZTF --epochs 2 --out_name smoke_tde_fisher_flow_ZTF && {T} --survey ZTF --eval_only --out_name smoke_tde_fisher_flow_ZTF')
-sh_select = script("run_select.sh", f'{PY} select_tde_fisher_flow.py --survey $1')
-sh_final = script("run_final.sh", f'{T} --survey $1 --eval_only --out_name tde_fisher_flow_$1')
+                  f'{T} --survey $1 --epochs {args.epochs} --patience {args.patience} --no_eval --banks {BK} --out_name tde_fisher_sweep{TG}_$1/cfg_$2 $CFG')
+sh_smoke = script("run_smoke.sh", f'{T} --survey ZTF --epochs 2 --banks {BK} --out_name smoke_tde_fisher_flow{TG}_ZTF && {T} --survey ZTF --eval_only --banks {BK} --out_name smoke_tde_fisher_flow{TG}_ZTF')
+sh_select = script("run_select.sh", f'{PY} select_tde_fisher_flow.py --survey $1 --tag {TG}')
+sh_final = script("run_final.sh", f'{T} --survey $1 --eval_only --banks {BK} --out_name tde_fisher_flow{TG}_$1')
 def sub(name, exe, arg, gpu, mem):
     open(f"{dagdir}/{name}.sub", "w").write(f"""universe = vanilla
 executable = {exe}

@@ -4,9 +4,9 @@ models/detectability/tde_fisher_flow_<survey>/, write ranking.csv and comparison
 import argparse, glob, json, os, shutil
 import numpy as np
 DATA = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference"
-ap = argparse.ArgumentParser(); ap.add_argument("--survey", required=True); args = ap.parse_args()
+ap = argparse.ArgumentParser(); ap.add_argument("--survey", required=True); ap.add_argument("--tag", default=""); args = ap.parse_args()
 S = args.survey
-sweep = f"{DATA}/models/detectability/tde_fisher_sweep_{S}"; pdir = f"{DATA}/plots/detectability/tde_fisher_flow"; os.makedirs(pdir, exist_ok=True)
+T = args.tag; sweep = f"{DATA}/models/detectability/tde_fisher_sweep{T}_{S}"; pdir = f"{DATA}/plots/detectability/tde_fisher_flow"; os.makedirs(pdir, exist_ok=True)
 rows = []
 for d in sorted(glob.glob(f"{sweep}/cfg_*")):
     f = f"{d}/summary.json"
@@ -15,11 +15,11 @@ for d in sorted(glob.glob(f"{sweep}/cfg_*")):
     rows.append(dict(id=os.path.basename(d)[4:], val=s["best_val"], ep=s["best_epoch"], epochs=s["epochs_run"], n_params=s["n_params"], wall_min=s["wall_s"] / 60,
                      n_layers=h["n_layers"], hidden=h["hidden"], bins=h["K"], ctx_hidden=h["ctx_hidden"], lr=s["lr"], batch=s["batch"], dir=d))
 rows = [r for r in rows if np.isfinite(r["val"])]; rows.sort(key=lambda r: r["val"])
-with open(f"{DATA}/logs/tde_fisher_flow_ranking_{S}.csv", "w") as fh:
+with open(f"{DATA}/logs/tde_fisher_flow_ranking{T}_{S}.csv", "w") as fh:
     keys = [k for k in rows[0] if k != "dir"]; fh.write(",".join(keys) + "\n")
     for r in rows: fh.write(",".join(str(r[k]) for k in keys) + "\n")
 for r in rows: print(f"cfg {r['id']}  val {r['val']:.4f}  ep {r['ep']}/{r['epochs']}  L{r['n_layers']} H{r['hidden']} K{r['bins']} C{r['ctx_hidden']} lr {r['lr']:.1e} b{r['batch']}  {r['n_params']} params {r['wall_min']:.1f} min")
-win = rows[0]; dst = f"{DATA}/models/detectability/tde_fisher_flow_{S}"
+win = rows[0]; dst = f"{DATA}/models/detectability/tde_fisher_flow{T}_{S}"
 if os.path.exists(dst): shutil.rmtree(dst)
 shutil.copytree(win["dir"], dst); print("winner", win["id"], "->", dst)
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
@@ -34,4 +34,4 @@ ax[0, 2].scatter([r["n_params"] for r in rows], [r["val"] for r in rows]); ax[0,
 for a, k in zip(ax[1], ["lr", "n_layers", "hidden"]):
     a.scatter([r[k] for r in rows], [r["val"] for r in rows]); a.set_xlabel(k); a.set_ylabel("val NLL")
     if k == "lr": a.set_xscale("log")
-fig.suptitle(f"TDE Fisher-error flow sweep, {S}"); fig.tight_layout(); fig.savefig(f"{pdir}/sweep_{S}.png", dpi=120)
+fig.suptitle(f"TDE Fisher-error flow sweep, {S}"); fig.tight_layout(); fig.savefig(f"{pdir}/sweep{T}_{S}.png", dpi=120)

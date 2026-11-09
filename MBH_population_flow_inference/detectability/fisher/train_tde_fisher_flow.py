@@ -30,6 +30,7 @@ NP = 7
 TRI = np.tril_indices(NP, -1)
 
 ap = argparse.ArgumentParser()
+ap.add_argument("--banks", nargs="+", default=BANKS, help="bank directories under simulations/ to pool")
 ap.add_argument("--survey", choices=["ZTF", "LSST"], required=True)
 ap.add_argument("--epochs", type=int, default=300)
 ap.add_argument("--patience", type=int, default=25)
@@ -85,7 +86,7 @@ def context(d, t0min, trange):
 # ---------------- data
 keys = ["lgM", "z", "ra", "dec", "t0", "eta", "tvisc", "bb", "rph0", "lphoto", "alpha", "beta", "C", "ok", "cond", "npts"]
 cols = {k: [] for k in keys}; src = []
-for bi, b in enumerate(BANKS):
+for bi, b in enumerate(args.banks):
     for f in sorted(glob.glob(f"{DATA}/simulations/{b}/{args.survey}_chunk_*.npz")):
         d = np.load(f)
         for k in keys: cols[k].append(d[k])
@@ -96,6 +97,11 @@ sig_lgM = np.sqrt(D["C"][:, 1, 1])
 keep = (D["ok"] == 1) & (sig_lgM <= args.max_sigma_lgM) & (D["cond"] <= args.max_cond) & np.all(np.isfinite(D["C"]), (1, 2))
 print(f"{args.survey}: attempted {n_all}, ok {int((D['ok']==1).sum())}, kept after trimming {int(keep.sum())}", flush=True)
 D = {k: v[keep] for k, v in D.items()}; src = src[keep]
+# drop numerically non-positive-definite correlation matrices (needed for the Cholesky encoding); count them
+_s = np.sqrt(np.einsum("nii->ni", D["C"])); _R = D["C"] / _s[:, :, None] / _s[:, None, :]
+pd_ok = np.linalg.eigvalsh(_R).min(1) > 1e-9
+print(f"  dropped {int((~pd_ok).sum())} events with non-positive-definite correlation matrix (min eig <= 1e-9)", flush=True)
+D = {k: v[pd_ok] for k, v in D.items()}; src = src[pd_ok]
 t0min, trange = float(D["t0"].min()), float(D["t0"].max() - D["t0"].min())
 ctx = context(D, t0min, trange); Y = encode_C(D["C"])
 ok_row = np.all(np.isfinite(Y), 1); ctx, Y, src = ctx[ok_row], Y[ok_row], src[ok_row]

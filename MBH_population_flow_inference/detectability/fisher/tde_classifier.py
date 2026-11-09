@@ -5,7 +5,7 @@ NOTE: alpha and beta are classifier inputs even though tde_fallback ignores them
 import json, os, sys, pickle, numpy as np, torch
 sys.path.insert(0, "/home/2673888s/poplar")
 MODELS = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference/models/detectability/tde"
-NAME = {"ZTF": "tde_fallback_512_4_10_ZTF", "LSST": "tde_fallback_128_4_10_LSST"}
+NAME = {"ZTF": "tde_fallback_512_4_10_ZTF", "LSST": "tde_fallback_128_4_10_LSST", "ZTFext": "tde_fallback_512_4_10_ZTFext"}   # ZTFext: retrained with z up to 2
 TRAIN = "/data/wiay/postgrads/shashwat/EMRI_TDE_data/PRE_TRAIN_DATA_TDE/1E6_events/TDE_params_1E6_{s}_tde_fallback.h5"
 SHARED = ["lgMBH", "z_gal", "ra_rad", "dec_rad", "eta", "alpha", "beta", "t0_mjd_transient"]
 EXTRA = [("tvisc", "log"), ("bb", "linear"), ("rph0", "log"), ("lphoto", "linear")]
