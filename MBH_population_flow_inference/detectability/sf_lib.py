@@ -122,14 +122,14 @@ class EMRISF:
         """naive and calibrated alpha from ONE density evaluation: returns (a_n, e_n, a_c, e_c)"""
         w = torch.exp(self.logp_x(tab["x"], lam_s)) / tab["q"]; o = []
         for key in ("P_naive", "P_cal"):
-            t = w * tab[key].double(); bl = t[: len(t) // nblock * nblock].reshape(nblock, -1).mean(1); o += [t.mean().item(), bl.std().item() / np.sqrt(nblock)]
+            t = w * tab[key].double(); o += [t.mean().item(), (t.std() / np.sqrt(len(t))).item()]   # points are independent draws from q (the 10% box part is a scrambled Sobol set, no worse than iid)
         return tuple(o)
 
     def alpha(self, lam_s, tab, key="P_naive", nblock=8):
-        """fixed-points alpha and a block-bootstrap error (points are iid draws from q)."""
+        """fixed-points alpha and its standard error std(t)/sqrt(N) (the points are independent draws from q).  The earlier block error took blocks of the UNSHUFFLED table
+        (blocks = different flow components of the mixture), which overstated the error."""
         t = torch.exp(self.logp_x(tab["x"], lam_s)) / tab["q"] * tab[key].double()
-        bl = t.reshape(nblock, -1).mean(1) if len(t) % nblock == 0 else t[: len(t) // nblock * nblock].reshape(nblock, -1).mean(1)
-        return t.mean().item(), bl.std().item() / np.sqrt(nblock), t
+        return t.mean().item(), (t.std() / np.sqrt(len(t))).item(), t
 
 
 def load_table(path, dev):
