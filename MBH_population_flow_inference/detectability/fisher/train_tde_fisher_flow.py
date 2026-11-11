@@ -43,6 +43,7 @@ ap.add_argument("--batch", type=int, default=1024)
 ap.add_argument("--tail", type=float, default=6.0)
 ap.add_argument("--max_sigma_lgM", type=float, default=3.0)
 ap.add_argument("--max_cond", type=float, default=1e12)
+ap.add_argument("--clip_sigma_lgM", type=float, default=0.0, help=">0: cap the TARGET sigma_lgM at this value (dex) instead of removing the event (use with a large --max_sigma_lgM)")
 ap.add_argument("--seed", type=int, default=0, help="network init / batch order")
 ap.add_argument("--data_seed", type=int, default=0, help="train/val/test split (keep fixed across a sweep)")
 ap.add_argument("--train_frac", type=float, default=1.0, help="use only this fraction of the training split (learning curve); val/test unchanged")
@@ -104,6 +105,7 @@ print(f"  dropped {int((~pd_ok).sum())} events with non-positive-definite correl
 D = {k: v[pd_ok] for k, v in D.items()}; src = src[pd_ok]
 t0min, trange = float(D["t0"].min()), float(D["t0"].max() - D["t0"].min())
 ctx = context(D, t0min, trange); Y = encode_C(D["C"])
+if args.clip_sigma_lgM > 0: print(f"  capping log sigma_lgM at {args.clip_sigma_lgM} dex: {int((Y[:, 1] > np.log(args.clip_sigma_lgM)).sum())} events affected", flush=True); Y[:, 1] = np.minimum(Y[:, 1], np.log(args.clip_sigma_lgM))
 ok_row = np.all(np.isfinite(Y), 1); ctx, Y, src = ctx[ok_row], Y[ok_row], src[ok_row]
 n = len(Y); perm = np.random.default_rng(args.data_seed).permutation(n)
 n_te = n_va = int(0.075 * n)

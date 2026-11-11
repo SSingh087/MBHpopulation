@@ -20,6 +20,7 @@ ap.add_argument("--n_configs", type=int, default=12); ap.add_argument("--name", 
 ap.add_argument("--tag", default="", help="suffix for model/plot names (e.g. _big) so existing winners are not overwritten"); ap.add_argument("--banks", nargs="+", default=["tde_fisher_bank", "tde_fisher_bank_cat"])
 ap.add_argument("--batches", type=int, nargs="+", default=[512, 1024, 2048]); ap.add_argument("--base_batch", type=int, default=1024)
 ap.add_argument("--epochs", type=int, default=300); ap.add_argument("--patience", type=int, default=25)
+ap.add_argument("--configs_from", default=None, help="reuse the configs of an earlier DAG (configs.json)"); ap.add_argument("--only", nargs="+", default=None, help="keep only these config ids"); ap.add_argument("--extra", default="", help="extra trainer arguments for every node")
 args = ap.parse_args()
 args.name = args.name + args.tag; TG = args.tag; BK = " ".join(args.banks)
 dagdir, logdir = f"{DATA}/dag/{args.name}", f"{DATA}/logs/{args.name}"
@@ -33,12 +34,14 @@ while len(cfgs) < args.n_configs:
     key = tuple(c[k] for k in BASE)
     if key in seen: continue
     seen.add(key); cfgs.append(dict(id=f"{len(cfgs):02d}", **c, seed=len(cfgs)))
+if args.configs_from: cfgs = json.load(open(args.configs_from))
+if args.only: cfgs = [c for c in cfgs if c["id"] in args.only]
 json.dump(cfgs, open(f"{dagdir}/configs.json", "w"), indent=1)
 
 def script(name, body):
     p = f"{dagdir}/{name}"; open(p, "w").write("#!/bin/bash\nexport OMP_NUM_THREADS=2 MKL_NUM_THREADS=2\ncd " + HERE + "\n" + body + "\n")
     os.chmod(p, os.stat(p).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH); return p
-T = f"{PY} train_tde_fisher_flow.py"
+T = f"{PY} train_tde_fisher_flow.py {args.extra}"
 sh_train = script("run_train.sh", f'CFG=$(case $2 in {" ".join(f"{c["id"]}) echo --n_layers {c["n_layers"]} --hidden {c["hidden"]} --bins {c["bins"]} --ctx_hidden {c["ctx_hidden"]} --batch {c["batch"]} --lr {c["lr"]:.6g} --seed {c["seed"]};;" for c in cfgs)} esac)\n'
                   f'{T} --survey $1 --epochs {args.epochs} --patience {args.patience} --no_eval --banks {BK} --out_name tde_fisher_sweep{TG}_$1/cfg_$2 $CFG')
 sh_smoke = script("run_smoke.sh", f'{T} --survey ZTF --epochs 2 --banks {BK} --out_name smoke_tde_fisher_flow{TG}_ZTF && {T} --survey ZTF --eval_only --banks {BK} --out_name smoke_tde_fisher_flow{TG}_ZTF')

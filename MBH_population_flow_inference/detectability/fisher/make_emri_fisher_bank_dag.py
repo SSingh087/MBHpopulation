@@ -8,16 +8,18 @@ import os, argparse
 ap = argparse.ArgumentParser(); ap.add_argument("--n_chunks", type=int, default=100); ap.add_argument("--n_events", type=int, default=20)
 ap.add_argument("--target_snr", type=float, default=100.0); ap.add_argument("--catalogue_fraction", type=float, default=0.7)
 ap.add_argument("--master_seed", type=int, default=31, help="31: distinct from the tests (21) so no test event is repeated")
-ap.add_argument("--max_wall_s", type=float, default=14400); a = ap.parse_args()
+ap.add_argument("--max_wall_s", type=float, default=14400)
+ap.add_argument("--name", default="emri_fisher_bank", help="bank/dag/log folder name; use a new name + new master_seed for an additional bank")
+a = ap.parse_args()
 DATA = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference"; CODE = os.path.dirname(os.path.abspath(__file__))
-name = "emri_fisher_bank"; dag = f"{DATA}/dag/{name}"; logs = f"{DATA}/logs/{name}"; out = f"{DATA}/simulations/{name}"
+name = a.name; dag = f"{DATA}/dag/{name}"; logs = f"{DATA}/logs/{name}"; out = f"{DATA}/simulations/{name}"
 for d in (dag, logs, out): os.makedirs(d, exist_ok=True)
 PY = "/home/2673888s/.conda/envs/redback_few/bin/python"
 def wrapper(fn, body): open(f"{dag}/{fn}", "w").write("#!/bin/bash\nexport PYTHONPATH=/home/2673888s/poplar\nexport MPLBACKEND=Agg\n" + body + "\n"); os.chmod(f"{dag}/{fn}", 0o755)
 wrapper("fish.sh", f'{PY} {CODE}/emri_fisher_bank.py --chunk "$1" --n_events {a.n_events} --target_snr {a.target_snr} --proposal mixed --catalogue_fraction {a.catalogue_fraction} '
                    f'--master_seed {a.master_seed} --max_wall_s {a.max_wall_s} --traj_dir {DATA}/simulations/p0e0_traj --out_dir {out}')
-wrapper("summary.sh", f'{PY} {CODE}/summarize_emri_fisher.py --bank_dir {out} --tag bank')
-GPUREQ = "require_gpus = Capability >= 7.0 && Capability < 9.0\n"     # the RTX 5090 (cc 12.0) is unsupported by the installed cupy/torch
+wrapper("summary.sh", f'{PY} {CODE}/summarize_emri_fisher.py --bank_dir {out} --tag {name}')
+GPUREQ = "require_gpus = Capability >= 7.0 && Capability < 9.0 && GlobalMemoryMb >= 20000\n"     # the RTX 5090 (cc 12.0) is unsupported by the installed cupy/torch
 sub = lambda ex, args, cpus, mem, gpus, tag: (f"universe = vanilla\nexecutable = {dag}/{ex}\narguments = {args}\nrequest_cpus = {cpus}\nrequest_memory = {mem}\nrequest_gpus = {gpus}\n"
                                               + (GPUREQ if gpus else "") + f"getenv = True\noutput = {logs}/{tag}.out\nerror = {logs}/{tag}.err\nlog = {logs}/{name}.log\nqueue\n")
 open(f"{dag}/fish.sub", "w").write(sub("fish.sh", "$(chunk)", 2, "12GB", 1, "fish_$(chunk)"))
