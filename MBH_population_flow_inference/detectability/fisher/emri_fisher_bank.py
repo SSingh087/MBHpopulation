@@ -44,16 +44,17 @@ p.add_argument("--proposal", choices=["prior", "mixed"], default="prior",
                help="prior: z log-uniform + trajectory row at random; mixed: a share of events is built from a SOURCE-CATALOGUE EMRI (all universes, equal weight): its (lgM, a, e_plunge) selects the nearest "
                     "forward-integrated trajectory row (-> Y0, e0, p0, T) and its z is used, kept only if the SNR network gives rho > snr_min")
 p.add_argument("--catalogue_fraction", type=float, default=0.7)
-p.add_argument("--catalogue_file", default="/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference/simulations/consolidated/emri.npz")
+EMRI_DATA = os.environ.get("EMRI_DATA", "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference")   # override on another machine
+p.add_argument("--catalogue_file", default=f"{EMRI_DATA}/simulations/consolidated/emri.npz")
 p.add_argument("--max_cat_tries", type=int, default=3000)
 p.add_argument("--reuse_deltas", type=int, default=1, help="1: C2 reuses the stable deltas found for the first Fisher (the noisy estimate is within ~sigma of the truth); skips ~half the cost")
 p.add_argument("--n_jitter", type=int, default=1, help="number of noisy-estimate (C2) re-evaluations per event")
 p.add_argument("--max_wall_s", type=float, default=5400)
-p.add_argument("--snr_model", default="/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference/models/detectability/emri_snr/model.pth")
+p.add_argument("--snr_model", default=f"{EMRI_DATA}/models/detectability/emri_snr/model.pth")
 a = p.parse_args()
 
-sys.path.insert(0, "/home/2673888s/LISA_selection_function/lisa_snr_package")
-os.environ.setdefault("POPLAR_PATH", "/home/2673888s/poplar"); sys.path.insert(0, "/home/2673888s/poplar")
+sys.path.insert(0, os.environ.get("LISA_SNR_PKG", "/home/2673888s/LISA_selection_function/lisa_snr_package"))
+_POP = os.environ.get("POPLAR_PATH", "/home/2673888s/poplar"); os.environ.setdefault("POPLAR_PATH", _POP); sys.path.insert(0, _POP)
 from snr_model import load_snr_model, build_features
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fisher_cov import covariance
