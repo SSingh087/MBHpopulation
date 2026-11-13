@@ -7,7 +7,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "src"))
 from priors import LAMBDA_NAMES, FIDUCIAL, PRIOR_BOX            # noqa: E402  (light module)
 
-DATA = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference"
+# organised scenario runs: EMRI_SCENARIO_ROOT=<DATA>/scenarios/<name> redirects simulations/models/plots/logs/dag there
+DATA = os.environ.get("EMRI_SCENARIO_ROOT", "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference")
 FULL_RUN = f"{DATA}/simulations/full_run"
 CONSOL = f"{DATA}/simulations/consolidated"
 

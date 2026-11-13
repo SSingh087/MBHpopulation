@@ -21,8 +21,14 @@ ap.add_argument("--chunk", type=int, required=True)
 ap.add_argument("--per_chunk", type=int, required=True)
 ap.add_argument("--master_seed", type=int, default=2026)
 ap.add_argument("--n_pool", type=int, default=100_000)
+ap.add_argument("--nucleation", default="hannah", choices=["hannah", "neumayer"])
+ap.add_argument("--occupation", default="varying", choices=["varying", "uniform"])
+ap.add_argument("--alpha_Re", type=float, default=None, help="Re size-evolution exponent (default 0 = no evolution, as the original v1 runs)")
+ap.add_argument("--legacy", type=int, default=0, help="1: old-pipeline sigma treatment (independent 2nd sigma draw in the M-sigma step; as the catalogues)")
 ap.add_argument("--outdir", default=f"{DATA}/simulations/full_run")
 args = ap.parse_args()
+SC = es.set_scenario(args.nucleation, args.occupation, args.alpha_Re, legacy=bool(args.legacy))
+print("scenario", SC, flush=True)
 
 cdir = os.path.join(args.outdir, f"chunk_{args.chunk:04d}")
 os.makedirs(cdir, exist_ok=True)
@@ -41,7 +47,7 @@ for j in range(args.per_chunk):
     ev, tde = r["events"], r["tde_events"]
     tmp = path + ".tmp.npz"                                  # write-then-rename: no half-written files on eviction
     np.savez_compressed(tmp, lam=np.array([lam[k] for k in es.LAMBDA_NAMES]), lam_names=np.array(es.LAMBDA_NAMES),
-                        universe=g, seed=seed, master_seed=args.master_seed,
+                        universe=g, seed=seed, scenario=str(SC), master_seed=args.master_seed,
                         Lambda_tot=r["Lambda_tot"], n_events=r["n_events"], n_eff=r["n_eff"],
                         Lambda_tot_tde=r["Lambda_tot_tde"], n_tde_total=r["n_tde_total"], n_eff_tde=r["n_eff_tde"],
                         band=np.array(r["band"] if r["band"] else [np.nan, np.nan]),

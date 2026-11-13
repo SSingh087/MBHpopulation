@@ -23,12 +23,18 @@ ap.add_argument("--per_job", type=int, default=50, help="universes per condor jo
 ap.add_argument("--master_seed", type=int, default=2026)
 ap.add_argument("--n_pool", type=int, default=100_000)
 ap.add_argument("--name", default="sources_full")
+ap.add_argument("--scenario", default=None, help="organised run: everything goes under DATA/scenarios/<scenario>/ (dag, logs, simulations/full_run)")
+ap.add_argument("--nucleation", default="hannah", choices=["hannah", "neumayer"])
+ap.add_argument("--occupation", default="varying", choices=["varying", "uniform"])
+ap.add_argument("--alpha_Re", type=float, default=None)
+ap.add_argument("--legacy", type=int, default=0)
 ap.add_argument("--request_memory", default="3GB", help="measured peak ~0.7 GB in the highest-count corner")
 ap.add_argument("--retry", type=int, default=2)
 args = ap.parse_args()
 
 n_chunks = -(-args.n_universes // args.per_job)
-dagdir = f"{DATA}/dag/{args.name}"; logdir = f"{DATA}/logs/{args.name}"; outdir = f"{DATA}/simulations/full_run"
+ROOT = f"{DATA}/scenarios/{args.scenario}" if args.scenario else DATA
+dagdir = f"{ROOT}/dag/{args.name}"; logdir = f"{ROOT}/logs/{args.name}"; outdir = f"{ROOT}/simulations/full_run"
 for d in (dagdir, logdir, outdir):
     os.makedirs(d, exist_ok=True)
 
@@ -38,7 +44,8 @@ with open(sh, "w") as f:
 # $1 = chunk index
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 {PY} {CODE}/run_chunk.py --chunk $1 --per_chunk {args.per_job} --master_seed {args.master_seed} \\
-    --n_pool {args.n_pool} --outdir {outdir}
+    --n_pool {args.n_pool} --outdir {outdir} \\
+    --nucleation {args.nucleation} --occupation {args.occupation} --legacy {args.legacy} {"--alpha_Re " + str(args.alpha_Re) if args.alpha_Re is not None else ""}
 """)
 os.chmod(sh, os.stat(sh).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 

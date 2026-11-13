@@ -41,6 +41,29 @@ FIXED = dict(
     T_OBS_EMRI_YR=6.0, T_OBS_TDE_YR=17.25, Z_MIN=1e-5, Z_MAX=8.0, LGMBH_MIN=4.0, LGMBH_MAX=7.0, SIGMA_0=160.0,
     SBH_MASS=10.0,
 )
+# Scenario knobs (set with set_scenario). DEFAULTS reproduce the ORIGINAL v1 runs exactly (hannah, varying occupation,
+# NO Re size evolution: alpha_Re = 0). New scenario runs must pass alpha_Re explicitly (0.75: Re ~ (1+z)^-alpha at fixed M*).
+SCENARIO = dict(nucleation="hannah", occupation="varying", alpha_Re=0.0, legacy=False)
+
+
+def set_scenario(nucleation="hannah", occupation="varying", alpha_Re=None, legacy=False):
+    """nucleation: 'hannah'|'neumayer'; occupation: 'varying' (Lambda: logM0, delta, theta) | 'uniform' (all occupied)."""
+    assert nucleation in ("hannah", "neumayer") and occupation in ("varying", "uniform")
+    SCENARIO.update(nucleation=nucleation, occupation=occupation,
+                    alpha_Re=float(0.0 if alpha_Re is None else alpha_Re), legacy=bool(legacy))
+    return dict(SCENARIO)
+
+
+if os.environ.get("EMRI_SCENARIO_SPEC"):                  # "nucleation,occupation,alpha_Re" e.g. hannah,varying,0.75 (set by the DAG wrappers)
+    _sp = os.environ["EMRI_SCENARIO_SPEC"].split(",")          # optional 4th field: legacy (0/1)
+    set_scenario(_sp[0], _sp[1], float(_sp[2]), legacy=bool(int(_sp[3])) if len(_sp) > 3 else False)
+
+
+def _f_nuc(lgMgal):
+    f = _oldgal._f_NSC_Hannah_ if SCENARIO["nucleation"] == "hannah" else _oldgal._f_NSC_Neumayer_
+    return f(lgMgal)
+
+
 from priors import LAMBDA_NAMES, FIDUCIAL, PRIOR_BOX, EVENT_KEYS, TDE_KEYS, sample_prior   # noqa: E402,F401
 
 
@@ -79,15 +102,17 @@ class _Shared:
 
 
 # ---------------------------------------------------------------- galaxy-level forward model
-def _sigma_from_lgM(lg, rng):
-    """One draw of (Re scatter) -> sigma in km/s and cgs, as in old Galaxy.R_eff + Galaxy.sigma (kvir=1)."""
-    lgRe = 0.24 * (lg - 10.7) + 0.82 + rng.normal(0.0, 0.20, size=lg.shape)
+def _sigma_from_lgM(lg, z, rng):
+    """One draw of (Re scatter) -> sigma in km/s and cgs, as in old Galaxy.R_eff + Galaxy.sigma (kvir=1),
+    including the Re size evolution at fixed M* (old galaxy.log10_Re_evolution, alpha_Re = SCENARIO['alpha_Re'])."""
+    lgRe = (0.24 * (lg - 10.7) + 0.82 + _oldgal.log10_Re_evolution(z, SCENARIO["alpha_Re"])
+            + rng.normal(0.0, 0.20, size=lg.shape))
     Re_cm = 10.0 ** lgRe * _oldcfg.kpc_to_cm
     M_enc_g = 0.5 * 10.0 ** lg * _oldcfg.Msun_to_grams
     return np.sqrt(_oldcfg.G_cgs * M_enc_g / Re_cm)                    # cm/s
 
 
-def _galaxy_properties(lgMgal, lam, rng, legacy=False, force_nuc=False, force_occ=False):
+def _galaxy_properties(lgMgal, z, lam, rng, legacy=False, force_nuc=False, force_occ=False):
     """Nucleation (hannah, fixed) -> Re -> sigma -> lgMBH (M-sigma with Lambda) -> occupation (Lambda).
     Returns dict of arrays restricted to the NUCLEATED subset, plus the nucleation mask.
 
@@ -98,13 +123,13 @@ def _galaxy_properties(lgMgal, lam, rng, legacy=False, force_nuc=False, force_oc
     if force_nuc:
         nuc = np.ones(lgMgal.shape, dtype=bool)
     else:
-        nuc = rng.uniform(size=lgMgal.shape) < _oldgal._f_NSC_Hannah_(lgMgal)
-    lg = lgMgal[nuc]
-    sig_cgs = _sigma_from_lgM(lg, rng)
+        nuc = rng.uniform(size=lgMgal.shape) < _f_nuc(lgMgal)
+    lg = lgMgal[nuc]; zz = np.asarray(z)[nuc]
+    sig_cgs = _sigma_from_lgM(lg, zz, rng)
     sigma_km_s = sig_cgs / 1e5
-    sigma_for_mbh = _sigma_from_lgM(lg, rng) / 1e5 if legacy else sigma_km_s
+    sigma_for_mbh = _sigma_from_lgM(lg, zz, rng) / 1e5 if legacy else sigma_km_s
     lgMBH = lam["A"] + lam["B"] * np.log10(sigma_for_mbh / FIXED["SIGMA_0"]) + rng.normal(0.0, lam["scatter"], size=lg.shape)
-    if force_occ:
+    if force_occ or SCENARIO["occupation"] == "uniform":
         occ = np.ones(lg.shape, dtype=bool)
     else:
         occ = rng.uniform(size=lg.shape) < f_occ(lg, lam["logM0"], lam["delta"], lam["theta"])
@@ -133,7 +158,7 @@ def _find_lgMgal_band(S, lam, rng, n_pilot, legacy=False):
     using 0.01/99.99 percentiles (a proposal-efficiency device; the importance weight absorbs it)."""
     lo, hi = S.lgM_full
     lg = rng.uniform(lo, hi, size=n_pilot)
-    pr = _galaxy_properties(lg, lam, rng, legacy=legacy)
+    pr = _galaxy_properties(lg, S.draw_z(n_pilot, rng), lam, rng, legacy=legacy)
     ok = (pr["lgMBH"] > FIXED["LGMBH_MIN"]) & (pr["lgMBH"] <= FIXED["LGMBH_MAX"]) & pr["occ"]
     if ok.sum() < 50:
         return None
@@ -158,7 +183,7 @@ def _spin(lgMBH, rng):
 
 
 # ---------------------------------------------------------------- main entry point
-def simulate_sources(lam, seed, n_pool=100_000, n_pilot=100_000, return_pool_diagnostics=False, legacy=False,
+def simulate_sources(lam, seed, n_pool=100_000, n_pilot=100_000, return_pool_diagnostics=False, legacy=None,
                      max_tde_store=20_000):
     """
     Simulate one universe's EMRI source catalogue (all sources, no detectability cut).
@@ -172,6 +197,7 @@ def simulate_sources(lam, seed, n_pool=100_000, n_pilot=100_000, return_pool_dia
         n_eff       : effective sample size of the combined weights
         timings     : dict
     """
+    legacy = SCENARIO["legacy"] if legacy is None else legacy
     t_start = time.time()
     S = _Shared.get()
     rng = np.random.default_rng(seed)
@@ -191,7 +217,7 @@ def simulate_sources(lam, seed, n_pool=100_000, n_pilot=100_000, return_pool_dia
     phi = np.nan_to_num(10.0 ** log10phi, nan=0.0, posinf=0.0, neginf=0.0)
     mc_weight = phi * S.V_tot * (lgM_hi - lgM_lo) / n_pool
 
-    props = _galaxy_properties(lgMgal, lam, rng, legacy=legacy)   # default: drawn ONCE and carried through
+    props = _galaxy_properties(lgMgal, z, lam, rng, legacy=legacy)   # default: drawn ONCE and carried through
     nuc = props["nuc"]
     z_nuc = z[nuc]
     w_nuc = mc_weight[nuc]
@@ -232,7 +258,7 @@ def simulate_sources(lam, seed, n_pool=100_000, n_pilot=100_000, return_pool_dia
         if legacy:
             # old build_event_catalog: rebuild galaxies for the selected events (fresh Re/sigma/M-sigma scatter,
             # nucleation and occupation forced True), then keep only 4 < lgMBH <= 7
-            ev = _galaxy_properties(props["lgMgal"][idx], lam, rng, legacy=True, force_nuc=True, force_occ=True)
+            ev = _galaxy_properties(props["lgMgal"][idx], z_nuc[idx], lam, rng, legacy=True, force_nuc=True, force_occ=True)
             keep = (ev["lgMBH"] > FIXED["LGMBH_MIN"]) & (ev["lgMBH"] <= FIXED["LGMBH_MAX"])
             lgMBH_e = ev["lgMBH"][keep]; z_e = z_nuc[idx][keep]
             lgMgal_e = ev["lgMgal"][keep]; sig_e = ev["sigma_km_s"][keep]
@@ -251,7 +277,7 @@ def simulate_sources(lam, seed, n_pool=100_000, n_pilot=100_000, return_pool_dia
     if n_tde_poisson > 0:
         idt = rng.choice(len(weight_T), size=n_tde_poisson, replace=True, p=weight_T / weight_T.sum())
         if legacy:
-            ev = _galaxy_properties(props["lgMgal"][idt], lam, rng, legacy=True, force_nuc=True, force_occ=True)
+            ev = _galaxy_properties(props["lgMgal"][idt], z_nuc[idt], lam, rng, legacy=True, force_nuc=True, force_occ=True)
             keep = (ev["lgMBH"] > FIXED["LGMBH_MIN"]) & (ev["lgMBH"] <= FIXED["LGMBH_MAX"])
             tde = dict(lgMBH=ev["lgMBH"][keep], z=z_nuc[idt][keep], lgMgal=ev["lgMgal"][keep], sigma_km_s=ev["sigma_km_s"][keep])
         else:
@@ -262,7 +288,7 @@ def simulate_sources(lam, seed, n_pool=100_000, n_pilot=100_000, return_pool_dia
             tde = {k: v[sub] for k, v in tde.items()}
 
     out = dict(events=events, tde_events=tde, Lambda_tot_tde=Lambda_tot_tde, n_tde_total=n_tde_total,
-               n_tde_poisson=n_tde_poisson, n_eff_tde=n_eff_tde, Lambda_tot=Lambda_tot, n_events=int(len(events['z'])), n_events_poisson=n_events, legacy=legacy, n_eff=n_eff,
+               n_tde_poisson=n_tde_poisson, n_eff_tde=n_eff_tde, Lambda_tot=Lambda_tot, n_events=int(len(events['z'])), n_events_poisson=n_events, legacy=legacy, n_eff=n_eff, scenario=dict(SCENARIO),
                band=(lgM_lo, lgM_hi), active_frac=float(active.mean()), n_nucleated=int(nuc.sum()),
                timings=dict(pilot=t_pilot - t_start, physics=t_phys - t_pilot,
                             total=time.time() - t_start, shared_build=S.build_time))

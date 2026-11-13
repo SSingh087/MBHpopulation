@@ -21,7 +21,7 @@ import argparse, json, os, stat
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference"
+DATA0 = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference"
 PY = "/home/2673888s/.conda/envs/redback_few/bin/python"
 TEST_LAMBDA_NAMES = ["fiducial", "heavy_corner", "light_corner", "highA_steep", "lowA_shallow"]     # keep in sync with acceptance.py
 
@@ -40,7 +40,12 @@ ap.add_argument("--emri_steps", type=int, default=300)
 ap.add_argument("--tde_epochs", type=int, default=120)
 ap.add_argument("--tde_steps", type=int, default=150)
 ap.add_argument("--patience", type=int, default=20)
+ap.add_argument("--scenario", default=None, help="organised run under DATA/scenarios/<scenario>/ (needs --spec)")
+ap.add_argument("--spec", default=None, help="nucleation,occupation,alpha_Re e.g. hannah,varying,0.75 (for the held-out simulations)")
 args = ap.parse_args()
+assert not args.scenario or args.spec, "--scenario needs --spec nucleation,occupation,alpha_Re"
+DATA = f"{DATA0}/scenarios/{args.scenario}" if args.scenario else DATA0
+ENV = (f"export EMRI_SCENARIO_ROOT={DATA}\n" + (f"export EMRI_SCENARIO_SPEC={args.spec}\n" if args.spec else "")) if args.scenario else ""
 
 dagdir, logdir = f"{DATA}/dag/{args.name}", f"{DATA}/logs/{args.name}"
 for d in (dagdir, logdir, f"{DATA}/logs/flow"): os.makedirs(d, exist_ok=True)
@@ -63,7 +68,7 @@ for pop in args.pops:
 
 def script(name, body):
     p = f"{dagdir}/{name}"
-    open(p, "w").write("#!/bin/bash\nexport OMP_NUM_THREADS=2 MKL_NUM_THREADS=2\ncd " + HERE + "\n" + body + "\n")
+    open(p, "w").write("#!/bin/bash\nexport OMP_NUM_THREADS=2 MKL_NUM_THREADS=2\n" + ENV + "cd " + HERE + "\n" + body + "\n")
     os.chmod(p, os.stat(p).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH); return p
 
 sh_train = script("run_train.sh", f'{PY} train_flow.py --pop $1 --config_json {dagdir}/sweep_$1.json --config_id $2 --out_name sweep_$1/cfg_$2 --no_diag --skip_done')
