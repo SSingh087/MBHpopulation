@@ -9,8 +9,11 @@ No joint ZTF+LSST analysis: LSST has ~57x more events.  EMRI nodes can be added 
 import argparse, os
 HERE = os.path.dirname(os.path.abspath(__file__)); DATA = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference"; PY = "/home/2673888s/.conda/envs/redback_few/bin/python"
 MU = {"ZTF": 313.13, "LSST": 17893.7}
-ap = argparse.ArgumentParser(); ap.add_argument("--seed", type=int, default=1); ap.add_argument("--nlive", type=int, default=1000); ap.add_argument("--priority", type=int, default=10); ap.add_argument("--threads", type=int, default=16); ap.add_argument("--gpu", action="store_true", help="run infer_* and plots on a GPU (LSST needs >=10 GB: the wiay 2080 Ti or any 3090/4090)"); a = ap.parse_args()
-tag = f"tde_fid_mu_seed{a.seed}"; dd = f"{DATA}/dag/{tag}"; run = f"{DATA}/inference_runs/{tag}"; logs = f"{DATA}/logs/{tag}"; mk = f"{DATA}/simulations/inference_mocks"
+ap = argparse.ArgumentParser(); ap.add_argument("--seed", type=int, default=1); ap.add_argument("--nlive", type=int, default=1000); ap.add_argument("--priority", type=int, default=10); ap.add_argument("--threads", type=int, default=16); ap.add_argument("--scenario", default=None, help="e.g. sigmaHV_legacy_a075: flow from scenarios/<name>/models, mu from scenarios/counts_check/<name>.npz, tag prefixed"); ap.add_argument("--gpu", action="store_true", help="run infer_* and plots on a GPU (LSST needs >=10 GB: the wiay 2080 Ti or any 3090/4090)"); a = ap.parse_args()
+FR = DATA
+if a.scenario:
+    FR = f"{DATA}/scenarios/{a.scenario}"; import numpy as _np; _c = _np.load(f"{DATA}/scenarios/counts_check/{a.scenario}.npz"); MU = {"ZTF": float(_c["N_ZTF"].mean()), "LSST": float(_c["N_LSST"].mean())}; print("mu", MU)
+tag = f"tde_fid_mu_seed{a.seed}" + (f"_{a.scenario}" if a.scenario else ""); dd = f"{DATA}/dag/{tag}"; run = f"{DATA}/inference_runs/{tag}"; logs = f"{DATA}/logs/{tag}"; mk = f"{DATA}/simulations/inference_mocks"
 for d in (dd, run, logs, mk): os.makedirs(d, exist_ok=True)
 mock = lambda sv: f"{mk}/tde_{sv}_fid_mu_seed{a.seed}.npz"
 dev = "cuda" if a.gpu else "cpu"
@@ -19,7 +22,7 @@ def sub(name, script, args, mem="16GB", cpus=None, gpu_mem=None):
     cpus = cpus or (2 if gpu_mem else a.threads)
     g = f"request_gpus = 1\nrequire_gpus = Capability >= 7.0 && Capability < 9.0 && GlobalMemoryMb >= {gpu_mem}\n" if gpu_mem else ""
     open(f"{dd}/{name}.sub", "w").write(f"universe = vanilla\nexecutable = {PY}\narguments = {HERE}/{script} {args}\nrequest_cpus = {cpus}\nrequest_memory = {mem}\n{g}priority = {a.priority}\ngetenv = True\n"
-                                        f"environment = \"OMP_NUM_THREADS={cpus} MKL_NUM_THREADS={cpus} MALLOC_ARENA_MAX=4 KMP_STACKSIZE=8m\"\noutput = {logs}/{name}.out\nerror = {logs}/{name}.err\nlog = {logs}/{tag}.log\nqueue\n")
+                                        f"environment = \"EMRI_FLOW_ROOT={FR} OMP_NUM_THREADS={cpus} MKL_NUM_THREADS={cpus} MALLOC_ARENA_MAX=4 KMP_STACKSIZE=8m\"\noutput = {logs}/{name}.out\nerror = {logs}/{name}.err\nlog = {logs}/{tag}.log\nqueue\n")
 dag = []
 for sv in ("ZTF", "LSST"):
     sub(f"mock_{sv}", "make_tde_mock.py", f"--survey {sv} --seed {a.seed} --mu {MU[sv]} --out {mock(sv)} --device cpu", MEM[sv], 4); dag.append(f"JOB mock_{sv} {dd}/mock_{sv}.sub")

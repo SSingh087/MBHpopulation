@@ -33,7 +33,7 @@ class TDEPopulation:
     def __init__(self, survey, device="cpu", soft=True, refine=2):
         from scipy.interpolate import RegularGridInterpolator
         self.survey, self.dev = survey, torch.device(device); zmax = ZMAX[survey]
-        self.flow, xt, _ = load_flow(f"{DATA}/models/flow_tde_best/best.pt", self.dev); self.xt = xt
+        self.flow, xt, _ = load_flow(f"{os.environ.get('EMRI_FLOW_ROOT', DATA)}/models/flow_tde_best/best.pt", self.dev); self.xt = xt
         self.LO, self.HI, self.STD, self.EPS = xt.lo.to(self.dev), xt.hi.to(self.dev), xt.std.to(self.dev), xt.EPS
         g = np.load(f"{DATA}/simulations/sf/tde_grid_{survey}.npz"); lgc, zc = g["lgc"], g["zc"]; nl, nz = refine * len(lgc), refine * len(zc)
         P = g["Psoft" if soft else "Pcut"]

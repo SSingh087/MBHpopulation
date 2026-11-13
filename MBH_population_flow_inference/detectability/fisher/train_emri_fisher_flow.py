@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.pat
 sys.path.insert(0, f"{ROOT}/flow"); sys.path.insert(0, HERE)
 from flows import ConditionalFlow
 from fisher_cov import covariance
-DATA = "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference"
+DATA = os.environ.get("EMRI_FLOW_DATA", "/data/wiay/postgrads/shashwat/EMRI_TDE_flow_inference")
 ap = argparse.ArgumentParser(); ap.add_argument("--bank_dir", nargs="+", default=[f"{DATA}/simulations/emri_fisher_bank"], help="one or more bank folders, read together"); ap.add_argument("--fracs", type=float, nargs="+", default=[0.1, 0.2, 0.4, 0.7, 1.0])
 ap.add_argument("--seeds", type=int, nargs="+", default=[0]); ap.add_argument("--epochs", type=int, default=300); ap.add_argument("--patience", type=int, default=30)
 ap.add_argument("--n_layers", type=int, default=4); ap.add_argument("--hidden", type=int, default=64); ap.add_argument("--bins", type=int, default=8); ap.add_argument("--ctx_hidden", type=int, default=64)
