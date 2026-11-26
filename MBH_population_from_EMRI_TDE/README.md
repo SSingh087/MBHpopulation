@@ -19,11 +19,11 @@ Joint inference of the MBH population from EMRIs detected by LISA and tidal disr
 
 ## Highlighted results
 
-**Adding TDEs sharpens the MBH mass and redshift constraints.** The 90% posterior width of the hyperparameters, relative to the hyperprior range, for EMRIs alone and with ZTF and/or LSST TDEs added. Grey lines are the eight scenarios and the black line their median, annotated with the median gain over EMRIs only. LSST gives the largest gains: about 3.5 in the mass-function turnover x_c, 7 in the mass slope of Model B, and 15 in the redshift evolution kappa_z. ZTF adds less.
+**Adding TDEs sharpens the MBH mass and redshift constraints.** The 90% posterior width of the hyperparameters, relative to the hyperprior range, for EMRIs alone and with ZTF and/or LSST TDEs added. Grey lines are the eight scenarios and the black line their median, annotated with the median gain over EMRIs only. LSST gives the largest gains: about 4 in the mass-function turnover x_c, 7 in the mass slope of Model B, and 13 in the redshift evolution kappa_z. ZTF adds less: 1.1–1.3 in the mass hyperparameters and 2 in kappa_z.
 
 ![Improvement of constraints with TDE catalogues](./highlights/constraint_improvement.png)
 
-**Information gained.** The information gain from hyperprior to hyperposterior for each catalogue, for both models. LSST TDEs alone are more informative than EMRIs alone, and combining EMRIs with LSST TDEs gives the most.
+**Information gained.** The information gain from hyperprior to hyperposterior for each catalogue, for both models. In the median over scenarios, LSST TDEs alone (7.1 and 6.3 nats for Models A and B) are slightly more informative than EMRIs alone (6.7 and 5.4 nats), and combining EMRIs with LSST TDEs gives the most (12 and 10 nats). EMRIs alone carry more information than ZTF TDEs alone in every scenario.
 
 ![Information gain per catalogue](./highlights/info_budget.png)
 
