@@ -13,7 +13,6 @@ Joint inference of the MBH population from EMRIs detected by LISA and tidal disr
 | [`fisher_analysis/`](./fisher_analysis) | Fisher posteriors of each detected EMRI and TDE |
 | [`selection_function/`](./selection_function) | Neural-network selection function used in the likelihood |
 | [`hierarchical_inference/`](./hierarchical_inference) | Population inference, run scripts and plotting |
-| [`hierarchical_inference_altered/`](./hierarchical_inference_altered) | Variants of the inference |
 | [`plots/`](./plots) | Diagnostic and paper plotting scripts |
 | [`tests/`](./tests) | Validation of rates, time averaging and selection-function bias |
 | [`EXECUTABLES/`](./EXECUTABLES), `SUBMIT_FILES/` | Shell and HTCondor wrappers for the pipeline |
