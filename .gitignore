@@ -16,3 +16,5 @@ OUTPUT_FILES/
 *.pkl
 .claude/
 .otter/
+.pytest_cache/
+.ruff_cache/

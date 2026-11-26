@@ -1,0 +1,7 @@
+# Light CPU-only dependencies for the CI tests of astrophysical_setup.
+# The full pipeline also needs GPU packages (few, fastlisaresponse, cupy) and
+# torch, nessai, poplar and redback, which are not installed in CI.
+numpy>=2.0
+scipy
+astropy
+pytest

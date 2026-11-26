@@ -1,0 +1,8 @@
+# CI lint: only errors that break a script at runtime (syntax errors,
+# undefined names, invalid comparisons). Style is not enforced.
+[lint]
+select = ["E9", "F63", "F7", "F82"]
+
+[lint.per-file-ignores]
+# Runs the setup of data_generation/sources_num.py through exec(), so its names are defined at runtime.
+"MBH_population_from_EMRI_TDE/tests/TEST_time_average/compare_time_avg.py" = ["F821"]
