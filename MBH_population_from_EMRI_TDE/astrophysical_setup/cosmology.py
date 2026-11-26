@@ -19,6 +19,7 @@ class GalaxyStellarMassFunction:
         if device == "cpu":
             self.xp = np
         else:
+            import cupy as cp
             self.xp = cp
 
         self.lgMgal_data = np.array([

@@ -17,7 +17,7 @@ class RateModel:
         self.MBH_scatter = nsc.gal.MBH_scatter
 
     def peak_EMRI_rate(self):
-        """
+        r"""
         $\hat{\Gamma}_\mathrm{EMRI}
         """
         sigma = self.nsc.gal.sigma_km_s
@@ -28,7 +28,7 @@ class RateModel:
         return a * (MBH)**b * (sigma/MBH_sigma0)**c 
 
     def time_to_peak_EMRI_rate(self):
-        """
+        r"""
         $t_\mathrm{EMRI}
         """
         sigma = self.nsc.gal.sigma_km_s
@@ -40,7 +40,7 @@ class RateModel:
 
 
     def peak_TDE_rate(self):
-        """
+        r"""
         $\hat{\Gamma}_\mathrm{TDE}
         """
         sigma = self.nsc.gal.sigma_km_s
