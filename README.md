@@ -1,5 +1,8 @@
 # Overview
 
+[![CI](https://github.com/SSingh087/MBHpopulation/actions/workflows/ci.yml/badge.svg)](https://github.com/SSingh087/MBHpopulation/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 This repository contains analyses of the supermassive black hole (MBH) population constrained through extreme mass-ratio inspirals (EMRIs) observed by LISA and tidal disruption events (TDEs) observed by ZTF and LSST.
 
 ## Science goal
@@ -52,3 +55,18 @@ Posterior samples from the inference analysis are available at:
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18197326.svg)](https://doi.org/10.5281/zenodo.18197326)
 
 ---
+
+## Tests
+
+The CI runs a lint check over every script and fast unit tests of `MBH_population_from_EMRI_TDE/astrophysical_setup` (size evolution, MBH mass function, cosmology, rate shapes). To run the tests locally:
+
+```bash
+pip install -r tests/requirements.txt
+python -m pytest
+```
+
+The rest of the pipeline needs GPU packages and HTCondor and is not run in CI.
+
+## License
+
+Released under the [MIT License](./LICENSE). Citation metadata are in [`CITATION.cff`](./CITATION.cff).

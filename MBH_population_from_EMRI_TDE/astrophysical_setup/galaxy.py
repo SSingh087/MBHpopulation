@@ -55,6 +55,22 @@ _f_NSC_Hannah_   = lambda lgMgal: np.exp(-(np.abs(lgMgal - 7.39)**6.7) / 3051.82
 _f_NSC_Neumayer_ = lambda lgMgal: 0.776 * np.exp(-((lgMgal - 8.93)**2) / 6.49)**2  # arXiv:2001.03626 Fig 3 -- fit to eyeballed points, NOT digitized; re-fit before publication
 _f_occupation_varying_ = lambda lgMgal, logM0=9.46, delta=3.91, theta=0.80: (1 + delta * np.exp(-theta * delta * (lgMgal - logM0))) ** (-1.0 / delta) # arXiv:2510.05252`` Table 2 Fig6
 
+def log10_Re_evolution(z, alpha_Re=None, mode=None, zcap=None):
+    """log10 of the size-evolution factor Re(z)/Re(0) at fixed M* (<= 0 for alpha_Re > 0).
+    mode '1pz': (1+z)^-alpha ; mode 'H': (H(z)/H0)^-alpha. Evolution is frozen above zcap if given."""
+    alpha_Re = ALPHA_RE if alpha_Re is None else alpha_Re
+    mode = RE_EVOL_MODE if mode is None else mode
+    zcap = RE_EVOL_ZCAP if zcap is None else zcap
+    z = np.asarray(z, dtype=float)
+    if zcap is not None:
+        z = np.minimum(z, zcap)
+    if mode == "1pz":
+        return -alpha_Re * np.log10(1.0 + z)
+    if mode == "H":
+        return -alpha_Re * 0.5 * np.log10(0.3 * (1.0 + z)**3 + 0.7)
+    raise ValueError("mode must be '1pz' or 'H'")
+
+
 class Galaxy:
     """
     Galaxy with size-mass, virial sigma, and M-sigma black hole relations.
@@ -206,10 +222,10 @@ class Galaxy:
 
             # we also here care for galaxies which are nucleated.
             self.lgMgal = self.lgMgal[self.nucleation_occurs]
+            self.z_gal = self.z_gal[self.nucleation_occurs]  # must precede sigma(): R_eff uses z_gal
             self.sigma_pc_yr = self.sigma(unit='pc/year')
             self.sigma_km_s = self.sigma_pc_yr * pc_to_cm / sec_per_year / 1e5  # convert to km/s
             self.lgMBH_mass = self.lgMBH(sigma_0=MBH_sigma0, unit='Msun', mbh_mass_method=mbh_mass_method)
-            self.z_gal = self.z_gal[self.nucleation_occurs]
 
             # occupation: an INDEPENDENT mask on top of nucleation, evaluated on
             # the already-nucleated subset (self.lgMgal is now indexed to
@@ -332,7 +348,7 @@ class Galaxy:
 
         return f < p
 
-    def R_eff(self, lg_A=0.82, B=0.24, Re_scatter=0.20, unit='kpc'):
+    def R_eff(self, lg_A=0.82, B=0.24, Re_scatter=0.20, unit='kpc', alpha_Re=None):
         """
         Half-light (effective) radius from size-mass relation.
 
@@ -378,7 +394,8 @@ class Galaxy:
         >>> Re_kpc = gal.R_eff(unit='kpc')
         >>> Re_cm = gal.R_eff(unit='cm')
         """
-        lgreff = B * (self.lgMgal - 10.7) + lg_A
+        # redshift evolution at fixed M*: Re ∝ (1+z)^-alpha_Re (van der Wel+14); alpha_Re from config.ALPHA_RE
+        lgreff = B * (self.lgMgal - 10.7) + lg_A + log10_Re_evolution(self.z_gal, alpha_Re)
         lgreff += np.random.normal(0.0, Re_scatter, size=self.lgMgal.shape)
         Re_kpc = 10.0**lgreff
 
@@ -550,14 +567,14 @@ class Galaxy:
 
     
     @staticmethod
-    def lgMBH_from_Mgal(lgMgal, A, B, sigma_0=MBH_sigma0):
+    def lgMBH_from_Mgal(lgMgal, A, B, sigma_0=MBH_sigma0, z=0.0, alpha_Re=None):
         """
         Compute MBH for an arbitrary galaxy mass (log Mgal).
         Skips the nucleation check and uses the same sigma-Mstar relation
         as the instance method, but does not depend on self.lgMgal.
         """
 
-        lgreff = 0.24*(lgMgal - 10.7) + 0.82
+        lgreff = 0.24*(lgMgal - 10.7) + 0.82 + log10_Re_evolution(z, alpha_Re)  # same z-evolution as R_eff
         Re_kpc = 10**lgreff
         Re_cm = Re_kpc * kpc_to_cm
 

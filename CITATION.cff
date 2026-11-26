@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the article below."
+title: "MBHpopulation: MBH population inference from LISA EMRIs and ZTF/LSST TDEs"
+type: software
+authors:
+  - family-names: Singh
+    given-names: Shashwat
+license: MIT
+repository-code: "https://github.com/SSingh087/MBHpopulation"
+version: 1.0.0
+preferred-citation:
+  type: article
+  title: "Constraints on the extreme mass-ratio inspiral population from LISA data"
+  authors:
+    - family-names: Singh
+      given-names: Shashwat
+    - family-names: Chapman-Bird
+      given-names: Christian E. A.
+    - family-names: Berry
+      given-names: Christopher P. L.
+    - family-names: Veitch
+      given-names: John
+  journal: "J. Phys. Conf. Ser."
+  volume: 3177
+  issue: 1
+  start: "012113"
+  year: 2026
+  doi: "10.1088/1742-6596/3177/1/012113"
+  identifiers:
+    - type: other
+      value: "arXiv:2508.16399"

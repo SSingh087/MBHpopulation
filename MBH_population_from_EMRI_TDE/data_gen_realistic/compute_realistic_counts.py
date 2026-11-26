@@ -13,26 +13,21 @@ nearest integer:
     N_TDE_ZTF_realistic  = round(mean over universes of len(TDE_SNRs_realistic_ZTF_<scenario>_tde_fallback_<u>.h5))
     N_TDE_LSST_realistic = round(mean over universes of len(TDE_SNRs_realistic_LSST_<scenario>_tde_fallback_<u>.h5))
 
-TDE_MODEL_FOR_COUNTS = "tde_fallback"
+The TDE counts use the tde_fallback model, matching prepare_data_MEDIAN.py's
+--tde_model selection, whose default the original true_detected_data_TDE_*
+counts were built from.
 
-import argparse
-_p = argparse.ArgumentParser()
-_p.add_argument("--merger_model", type=str, required=True, choices=["mundy17", "oleary21", "duan24", "baseline"],
-                help="Galaxy merger-rate model whose realistic catalogs are counted.")
-MERGER_MODEL = _p.parse_args().merger_model per user's choice -- matches
-prepare_data_MEDIAN.py's --tde_model selection, whose default the
-original true_detected_data_TDE_* counts were built from.
-
-Output: ASTROPHYSICAL_DATA_DIR/{GALAXIES}/realistic/realistic_event_counts.csv
+Output: ASTROPHYSICAL_DATA_DIR/{GALAXIES}/realistic/realistic_event_counts_<merger_model>.csv
 (alongside ratio_summary_*.csv / per_bin_removed_*.csv from the sweep
 scripts), one row per scenario (M1-M8), columns N_EMRI, N_TDE_ZTF,
 N_TDE_LSST plus the raw per-universe mean/std for context. This is the
 ONLY thing your own make_events script needs -- no event catalogs are
 written here, and no separate hierarchical_inference_* pipeline copy is
 needed just to carry this number -- point the existing
-hierarchical_inference_altered pipeline's make_events step at this CSV
+hierarchical_inference pipeline's make_events step at this CSV
 instead of true_detected_data_*.h5.
 """
+import argparse
 import csv
 import glob
 import os
@@ -45,6 +40,11 @@ import numpy as np
 ASTROPHYSICAL_DATA_DIR = "./data/astrophysical_data"
 GALAXIES = 100000
 REALISTIC_DIR = os.path.join(ASTROPHYSICAL_DATA_DIR, str(GALAXIES), "realistic")
+
+_p = argparse.ArgumentParser()
+_p.add_argument("--merger_model", type=str, required=True, choices=["mundy17", "oleary21", "duan24", "baseline"],
+                help="Galaxy merger-rate model whose realistic catalogs are counted.")
+MERGER_MODEL = _p.parse_args().merger_model
 
 TDE_MODEL_FOR_COUNTS = "tde_fallback"
 

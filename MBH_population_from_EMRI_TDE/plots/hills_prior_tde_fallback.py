@@ -11,6 +11,7 @@ def beta_of_bb(bb): return np.where(bb<1,0.6+1.25*bb,1.85+2.15*(bb-1))
 def f_pin(l): return np.clip(0.22*(10**(l-8))**-0.307,0,1)
 BE=np.concatenate([[0.6,0.8,0.9,1.1],np.arange(1.3,3.95,0.2),[4.0]])   # beta bins; one bin is exactly [0.9,1.1] around beta=1
 ME=np.linspace(4,7,13)          # mass bins
+OUT={}
 for S in ["ZTF","LSST"]:
     p=h5py.File(f"{D}/TDE_params_1E6_{S}_tde_fallback.h5"); d=h5py.File(f"{D}/TDE_detectability_1E6_{S}_tde_fallback.h5")["detectability"][:]
     M=p["lgMBH"][:]; b=beta_of_bb(p["bb"][:])
@@ -55,7 +56,7 @@ for S in ["ZTF","LSST"]:
         ov=(pop*dm).sum()/pop.sum(); ovh=(pop*dmh).sum()/pop.sum(); ob=(pop*base).sum()/pop.sum()
         print(f"{nm:32s} {ov:17.4f} {ov/ob:16.3f} | {dm[0]:.3f} {dm[5]:.3f} {dm[11]:.3f}   Hills: {ovh:.4f}")
 
-    out_all=globals().setdefault("OUT",{}); out_all[S]=dict(bc=bc,mc=mc,dfb=[Hd[:,j].sum()/H[:,j].sum() for j in range(len(bc))],res=res,pop=pop,names=names,base=base,M=M,d=d)
+    OUT[S]=dict(bc=bc,mc=mc,dfb=[Hd[:,j].sum()/H[:,j].sum() for j in range(len(bc))],res=res,pop=pop,names=names,base=base,M=M,d=d)
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
 SURF,INK,INK2,GRID="#fcfcfb","#0b0b0b","#52514e","#e4e3df"
 COL={"current":"#2a78d6","beta^-2 on [1,4]":"#eb6834","S&M16: delta(1)+f*beta^-2":"#1baf7a","beta=1 (empty loss cone)":INK2}

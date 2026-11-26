@@ -36,7 +36,7 @@ class RelaxationModel:
         return mbar
     
     def t_relax_at_radius(self, rho_at_radius, radius_pc, kvir=1.0, unit='Gyr'):
-        """
+        r"""
         Two-body (non-resonant) relaxation time at r_infl.:
             t_rlx ≈ 0.34 * $\sigma$^3 / (G^2 * m_bar * $\rho(r_{infl})$ * lnΛ)
         """
