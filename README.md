@@ -27,7 +27,23 @@ The work proceeds in two steps, one per subfolder:
 
 ## Citation
 
-If you use this work, please cite:
+If you use this work, please cite the paper for the part you use.
+
+**EMRIs and TDEs** ([`MBH_population_from_EMRI_TDE`](./MBH_population_from_EMRI_TDE)), [arXiv:2611.27742](https://arxiv.org/abs/2611.27742):
+
+```bibtex
+@article{Singh:2026hpp,
+    author = "Singh, Shashwat and Broggi, Luca and Berry, Christopher P. L. and Volonteri, Marta",
+    title = "{Disrupted stars and captured compact objects: Combining observations from multiple messengers to infer the population of massive black holes}",
+    eprint = "2611.27742",
+    archivePrefix = "arXiv",
+    primaryClass = "astro-ph.HE",
+    month = "11",
+    year = "2026"
+}
+```
+
+**EMRIs only** ([`MBH_population_from_EMRI`](./MBH_population_from_EMRI)), [arXiv:2508.16399](https://arxiv.org/abs/2508.16399):
 
 ```bibtex
 @article{Singh:2025pzh,

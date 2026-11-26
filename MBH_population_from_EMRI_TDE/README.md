@@ -30,3 +30,19 @@ Joint inference of the MBH population from EMRIs detected by LISA and tidal disr
 **Shared hyperparameter posteriors** for each scenario and catalogue combination, for Model A (top) and Model B (bottom).
 
 ![Shared hyperparameter posteriors](./highlights/shared_hyperparameter_posteriors.png)
+
+## Citation
+
+If you use this work, please cite [arXiv:2611.27742](https://arxiv.org/abs/2611.27742):
+
+```bibtex
+@article{Singh:2026hpp,
+    author = "Singh, Shashwat and Broggi, Luca and Berry, Christopher P. L. and Volonteri, Marta",
+    title = "{Disrupted stars and captured compact objects: Combining observations from multiple messengers to infer the population of massive black holes}",
+    eprint = "2611.27742",
+    archivePrefix = "arXiv",
+    primaryClass = "astro-ph.HE",
+    month = "11",
+    year = "2026"
+}
+```
