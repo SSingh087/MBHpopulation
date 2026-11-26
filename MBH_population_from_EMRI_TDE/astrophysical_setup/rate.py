@@ -134,7 +134,7 @@ class ConstantRate:
         [29,     29,     30,     32],      # 1e5
         [88,     90,     97,     100],     # 3e5
         [180,    310,    350,    370],     # 1e6
-        [41,     330,    9300,   1300],    # 3e6  -- capping effects dominate here, see paper Sec 4.3.2
+        [41,     330,    1300,   1300],    # 3e6  -- capping effects dominate here, see paper Sec 4.3.2
         [2.4,    41,     810,    2800],    # 1e7
     ])
 

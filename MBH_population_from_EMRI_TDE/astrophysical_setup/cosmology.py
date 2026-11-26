@@ -142,7 +142,7 @@ class MBHMassFunction:
         self._cached_n_points_mass = None
 
     @staticmethod
-    def _compute_phi_MBH(lgMgal_grid, log10phi_gsmf):
+    def _compute_phi_MBH(lgMgal_grid, log10phi_gsmf, z_vals=None):
         """
         Convert GSMF φ(Mgal,z) into MBH MF φ(MBH,z) via change of variables.
         
@@ -156,6 +156,20 @@ class MBHMassFunction:
             logMBH_grid: log10(M_BH) grid
             log10phi_MBH: log10(φ_MBH) on the MBH mass grid, shape (Nz, NM)
         """
+        if z_vals is not None:
+            # MBH(M*, z) shifts with z through the Re(z) evolution. Compute per-z, then re-grid every z
+            # onto one common logMBH axis so callers still get a 1-D grid.
+            z_vals = np.atleast_1d(z_vals).astype(float)
+            lgMBH_z = Galaxy.lgMBH_from_Mgal(lgMgal_grid[None, :], A=MBH_A_sigma, B=MBH_B_sigma,
+                                            z=z_vals[:, None])                      # (Nz,NM)
+            logMBH_grid = np.linspace(lgMBH_z.min(), lgMBH_z.max(), lgMgal_grid.size)  # (NM,)
+            log10phi_MBH = np.empty_like(log10phi_gsmf, dtype=float)
+            for i in range(z_vals.size):
+                jac = 1.0 / np.gradient(lgMBH_z[i], lgMgal_grid)                    # |dlgMgal/dlgMBH|
+                lphi = np.log10(10**log10phi_gsmf[i] * jac + 1e-300)
+                log10phi_MBH[i] = np.interp(logMBH_grid, lgMBH_z[i], lphi, left=-300.0, right=-300.0)
+            return logMBH_grid, log10phi_MBH
+
         logMBH_grid = Galaxy.lgMBH_from_Mgal(lgMgal_grid, A=MBH_A_sigma, B=MBH_B_sigma)  # (NM,)
 
         dlogMBH_dlogMgal = np.gradient(logMBH_grid, lgMgal_grid)
@@ -180,7 +194,7 @@ class MBHMassFunction:
             log10phi_MBH: log10(φ_MBH) evaluated at (z_gal, logMBH_grid)
         """
         lgMgal_grid, log10phi_gsmf = self.gsmf.get_gsmf(z_gal, n_points_mass=n_points_mass)  # (NM,), (Nz,NM)
-        logMBH_grid, log10phi_MBH = self._compute_phi_MBH(lgMgal_grid, log10phi_gsmf)
+        logMBH_grid, log10phi_MBH = self._compute_phi_MBH(lgMgal_grid, log10phi_gsmf, z_vals=z_gal)
 
         return logMBH_grid, log10phi_MBH
 
@@ -200,7 +214,7 @@ class MBHMassFunction:
         lgMgal_grid = self.gsmf.build_mass_grid(n_points_mass=n_points_mass)
 
         _, log10phi_gsmf = self.gsmf.get_gsmf(z_vals, n_points_mass=n_points_mass)  # (Nz,NM)
-        logMBH_grid, log10phi_MBH = self._compute_phi_MBH(lgMgal_grid, log10phi_gsmf)
+        logMBH_grid, log10phi_MBH = self._compute_phi_MBH(lgMgal_grid, log10phi_gsmf, z_vals=z_vals)
 
         return z_vals, logMBH_grid, log10phi_MBH
 

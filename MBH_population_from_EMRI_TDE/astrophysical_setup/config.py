@@ -37,6 +37,14 @@ MBH_A_LGMGAL = 7.43
 MBH_B_LGMGAL = 1.61
 MBH_scatter_LGMGAL = 0.81
 
+# Size evolution at fixed stellar mass: Re(M*,z) = Re(M*,0) * (1+z)**(-ALPHA_RE).
+# van der Wel+2014 (arXiv:1404.2844): late types -0.75, early types -1.48 (abstract); we adopt the
+# late-type value 0.75. Set to 0.0 to reproduce the no-evolution results.
+ALPHA_RE = 0.75
+RE_EVOL_MODE = "1pz"   # "1pz": Re ∝ (1+z)^-ALPHA_RE ;  "H": Re ∝ (H(z)/H0)^-ALPHA_RE (flat LCDM, Om=0.3)
+RE_EVOL_ZCAP = None    # evolution frozen above this z (vdW14 data end at z=3); None = no cap
+
+
 MBH_sigma0 = 160.0  # km/s arXiv:2205.06277 uses sigma_0 = 70 which will have
                      # consequence of the Gamma_E and the t_EMRI. t_EMRI will
                      # go up and Gamma_E lower
